@@ -3,6 +3,12 @@
 `Rafty` is yet another golang library that manage to replicate log state machine.
 Details about `Raft protocol` can be found [here](https://raft.github.io/raft.pdf)
 
+Reading this documentation is recommanded before going any further.
+
+Check out these websites will also be useful:
+- https://raft.github.io/
+- https://thesecretlivesofdata.com/raft/ 
+
 ## Why another library?
 
 There are many libraries out there implementing the `search of an understandable consensus algorithm`.
