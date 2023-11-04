@@ -1,6 +1,9 @@
 package rafty
 
-import "net"
+import (
+	"net"
+	"sync"
+)
 
 // State represent the current status of the raft server.
 // The state can only be Leader, Candidate, Follower, ReadOnly, Down
@@ -65,4 +68,10 @@ type Status struct {
 
 	// LastApplied is the index of the highest log entry applied to the current raft server
 	LastApplied uint64
+}
+
+type Rafty struct {
+	wg sync.WaitGroup
+	// mu is use to ensure lock concurrency
+	mu sync.Mutex
 }

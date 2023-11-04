@@ -18,3 +18,17 @@ As examples, we have production ready repositories like:
 - https://github.com/etcd-io/raft
 
 So let's try to redo the wheel with more explanations.
+
+## References
+
+- https://github.com/logcabin/logcabin
+- https://github.com/funktor/distributed-hash-table/tree/raft
+- https://www.cncf.io/blog/2019/11/04/building-a-large-scale-distributed-storage-system-based-on-raft/
+- https://www.sofastack.tech/en/projects/sofa-jraft/consistency-raft-jraft/
+- https://github.com/baidu/braft/blob/master/docs/cn/raft_protocol.md
+- https://cwiki.apache.org/confluence/display/KAFKA/KIP-595%3A+A+Raft+Protocol+for+the+Metadata+Quorum
+- https://towardsdatascience.com/raft-algorithm-explained-2-30db4790cdef
+- https://www.alibabacloud.com/blog/raft-engineering-practices-and-the-cluster-membership-change_597742
+- https://github.com/lni/dragonboat
+- https://github.com/lni/dragonboat-example
+- https://github.com/PlatformLab/epaxos/tree/master
