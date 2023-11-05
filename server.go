@@ -1,7 +1,6 @@
 package rafty
 
 import (
-	"log"
 	"net"
 	"os"
 
@@ -46,6 +45,7 @@ func ServerNew(address net.TCPAddr) *Server {
 	return &Server{
 		Address: address,
 		quit:    make(chan os.Signal, 1),
+		Rafty:   *NewRafty(),
 	}
 }
 
@@ -61,10 +61,10 @@ func (g *Server) Start() error {
 	grpcrequests.RegisterGreeterServer(g.server, &ProtobufSVC{})
 	reflection.Register(g.server)
 
-	log.Println("Starting gRPC server at", g.Address.String())
+	g.Rafty.Logger.Info().Msgf("Starting gRPC server at %s", g.Address.String())
 	err = g.server.Serve(listener)
 	if err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		g.Rafty.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
 	}
 	return nil
 }
@@ -77,5 +77,5 @@ func (g *Server) Stop() {
 	g.server.GracefulStop()
 	g.listener.Close()
 	g.server = nil
-	log.Println("Stopped gRPC server successful")
+	g.Rafty.Logger.Info().Msg("Stopped gRPC server successful")
 }

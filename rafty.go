@@ -3,6 +3,9 @@ package rafty
 import (
 	"net"
 	"sync"
+
+	"github.com/Lord-Y/rafty/logger"
+	"github.com/rs/zerolog"
 )
 
 // State represent the current status of the raft server.
@@ -72,6 +75,16 @@ type Status struct {
 
 type Rafty struct {
 	wg sync.WaitGroup
+
 	// mu is use to ensure lock concurrency
 	mu sync.Mutex
+
+	// Logger expose zerolog so it can be override
+	Logger *zerolog.Logger
+}
+
+func NewRafty() *Rafty {
+	return &Rafty{
+		Logger: logger.NewLogger(),
+	}
 }
