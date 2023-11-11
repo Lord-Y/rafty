@@ -31,3 +31,4 @@ _testmain.go
 /pkg/*.*
 /src/go.sum
 **/*.out
+**/*_nop*
