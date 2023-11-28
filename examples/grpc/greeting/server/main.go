@@ -14,7 +14,7 @@ func main() {
 		Port: int(rafty.GRPCPort),
 	}
 
-	s := rafty.ServerNew(addr)
+	s := rafty.NewServer(addr)
 	err := s.Start()
 	if err != nil {
 		log.Println(err)

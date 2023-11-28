@@ -52,8 +52,8 @@ type ProtobufSVC struct {
 	rafty *Rafty
 }
 
-// ServerNew instantiate default configuration of the gRPC server to later start or stop it
-func ServerNew(address net.TCPAddr) *Server {
+// NewServer instantiate default configuration of the gRPC server to later start or stop it
+func NewServer(address net.TCPAddr) *Server {
 	return &Server{
 		Address: address,
 		ready:   make(chan struct{}),

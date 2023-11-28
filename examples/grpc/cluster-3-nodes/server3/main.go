@@ -23,7 +23,7 @@ func main() {
 		},
 	}
 
-	s := rafty.ServerNew(addr)
+	s := rafty.NewServer(addr)
 	s.Rafty.ID = "775c0bce-f3ed-47d0-9b44-0e0909d48e1a"
 	s.Rafty.Peers = peers
 
