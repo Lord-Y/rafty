@@ -13,5 +13,76 @@ message HelloReply {
 }
 
 service Greeter {
-  rpc SayHello (HelloRequest) returns (HelloReply) {}
+  rpc SayHello(HelloRequest) returns (HelloReply) {}
+}
+
+message RequestVote {
+  string id = 1;
+  string state = 2;
+  uint64 currentTerm = 3;
+  uint64 currentCommitIndex = 4;
+  uint64 lastApplied = 5;
+}
+
+message RequestVoteReply {
+  bool voteGranted = 1;
+  uint64 currentTerm = 2;
+  uint64 currentCommitIndex = 3;
+  uint64 lastApplied = 4;
+  bool alreadyVoted = 5;
+  string peerID = 6;
+  bool newLeaderDetected = 7;
+  bool requesterStepDown = 8;
+}
+
+message SetLeader {
+  string id = 1;
+  uint64 currentTerm = 2;
+}
+
+message SetLeaderReply {
+  string message = 1;
+}
+
+message GetLeader {
+  string peerID = 1;
+}
+
+message GetLeaderReply {
+  string message = 1;
+}
+
+message RequestAppendEntry {
+  string leaderID = 1;
+  uint64 currentTerm = 2;
+  uint64 currentCommitIndex = 3;
+  uint64 lastApplied = 4;
+}
+
+message RequestAppendEntryReply {
+  string peerID = 1;
+  uint64 currentTerm = 2;
+  uint64 currentCommitIndex = 3;
+  uint64 lastApplied = 4;
+  bool ack = 5;
+  bool leaderIsBehind = 6;
+}
+
+message SendHeartbeatRequest {
+  string leaderID = 1;
+  uint64 currentTerm = 2;
+}
+
+message SendHeartbeatReply {
+  string peerID = 1;
+  uint64 currentTerm = 2;
+  bool multipleLeaders = 3;
+}
+
+service Rafty {
+  rpc RequestVotes(RequestVote) returns (RequestVoteReply) {}
+  rpc SetLeaderID(SetLeader) returns (SetLeaderReply) {}
+  rpc GetLeaderID(GetLeader) returns (GetLeaderReply) {}
+  rpc RequestAppendEntries(RequestAppendEntry) returns (RequestAppendEntryReply) {}
+  rpc SendHeartbeats(SendHeartbeatRequest) returns (SendHeartbeatReply) {}
 }
