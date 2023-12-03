@@ -6,13 +6,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/Lord-Y/rafty/grpcrequests"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -61,26 +59,6 @@ func NewServer(address net.TCPAddr) *Server {
 	}
 }
 
-var kaep = keepalive.EnforcementPolicy{
-	MinTime:             5 * time.Second, // If a client pings more than once every 5 seconds, terminate the connection
-	PermitWithoutStream: true,            // Allow pings even when there are no active streams
-}
-
-var kasp = keepalive.ServerParameters{
-	MaxConnectionIdle: 15 * time.Second, // If a client is idle for 15 seconds, send a GOAWAY
-	MaxConnectionAge:  10 * time.Minute, // If any connection is alive for more than 30 seconds, send a GOAWAY
-	// MaxConnectionAge:      30 * time.Second, // If any connection is alive for more than 30 seconds, send a GOAWAY
-	MaxConnectionAgeGrace: 5 * time.Second, // Allow 5 seconds for pending RPCs to complete before forcibly closing connections
-	Time:                  5 * time.Second, // Ping the client if it is idle for 5 seconds to ensure the connection is still active
-	Timeout:               1 * time.Second, // Wait 1 second for the ping ack before assuming the connection is dead
-}
-
-var kacp = keepalive.ClientParameters{
-	Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
-	Timeout:             time.Second,      // wait 1 second for ping ack before considering the connection dead
-	PermitWithoutStream: true,             // send pings even without active streams
-}
-
 // Start permits to start the gRPC server with the provided configuration
 func (g *Server) Start() error {
 	g.Rafty.Address = g.Address
@@ -111,21 +89,20 @@ func (g *Server) Start() error {
 	g.wg.Add(1)
 	go func() {
 		defer g.wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				// stop go routine when os signal is receive or ctrl+c
-				// and gracefully stop
-				g.Stop()
-			}
-		}
+		// stop go routine when os signal is receive or ctrl+c
+		// and gracefully stop
+		<-ctx.Done()
+		g.Stop()
 	}()
 
 	g.wg.Add(1)
 	go func() {
 		defer g.wg.Done()
 		go g.Rafty.Start()
-		g.server.Serve(listener)
+		err := g.server.Serve(listener)
+		if err != nil {
+			g.Logger.Fatal().Err(err).Msg("fail to start grpc server")
+		}
 	}()
 	g.wg.Wait()
 	return nil
