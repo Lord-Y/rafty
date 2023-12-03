@@ -1,0 +1,32 @@
+name: Unit testing
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go:
+        - '1.21.4'
+    env:
+      GOLANGCI_LINT_VERSION: 1.55.2
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Go environment
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+
+    - name: Install golangci-lint
+      run: wget -O /tmp/golangci-lint.deb https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.deb ; sudo dpkg -i /tmp/golangci-lint.deb
+
+    - name: Run golangci-lint
+      run: golangci-lint run
