@@ -58,12 +58,6 @@ const (
 	// after this amount of time, the leader will be considered down
 	// and a new leader election campain will be started
 	leaderHeartBeatTimeout int = 75
-
-	// windowSize needs to be used on client side grpc
-	// in order to fix error like GO_AWAY, stucked connection finished with EOF,
-	// unexpected context deadline exceed while testing on localhost
-	// issue here https://github.com/grpc/grpc-go/issues/5358
-	windowSize int32 = 65536
 )
 
 // String return a human readable state of the raft server
@@ -511,7 +505,7 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 					VoterID: vote.reply.GetPeerID(),
 				})
 
-				if vote.reply.GetAlreadyVoted() == true {
+				if vote.reply.GetAlreadyVoted() {
 					r.Logger.Info().Msgf("peer %s already voted for someone", vote.reply.GetPeerID())
 				}
 			}
