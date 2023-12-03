@@ -277,7 +277,7 @@ func (g *ProtobufSVC) SendHeartbeats(ctx context.Context, in *grpcrequests.SendH
 	g.rafty.mu.Lock()
 	defer g.rafty.mu.Unlock()
 	// if I am the current leader and I receive heartbeat from an another leader
-	if g.rafty.LeaderID != "" && g.rafty.LeaderID == g.rafty.LeaderID && g.rafty.LeaderID != in.GetLeaderID() {
+	if g.rafty.LeaderID != "" && g.rafty.ID == g.rafty.LeaderID && g.rafty.LeaderID != in.GetLeaderID() {
 		g.Logger.Info().Msgf("Multiple leaders detected for term %d", in.GetCurrentTerm())
 		return &grpcrequests.SendHeartbeatReply{
 			PeerID:          g.rafty.ID,
