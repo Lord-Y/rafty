@@ -116,6 +116,6 @@ func (g *Server) Stop() {
 	g.server.GracefulStop()
 	g.listener.Close()
 	g.server = nil
+	g.Rafty.disconnectToPeers()
 	g.Rafty.Logger.Info().Msg("Stopping gRPC server successful")
-	os.Exit(0)
 }
