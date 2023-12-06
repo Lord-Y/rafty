@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -60,7 +59,6 @@ func TestSetLoggerLogLevel(t *testing.T) {
 
 		os.Setenv("RAFTY_LOG_LEVEL", tc.logLevel)
 		os.Setenv("RAFTY_LOG_FORMAT_JSON", "true")
-		fmt.Println("ds", os.Getenv("RAFTY_LOG_LEVEL"), os.Getenv("RAFTY_LOG_FORMAT_JSON"))
 		defer os.Unsetenv("RAFTY_LOG_FORMAT_JSON")
 		log.Logger = *NewLogger()
 
