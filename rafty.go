@@ -381,7 +381,9 @@ func (r *Rafty) connectToPeers() {
 func (r *Rafty) disconnectToPeers() {
 	for _, peer := range r.Peers {
 		peer.client.Close()
-		peer.rclient = nil
+		if peer.rclient != nil {
+			peer.rclient = nil
+		}
 	}
 }
 
