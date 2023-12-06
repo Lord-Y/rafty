@@ -22,7 +22,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// if I already vote for someone for the current term
 		// reject the request vote
 		if g.rafty.votedFor != "" && g.rafty.CurrentTerm == in.GetCurrentTerm() {
-			g.Logger.Info().Msgf("reject request vote from peer %s for current term %d because I already voted", in.GetId(), g.rafty.CurrentTerm)
+			g.Logger.Trace().Msgf("reject request vote from peer %s for current term %d because I already voted", in.GetId(), g.rafty.CurrentTerm)
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -35,7 +35,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// if my current term is greater than candidate current term
 		// reject the request vote
 		if g.rafty.CurrentTerm > in.GetCurrentTerm() {
-			g.Logger.Info().Msgf("reject request vote from peer %s, my current term %d > %d", in.GetId(), g.rafty.CurrentTerm, in.GetCurrentTerm())
+			g.Logger.Trace().Msgf("reject request vote from peer %s, my current term %d > %d", in.GetId(), g.rafty.CurrentTerm, in.GetCurrentTerm())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -50,7 +50,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// vote for the candidate
 		if g.rafty.CurrentTerm < in.GetCurrentTerm() {
 			g.rafty.votedFor = in.GetId()
-			g.Logger.Info().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
+			g.Logger.Trace().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -64,7 +64,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// if my current commit index is greater than candidate current commit index
 		// reject the request vote
 		if g.rafty.CurrentCommitIndex > in.GetCurrentCommitIndex() {
-			g.Logger.Info().Msgf("reject request vote from peer %s, my current commit index %d > %d", in.GetId(), g.rafty.CurrentCommitIndex, in.GetCurrentCommitIndex())
+			g.Logger.Trace().Msgf("reject request vote from peer %s, my current commit index %d > %d", in.GetId(), g.rafty.CurrentCommitIndex, in.GetCurrentCommitIndex())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -78,7 +78,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// vote for the candidate
 		if g.rafty.CurrentCommitIndex < in.GetCurrentCommitIndex() {
 			g.rafty.votedFor = in.GetId()
-			g.Logger.Info().Msgf("vote granted to peer %s for term %d, my current commit index %d < %d", in.GetId(), in.GetCurrentTerm(), g.rafty.CurrentCommitIndex, in.GetCurrentCommitIndex())
+			g.Logger.Trace().Msgf("vote granted to peer %s for term %d, my current commit index %d < %d", in.GetId(), in.GetCurrentTerm(), g.rafty.CurrentCommitIndex, in.GetCurrentCommitIndex())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -92,7 +92,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// if my last applied index is greater to candidate last applied index
 		// reject the request vote
 		if g.rafty.LastApplied > in.GetLastApplied() {
-			g.Logger.Info().Msgf("reject request vote from peer %s, my last applied index %d > %d", in.GetId(), g.rafty.LastApplied, in.GetLastApplied())
+			g.Logger.Trace().Msgf("reject request vote from peer %s, my last applied index %d > %d", in.GetId(), g.rafty.LastApplied, in.GetLastApplied())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -108,7 +108,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 			g.rafty.CurrentTerm = in.CurrentTerm
 			g.rafty.votedFor = in.GetId()
 			g.rafty.votedForTerm = in.GetCurrentTerm()
-			g.Logger.Info().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
+			g.Logger.Trace().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -124,7 +124,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// As the new leader if my current term is greater than the candidate current term
 		// reject the request vote
 		if g.rafty.CurrentTerm > in.GetCurrentTerm() {
-			g.Logger.Info().Msgf("I'm the new leader, reject request vote from peer %s, my current term %d > %d", in.GetId(), g.rafty.CurrentTerm, in.GetCurrentTerm())
+			g.Logger.Trace().Msgf("I'm the new leader, reject request vote from peer %s, my current term %d > %d", in.GetId(), g.rafty.CurrentTerm, in.GetCurrentTerm())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -140,13 +140,13 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// vote for the candidate
 		// step down as follower
 		if g.rafty.CurrentTerm < in.GetCurrentTerm() {
-			g.Logger.Info().Msgf("stepping down as follower as my current term leader %d < %d", g.rafty.CurrentTerm, in.GetCurrentTerm())
+			g.Logger.Trace().Msgf("stepping down as follower as my current term leader %d < %d", g.rafty.CurrentTerm, in.GetCurrentTerm())
 			// g.rafty.CurrentTerm = in.GetCurrentTerm()
 			g.rafty.votedFor = in.GetId()
 			g.rafty.State = Follower
 			g.rafty.votedFor = ""
 			g.rafty.LeaderID = ""
-			g.Logger.Info().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
+			g.Logger.Trace().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -161,7 +161,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// reject his vote
 		// tell him who is the leader
 		if g.rafty.CurrentCommitIndex > in.GetCurrentCommitIndex() {
-			g.Logger.Info().Msgf("I'm the new leader, reject request vote from peer %s, my current commit index %d > %d", in.GetId(), g.rafty.CurrentCommitIndex, in.GetCurrentCommitIndex())
+			g.Logger.Trace().Msgf("I'm the new leader, reject request vote from peer %s, my current commit index %d > %d", in.GetId(), g.rafty.CurrentCommitIndex, in.GetCurrentCommitIndex())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -179,8 +179,8 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 			g.rafty.votedFor = in.GetId()
 			// g.rafty.State = Follower
 			g.rafty.LeaderID = ""
-			g.Logger.Info().Msgf("stepping down as follower, my current commit index %d < %d", g.rafty.CurrentCommitIndex, in.GetCurrentCommitIndex())
-			g.Logger.Info().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
+			g.Logger.Trace().Msgf("stepping down as follower, my current commit index %d < %d", g.rafty.CurrentCommitIndex, in.GetCurrentCommitIndex())
+			g.Logger.Trace().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -195,7 +195,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// reject his vote
 		// tell him who is the leader
 		if g.rafty.LastApplied > in.GetLastApplied() {
-			g.Logger.Info().Msgf("I'm the new leader, reject request vote from peer %s, my last applied index %d > %d", in.GetId(), g.rafty.LastApplied, in.GetLastApplied())
+			g.Logger.Trace().Msgf("I'm the new leader, reject request vote from peer %s, my last applied index %d > %d", in.GetId(), g.rafty.LastApplied, in.GetLastApplied())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -213,8 +213,8 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 			g.rafty.votedFor = in.GetId()
 			// g.rafty.State = Follower
 			g.rafty.LeaderID = ""
-			g.Logger.Info().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
-			g.Logger.Info().Msgf("stepping down as follower as my last applied index %d < %d", g.rafty.LastApplied, in.GetLastApplied())
+			g.Logger.Trace().Msgf("vote granted to peer %s for term %d", in.GetId(), in.GetCurrentTerm())
+			g.Logger.Trace().Msgf("stepping down as follower as my last applied index %d < %d", g.rafty.LastApplied, in.GetLastApplied())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -229,7 +229,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 		// I'm sticking as the leader
 		// tell him who is the leader
 		if g.rafty.LastApplied == in.GetLastApplied() {
-			g.Logger.Info().Msgf("I'm the new leader, reject request vote from peer %s, my last applied index %d == %d", in.GetId(), g.rafty.LastApplied, in.GetLastApplied())
+			g.Logger.Trace().Msgf("I'm the new leader, reject request vote from peer %s, my last applied index %d == %d", in.GetId(), g.rafty.LastApplied, in.GetLastApplied())
 			return &grpcrequests.RequestVoteReply{
 				CurrentTerm:        g.rafty.CurrentTerm,
 				CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -246,7 +246,7 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 	// step down as follower
 	// g.rafty.State = Follower
 	g.rafty.LeaderID = ""
-	g.Logger.Info().Msgf("sssstepping down as follower, my current term %d VS %d", g.rafty.CurrentTerm, in.GetCurrentTerm())
+	g.Logger.Info().Msgf("stepping down as follower, my current term %d VS %d", g.rafty.CurrentTerm, in.GetCurrentTerm())
 	return &grpcrequests.RequestVoteReply{
 		CurrentTerm:        g.rafty.CurrentTerm,
 		CurrentCommitIndex: g.rafty.CurrentCommitIndex,
@@ -257,14 +257,14 @@ func (g *ProtobufSVC) RequestVotes(ctx context.Context, in *grpcrequests.Request
 }
 
 func (g *ProtobufSVC) GetLeaderID(ctx context.Context, in *grpcrequests.GetLeader) (*grpcrequests.GetLeaderReply, error) {
-	g.Logger.Info().Msgf("peer %s is looking for the leader", in.GetPeerID())
+	g.Logger.Trace().Msgf("peer %s is looking for the leader", in.GetPeerID())
 	return &grpcrequests.GetLeaderReply{Message: g.rafty.LeaderID}, nil
 }
 
 func (g *ProtobufSVC) SetLeaderID(ctx context.Context, in *grpcrequests.SetLeader) (*grpcrequests.SetLeaderReply, error) {
 	g.rafty.mu.Lock()
 	defer g.rafty.mu.Unlock()
-	g.Logger.Info().Msgf("stepping down as follower, new leader is %s for term %d", in.GetId(), in.GetCurrentTerm())
+	g.Logger.Trace().Msgf("stepping down as follower, new leader is %s for term %d", in.GetId(), in.GetCurrentTerm())
 	g.rafty.State = Follower
 	g.rafty.LeaderID = in.GetId()
 	lastContactDate := time.Now()
@@ -278,14 +278,14 @@ func (g *ProtobufSVC) SendHeartbeats(ctx context.Context, in *grpcrequests.SendH
 	defer g.rafty.mu.Unlock()
 	// if I am the current leader and I receive heartbeat from an another leader
 	if g.rafty.LeaderID != "" && g.rafty.ID == g.rafty.LeaderID && g.rafty.LeaderID != in.GetLeaderID() {
-		g.Logger.Info().Msgf("Multiple leaders detected for term %d", in.GetCurrentTerm())
+		g.Logger.Trace().Msgf("Multiple leaders detected for term %d", in.GetCurrentTerm())
 		return &grpcrequests.SendHeartbeatReply{
 			PeerID:          g.rafty.ID,
 			CurrentTerm:     g.rafty.CurrentTerm,
 			MultipleLeaders: true,
 		}, nil
 	}
-	g.Logger.Info().Msgf("heartbeat received from leader %s for term %d", in.GetLeaderID(), in.GetCurrentTerm())
+	g.Logger.Trace().Msgf("heartbeat received from leader %s for term %d", in.GetLeaderID(), in.GetCurrentTerm())
 	lastContactDate := time.Now()
 	g.rafty.LeaderLastContactDate = &lastContactDate
 	g.rafty.resetElectionTimer()

@@ -397,7 +397,7 @@ func (r *Rafty) sendVotes() {
 		defer r.mu.Unlock()
 
 		r.CurrentTerm += 1
-		r.Logger.Info().Msgf("stepping up as candidate for term %d", r.CurrentTerm)
+		r.Logger.Trace().Msgf("stepping up as candidate for term %d", r.CurrentTerm)
 		r.connectToPeers()
 
 		for _, peer := range r.Peers {
@@ -407,7 +407,7 @@ func (r *Rafty) sendVotes() {
 			if r.State == Candidate {
 				peer := peer
 				go func() {
-					r.Logger.Info().Msgf("me %s contacting peer %s", r.Address.String(), peer.address.String())
+					r.Logger.Trace().Msgf("me %s contacting peer %s", r.Address.String(), peer.address.String())
 
 					var (
 						reply    requestVoteReplyWrapper
@@ -481,7 +481,7 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 				r.CurrentTerm = vote.reply.GetCurrentTerm()
 				r.resetElectionTimer()
 				r.votedFor = ""
-				r.Logger.Info().Msgf("stepping down as follower for term %d", r.CurrentTerm)
+				r.Logger.Trace().Msgf("stepping down as follower for term %d", r.CurrentTerm)
 				r.State = Follower
 				return
 			}
@@ -491,7 +491,7 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 				r.resetElectionTimer()
 				r.votedFor = ""
 				r.CurrentTerm = vote.reply.GetCurrentTerm()
-				r.Logger.Info().Msgf("stepping down as follower for term %d", r.CurrentTerm)
+				r.Logger.Trace().Msgf("stepping down as follower for term %d", r.CurrentTerm)
 				r.State = Follower
 				r.runAsFollower()
 				return
@@ -508,7 +508,7 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 				})
 
 				if vote.reply.GetAlreadyVoted() {
-					r.Logger.Info().Msgf("peer %s already voted for someone", vote.reply.GetPeerID())
+					r.Logger.Trace().Msgf("peer %s already voted for someone", vote.reply.GetPeerID())
 				}
 			}
 
@@ -516,7 +516,7 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 				r.resetElectionTimer()
 				r.votedFor = ""
 				r.CurrentTerm = vote.reply.GetCurrentTerm()
-				r.Logger.Info().Msgf("stepping down as follower for term %d", r.CurrentTerm)
+				r.Logger.Trace().Msgf("stepping down as follower for term %d", r.CurrentTerm)
 				r.State = Follower
 				r.runAsFollower()
 				return
@@ -531,7 +531,7 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 				}
 
 				majority := votes * 100 / len(r.quoroms)
-				r.Logger.Info().Msgf("majority %d quorum %d", majority, len(r.quoroms))
+				r.Logger.Trace().Msgf("majority %d quorum %d", majority, len(r.quoroms))
 				switch {
 				case majority > 50:
 					r.resetElectionTimer()
@@ -586,13 +586,13 @@ func (r *Rafty) sendHeartBeats() {
 						r.heartbeatTicker.Stop()
 						r.LeaderID = ""
 						r.resetElectionTimer()
-						r.Logger.Info().Msgf("stepping down as follower for term %d", r.CurrentTerm)
+						r.Logger.Trace().Msgf("stepping down as follower for term %d", r.CurrentTerm)
 						r.State = Follower
 						r.runAsFollower()
 						return
 					}
 
-					r.Logger.Info().Msgf("me the leader %s, send heartbeat to peer %s for term %d", r.LeaderID, peer.id, r.CurrentTerm)
+					r.Logger.Trace().Msgf("me the leader %s, send heartbeat to peer %s for term %d", r.LeaderID, peer.id, r.CurrentTerm)
 					response, err := peer.rclient.SendHeartbeats(
 						context.Background(),
 						&grpcrequests.SendHeartbeatRequest{
@@ -616,7 +616,7 @@ func (r *Rafty) sendHeartBeats() {
 						r.votedFor = ""
 						r.LeaderID = ""
 						r.resetElectionTimer()
-						r.Logger.Info().Msgf("stepping down as follower for term %d", r.CurrentTerm)
+						r.Logger.Trace().Msgf("stepping down as follower for term %d", r.CurrentTerm)
 						r.State = Follower
 						r.runAsFollower()
 					}
@@ -628,7 +628,7 @@ func (r *Rafty) sendHeartBeats() {
 						r.votedFor = ""
 						r.LeaderID = ""
 						r.resetElectionTimer()
-						r.Logger.Info().Msgf("stepping down as follower for term %d", r.CurrentTerm)
+						r.Logger.Trace().Msgf("stepping down as follower for term %d", r.CurrentTerm)
 						r.State = Follower
 						r.runAsFollower()
 					}
