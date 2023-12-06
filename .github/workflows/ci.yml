@@ -30,3 +30,8 @@ jobs:
 
     - name: Run golangci-lint
       run: golangci-lint run
+
+    - name: Run unit testing
+      run: |
+        go test -v ./... -coverprofile=coverage.out
+        go tool cover -func=coverage.out
