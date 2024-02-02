@@ -292,6 +292,10 @@ func (g *ProtobufSVC) SendHeartbeats(ctx context.Context, in *grpcrequests.SendH
 	if g.rafty.CurrentTerm < in.GetCurrentTerm() {
 		g.rafty.CurrentTerm = in.GetCurrentTerm()
 	}
+	if !g.rafty.logNewLeaderOnce {
+		g.Logger.Info().Msgf("New leader is %s for term %d", in.GetLeaderID(), in.GetCurrentTerm())
+		g.rafty.logNewLeaderOnce = true
+	}
 	return &grpcrequests.SendHeartbeatReply{
 		PeerID:      g.rafty.ID,
 		CurrentTerm: g.rafty.CurrentTerm,

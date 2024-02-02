@@ -174,6 +174,9 @@ type Rafty struct {
 	// by electionTimeoutMin/electionTimeoutMax/leaderHeartBeatTimeout in order to avoid cluster instability
 	// The default value is 1 and the maximum is 10
 	TimeMultiplier uint
+
+	// logNewLeaderOnce is only used when a new leader is found so we the log it
+	logNewLeaderOnce bool
 }
 
 // requestVoteReplyWrapper is a struct that will be used in go func() to send response to the appropriate channel
@@ -301,6 +304,7 @@ func (r *Rafty) resetDataForCandidate() {
 		r.quoroms = nil
 		r.votedFor = ""
 		r.LeaderID = ""
+		r.logNewLeaderOnce = false
 		r.State = Candidate
 	}
 }
