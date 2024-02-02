@@ -380,7 +380,13 @@ func (r *Rafty) connectToPeers() {
 // disconnectToPeers permits to disconnect to all grpc servers
 func (r *Rafty) disconnectToPeers() {
 	for _, peer := range r.Peers {
-		peer.client.Close()
+		if peer.client != nil {
+			err := peer.client.Close()
+			if err != nil {
+				r.Logger.Err(err).Msgf("fail to close connection to peer %s", peer.id)
+				return
+			}
+		}
 		if peer.rclient != nil {
 			peer.rclient = nil
 		}
