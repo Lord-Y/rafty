@@ -37,3 +37,26 @@ Here is a list of the supported features of `rafty`:
 - https://github.com/lni/dragonboat
 - https://github.com/lni/dragonboat-example
 - https://github.com/PlatformLab/epaxos/tree/master
+
+
+2024-02-02T06:19:32+01:00 | INFO | ../../../../requests.go:288 > heartbeat received from leader abe35d4f-787e-4262-9894-f6475ed81028 for term 5
+^Cpanic: runtime error: invalid memory address or nil pointer dereference
+	panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x10 pc=0x7b0a77]
+
+goroutine 35 [running]:
+google.golang.org/grpc.(*ClientConn).Close.func1()
+	/home/ypougeol/go/pkg/mod/google.golang.org/grpc@v1.59.0/clientconn.go:1252 +0x17
+panic({0x879600?, 0xcdf820?})
+	/usr/local/go/src/runtime/panic.go:914 +0x21f
+google.golang.org/grpc.(*ClientConn).Close(0x0)
+	/home/ypougeol/go/pkg/mod/google.golang.org/grpc@v1.59.0/clientconn.go:1256 +0x60
+github.com/Lord-Y/rafty.(*Rafty).disconnectToPeers(...)
+	/home/ypougeol/projects/cloud/rafty_all/rafty_chan/rafty.go:387
+github.com/Lord-Y/rafty.(*Server).Stop(0xc000002180)
+	/home/ypougeol/projects/cloud/rafty_all/rafty_chan/server.go:125 +0xcc
+github.com/Lord-Y/rafty.(*Server).Start.func1()
+	/home/ypougeol/projects/cloud/rafty_all/rafty_chan/server.go:101 +0x75
+created by github.com/Lord-Y/rafty.(*Server).Start in goroutine 1
+	/home/ypougeol/projects/cloud/rafty_all/rafty_chan/server.go:96 +0x396
+exit status 2

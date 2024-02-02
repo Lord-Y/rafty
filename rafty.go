@@ -169,6 +169,11 @@ type Rafty struct {
 
 	// signalCtx will be used to stop all go routines
 	signalCtx context.Context
+
+	// TimeMultiplier is a scaling factor that will be used during election timeout
+	// by electionTimeoutMin/electionTimeoutMax/leaderHeartBeatTimeout in order to avoid cluster instability
+	// The default value is 1 and the maximum is 10
+	TimeMultiplier uint
 }
 
 // requestVoteReplyWrapper is a struct that will be used in go func() to send response to the appropriate channel
@@ -209,11 +214,11 @@ func (r *Rafty) loopingOverNodeState() {
 }
 
 func (r *Rafty) startElectionTimer() {
-	r.electionTimer = time.NewTimer(randomElectionTimeout())
+	r.electionTimer = time.NewTimer(r.randomElectionTimeout())
 }
 
 func (r *Rafty) resetElectionTimer() {
-	r.electionTimer.Reset(randomElectionTimeout())
+	r.electionTimer.Reset(r.randomElectionTimeout())
 }
 
 func (r *Rafty) stopElectionTimer() {
@@ -301,7 +306,7 @@ func (r *Rafty) resetDataForCandidate() {
 }
 
 func (r *Rafty) runAsLeader() {
-	r.heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout) * time.Millisecond)
+	r.heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 	defer r.heartbeatTicker.Stop()
 
 	for {
@@ -320,7 +325,7 @@ func (r *Rafty) runAsFollower() {
 		return // stop go routine when os signal is receive or ctrl+c
 	default:
 		now := time.Now()
-		if r.LeaderLastContactDate != nil && now.Sub(*r.LeaderLastContactDate) > time.Duration(leaderHeartBeatTimeout) {
+		if r.LeaderLastContactDate != nil && now.Sub(*r.LeaderLastContactDate) > time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) {
 			r.resetElectionTimer()
 			r.resetDataForCandidate()
 		}
@@ -560,9 +565,9 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 // randomElectionTimeout permit to generate
 // a random value that will be used during
 // the election campain
-func randomElectionTimeout() time.Duration {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return time.Duration(electionTimeoutMin+r.Intn(electionTimeoutMax-electionTimeoutMin)) * time.Millisecond
+func (r *Rafty) randomElectionTimeout() time.Duration {
+	rd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return time.Duration(electionTimeoutMin+rd.Intn(electionTimeoutMax-electionTimeoutMin)) * time.Millisecond * time.Duration(r.TimeMultiplier)
 }
 
 // sendHeartBeats send heartbeats to followers

@@ -30,6 +30,7 @@ func TestStart(t *testing.T) {
 	s1 := NewServer(s1Addr)
 	s1.Rafty.ID = "abe35d4f-787e-4262-9894-f6475ed81028"
 	s1.Rafty.Peers = s1Peers
+	s1.Rafty.TimeMultiplier = 20
 
 	s2Addr := net.TCPAddr{
 		IP:   net.ParseIP("127.0.0.5"),

@@ -61,6 +61,12 @@ func NewServer(address net.TCPAddr) *Server {
 
 // Start permits to start the gRPC server with the provided configuration
 func (g *Server) Start() error {
+	if g.Rafty.TimeMultiplier == 0 {
+		g.Rafty.TimeMultiplier = 1
+	}
+	if g.Rafty.TimeMultiplier > 10 {
+		g.Rafty.TimeMultiplier = 10
+	}
 	g.Rafty.Address = g.Address
 	listener, err := net.Listen(g.Address.Network(), g.Address.String())
 	if err != nil {
