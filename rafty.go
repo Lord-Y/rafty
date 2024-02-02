@@ -13,7 +13,6 @@ import (
 	"github.com/Lord-Y/rafty/logger"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/encoding/gzip"
@@ -561,7 +560,7 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 				}
 				return
 			}
-			log.Warn().Msgf("a minimum of 3 servers are needed to perform the election during term %d", r.CurrentTerm)
+			r.Logger.Warn().Msgf("a minimum of 3 servers are needed to perform the election during term %d", r.CurrentTerm)
 		}
 	}
 }
