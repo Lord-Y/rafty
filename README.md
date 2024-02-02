@@ -19,6 +19,11 @@ As examples, we have production ready repositories like:
 
 So let's try to redo the wheel with more explanations.
 
+## Supported features
+
+Here is a list of the supported features of `rafty`:
+- [x] Leader election
+
 ## References
 
 - https://github.com/logcabin/logcabin
