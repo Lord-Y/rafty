@@ -23,6 +23,12 @@ So let's try to redo the wheel with more explanations.
 
 Here is a list of the supported features of `rafty`:
 - [x] Leader election
+- [] Log replication
+- [] Log compaction
+- [] Membership changes
+  - Add member
+  - remove member
+  - promote member
 
 ## References
 
