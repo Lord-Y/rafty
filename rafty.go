@@ -197,10 +197,11 @@ type requestVoteReplyErrorWrapper struct {
 }
 
 func NewRafty() *Rafty {
+	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
 	return &Rafty{
 		voteReplyChan:    make(chan requestVoteReplyWrapper),
 		voteReplyChanErr: make(chan requestVoteReplyErrorWrapper),
-		Logger:           logger.NewLogger(),
+		Logger:           &logger,
 	}
 }
 
