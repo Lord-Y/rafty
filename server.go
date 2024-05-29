@@ -61,6 +61,8 @@ func NewServer(address net.TCPAddr) *Server {
 
 // Start permits to start the gRPC server with the provided configuration
 func (g *Server) Start() error {
+	g.Rafty.mu.Lock()
+	defer g.Rafty.mu.Unlock()
 	if g.Rafty.TimeMultiplier == 0 {
 		g.Rafty.TimeMultiplier = 1
 	}
@@ -116,6 +118,8 @@ func (g *Server) Start() error {
 
 // Stop permits to stop the gRPC server and Rafty with the provided configuration
 func (g *Server) Stop() {
+	g.Rafty.mu.Lock()
+	defer g.Rafty.mu.Unlock()
 	if g.server == nil {
 		return
 	}

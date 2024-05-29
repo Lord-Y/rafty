@@ -236,6 +236,8 @@ func (r *Rafty) stopElectionTimer() {
 }
 
 func (r *Rafty) parsePeers() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	var cleanPeers []*Peer // means without duplicate entries
 	for _, v := range r.Peers {
 		var addr net.TCPAddr
@@ -299,6 +301,8 @@ func (r *Rafty) Start() {
 		case <-r.signalCtx.Done():
 			return // stop go routine when os signal is receive or ctrl+c
 		case <-r.electionTimer.C:
+			r.mu.Lock()
+			defer r.mu.Unlock()
 			r.resetElectionTimer()
 			r.resetDataForCandidate()
 			go r.loopingOverNodeState()
@@ -307,6 +311,8 @@ func (r *Rafty) Start() {
 }
 
 func (r *Rafty) resetDataForCandidate() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.State != Leader { // fixing empty r.LeaderID
 		r.quoroms = nil
 		r.votedFor = ""
@@ -395,6 +401,8 @@ func (r *Rafty) connectToPeers() {
 
 // disconnectToPeers permits to disconnect to all grpc servers
 func (r *Rafty) disconnectToPeers() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for _, peer := range r.Peers {
 		if peer.client != nil {
 			err := peer.client.Close()
