@@ -22,7 +22,9 @@ So let's try to redo the wheel with more explanations.
 ## Supported features
 
 Here is a list of the supported features of `rafty`:
+- [x] Prevote election
 - [x] Leader election
+- [] Write log on storage
 - [] Log replication
 - [] Log compaction
 - [] Membership changes

@@ -51,6 +51,10 @@ If a server receive a request with a stale `term`, it will reject the request.
 
 When a server has reached the vote majority of votes based on the quorum of servers, it will be elected as new leader.
 
+## Prevote
+
+During the voting campain, by design a prevote is done in order to make sure that a node with lower attributes (current term, current termcommit index etc) does not become a `Leader`.
+
 ### Multiple leaders
 
 If you have a 3 or 5 nodes constituing a cluster for example, you can have 2 leaders at the same time and the same `term`. In order to fix that problem, the `raft protocol` introduced a random election timeout on each nodes participating into the campain.
