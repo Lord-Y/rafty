@@ -57,6 +57,10 @@ const (
 	// after this amount of time, the leader will be considered down
 	// and a new leader election campain will be started
 	leaderHeartBeatTimeout int = 75
+
+	// preventLogSpammingMininumServer permit to prevent spamming logs for 20s
+	// when the mininum required servers has not been met
+	preventLogSpammingMininumServer int = 20
 )
 
 // String return a human readable state of the raft server
@@ -176,6 +180,9 @@ type Rafty struct {
 
 	// logNewLeaderOnce is only used when a new leader is found so we the log it
 	logNewLeaderOnce bool
+
+	// preventLogSpammingStatus goes in pair with preventLogSpammingMininumServer variable
+	preventLogSpammingStatus bool
 }
 
 // requestVoteReplyWrapper is a struct that will be used in go func() to send response to the appropriate channel
@@ -561,7 +568,14 @@ func (r *Rafty) treatVote(vote requestVoteReplyWrapper) {
 				}
 				return
 			}
-			r.Logger.Warn().Msgf("a minimum of 3 servers are needed to perform the election during term %d", r.CurrentTerm)
+			if !r.preventLogSpammingStatus {
+				r.Logger.Warn().Msgf("a minimum of 3 servers are needed to perform the election during term %d", r.CurrentTerm)
+				r.preventLogSpammingStatus = true
+				go func() {
+					time.Sleep(time.Duration(preventLogSpammingMininumServer) * time.Second)
+					r.preventLogSpammingStatus = false
+				}()
+			}
 		}
 	}
 }
