@@ -65,7 +65,7 @@ func (g *Server) Start() error {
 	g.Rafty.Address = g.Address
 	listener, err := net.Listen(g.Address.Network(), g.Address.String())
 	if err != nil {
-		return errors.Wrap(err, "Fail to listen gRPC server")
+		return errors.Wrap(err, "fail to listen gRPC server")
 	}
 	g.listener = listener
 
@@ -82,7 +82,7 @@ func (g *Server) Start() error {
 	grpcrequests.RegisterRaftyServer(g.server, pbSVC)
 	reflection.Register(g.server)
 
-	g.Rafty.Logger.Info().Msgf("Starting gRPC server at %s", g.Address.String())
+	g.Rafty.Logger.Info().Msgf("starting gRPC server at %s", g.Address.String())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -123,5 +123,5 @@ func (g *Server) Stop() {
 	g.server = nil
 	g.Rafty.mu.Unlock()
 	g.Rafty.disconnectToPeers()
-	g.Rafty.Logger.Info().Msg("Stopping gRPC server successful")
+	g.Rafty.Logger.Info().Msg("stopping gRPC server successful")
 }
