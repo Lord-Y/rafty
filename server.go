@@ -62,24 +62,18 @@ func NewServer(address net.TCPAddr) *Server {
 // Start permits to start the gRPC server with the provided configuration
 func (g *Server) Start() error {
 	g.Rafty.mu.Lock()
-	defer g.Rafty.mu.Unlock()
-	if g.Rafty.TimeMultiplier == 0 {
-		g.Rafty.TimeMultiplier = 1
-	}
-	if g.Rafty.TimeMultiplier > 10 {
-		g.Rafty.TimeMultiplier = 10
-	}
 	g.Rafty.Address = g.Address
 	listener, err := net.Listen(g.Address.Network(), g.Address.String())
 	if err != nil {
-		return errors.Wrap(err, "fail to listen gRPC server")
+		return errors.Wrap(err, "Fail to listen gRPC server")
 	}
 	g.listener = listener
 
 	g.server = grpc.NewServer(
-	// grpc.KeepaliveEnforcementPolicy(kaep),
-	// grpc.KeepaliveParams(kasp),
+		grpc.KeepaliveEnforcementPolicy(kaep),
+		grpc.KeepaliveParams(kasp),
 	)
+	g.Rafty.mu.Unlock()
 	pbSVC := &ProtobufSVC{
 		Logger: g.Rafty.Logger,
 		rafty:  &g.Rafty,
@@ -88,11 +82,23 @@ func (g *Server) Start() error {
 	grpcrequests.RegisterRaftyServer(g.server, pbSVC)
 	reflection.Register(g.server)
 
-	g.Rafty.Logger.Info().Msgf("starting gRPC server at %s", g.Address.String())
+	g.Rafty.Logger.Info().Msgf("Starting gRPC server at %s", g.Address.String())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	g.Rafty.mu.Lock()
 	g.Rafty.signalCtx = ctx
+	g.Rafty.mu.Unlock()
+
+	g.wg.Add(1)
+	go func() {
+		defer g.wg.Done()
+		go g.Rafty.Start()
+		err := g.server.Serve(listener)
+		if err != nil {
+			g.Logger.Fatal().Err(err).Msg("Fail to start grpc server")
+		}
+	}()
 
 	g.wg.Add(1)
 	go func() {
@@ -102,16 +108,6 @@ func (g *Server) Start() error {
 		<-ctx.Done()
 		g.Stop()
 	}()
-
-	g.wg.Add(1)
-	go func() {
-		defer g.wg.Done()
-		go g.Rafty.Start()
-		err := g.server.Serve(listener)
-		if err != nil {
-			g.Logger.Fatal().Err(err).Msg("fail to start grpc server")
-		}
-	}()
 	g.wg.Wait()
 	return nil
 }
@@ -119,13 +115,13 @@ func (g *Server) Start() error {
 // Stop permits to stop the gRPC server and Rafty with the provided configuration
 func (g *Server) Stop() {
 	g.Rafty.mu.Lock()
-	defer g.Rafty.mu.Unlock()
 	if g.server == nil {
 		return
 	}
 	g.server.GracefulStop()
 	g.listener.Close()
 	g.server = nil
+	g.Rafty.mu.Unlock()
 	g.Rafty.disconnectToPeers()
-	g.Rafty.Logger.Info().Msg("stopping gRPC server successful")
+	g.Rafty.Logger.Info().Msg("Stopping gRPC server successful")
 }

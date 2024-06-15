@@ -72,27 +72,24 @@ func TestStart(t *testing.T) {
 	s3.Rafty.ID = "775c0bce-f3ed-47d0-9b44-0e0909d48e1a"
 	s3.Rafty.Peers = s3Peers
 
-	go func() {
-		err := s1.Start()
-		assert.NoError(err)
-	}()
+	var cluster []*Server
+	cluster = append(cluster, s1, s2, s3)
 
-	go func() {
-		err := s2.Start()
-		assert.NoError(err)
-	}()
+	for _, node := range cluster {
+		node := node
+		go func() {
+			err := node.Start()
+			time.Sleep(1 * time.Second)
+			assert.NoError(err)
+		}()
+	}
 
-	go func() {
-		err := s3.Start()
-		assert.NoError(err)
-	}()
-
-	time.Sleep(30 * time.Second)
+	time.Sleep(75 * time.Second)
 	go func() {
 		s1.Stop()
 	}()
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(20 * time.Second)
 	go func() {
 		err := s1.Start()
 		assert.NoError(err)
@@ -102,31 +99,30 @@ func TestStart(t *testing.T) {
 	}()
 
 	time.Sleep(30 * time.Second)
-	go func() {
-		s2.Stop()
-	}()
+	for _, node := range cluster {
+		go node.Stop()
+	}
+}
 
-	time.Sleep(30 * time.Second)
-	go func() {
-		err := s2.Start()
-		assert.NoError(err)
-	}()
+func TestString(t *testing.T) {
+	assert := assert.New(t)
 
-	time.Sleep(30 * time.Second)
-	go func() {
-		s3.Stop()
-	}()
+	tests := []State{
+		Down,
+		ReadOnly,
+		Follower,
+		Candidate,
+		Leader,
+	}
+	results := []string{
+		"down",
+		"readOnly",
+		"follower",
+		"candidate",
+		"leader",
+	}
 
-	time.Sleep(30 * time.Second)
-	go func() {
-		err := s3.Start()
-		assert.NoError(err)
-	}()
-
-	time.Sleep(20 * time.Second)
-	go func() {
-		s1.Stop()
-		s2.Stop()
-		s3.Stop()
-	}()
+	for k, v := range tests {
+		assert.Equal(v.String() == results[k], true)
+	}
 }

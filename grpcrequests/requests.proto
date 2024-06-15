@@ -2,6 +2,8 @@ syntax = "proto3";
 
 option go_package = "github.com/Lord-Y/rafty/grpcrequests";
 
+import "google/protobuf/empty.proto";
+
 package grpcrequests;
 
 message HelloRequest {
@@ -16,7 +18,19 @@ service Greeter {
   rpc SayHello(HelloRequest) returns (HelloReply) {}
 }
 
-message RequestVote {
+message PreVoteRequest {
+  string id = 1;
+  string state = 2;
+  uint64 currentTerm = 3;
+}
+
+message PreVoteResponse {
+  string peerID = 1;
+  string state = 2;
+  uint64 currentTerm = 3;
+}
+
+message VoteRequest {
   string id = 1;
   string state = 2;
   uint64 currentTerm = 3;
@@ -24,7 +38,7 @@ message RequestVote {
   uint64 lastApplied = 5;
 }
 
-message RequestVoteReply {
+message VoteResponse {
   bool voteGranted = 1;
   uint64 currentTerm = 2;
   uint64 currentCommitIndex = 3;
@@ -35,31 +49,35 @@ message RequestVoteReply {
   bool requesterStepDown = 8;
 }
 
-message SetLeader {
+message SetLeaderRequest {
   string id = 1;
-  uint64 currentTerm = 2;
+  string address = 2;
+  uint64 currentTerm = 3;
 }
 
-message SetLeaderReply {
+message SetLeaderResponse {
   string message = 1;
 }
 
-message GetLeader {
+message GetLeaderRequest {
   string peerID = 1;
+  string peerAddress = 2;
 }
 
-message GetLeaderReply {
-  string message = 1;
+message GetLeaderResponse {
+  string leaderID = 1;
+  string leaderAddress = 2;
+  string peerID = 3;
 }
 
-message RequestAppendEntry {
+message SendAppendEntryRequest {
   string leaderID = 1;
   uint64 currentTerm = 2;
   uint64 currentCommitIndex = 3;
   uint64 lastApplied = 4;
 }
 
-message RequestAppendEntryReply {
+message SendAppendEntryResponse {
   string peerID = 1;
   uint64 currentTerm = 2;
   uint64 currentCommitIndex = 3;
@@ -70,19 +88,27 @@ message RequestAppendEntryReply {
 
 message SendHeartbeatRequest {
   string leaderID = 1;
+  string leaderAddress = 3;
   uint64 currentTerm = 2;
 }
 
-message SendHeartbeatReply {
+message SendHeartbeatResponse {
   string peerID = 1;
   uint64 currentTerm = 2;
   bool multipleLeaders = 3;
 }
 
+message SendNotifyShutdownRequest {
+  string id = 1; 
+  string address = 2; 
+}
+
 service Rafty {
-  rpc RequestVotes(RequestVote) returns (RequestVoteReply) {}
-  rpc SetLeaderID(SetLeader) returns (SetLeaderReply) {}
-  rpc GetLeaderID(GetLeader) returns (GetLeaderReply) {}
-  rpc RequestAppendEntries(RequestAppendEntry) returns (RequestAppendEntryReply) {}
-  rpc SendHeartbeats(SendHeartbeatRequest) returns (SendHeartbeatReply) {}
+  rpc SendPreVoteRequest(PreVoteRequest) returns (PreVoteResponse) {}
+  rpc SendVoteRequest(VoteRequest) returns (VoteResponse) {}
+  rpc SetLeader(SetLeaderRequest) returns (SetLeaderResponse) {}
+  rpc GetLeader(GetLeaderRequest) returns (GetLeaderResponse) {}
+  rpc SendAppendEntriesRequest(SendAppendEntryRequest) returns (SendAppendEntryResponse) {}
+  rpc SendHeartbeats(SendHeartbeatRequest) returns (SendHeartbeatResponse) {}
+  rpc SendNotifyShutdown(SendNotifyShutdownRequest) returns (google.protobuf.Empty) {}
 }
