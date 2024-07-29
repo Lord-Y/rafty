@@ -31,6 +31,22 @@ jobs:
     - name: Run golangci-lint
       run: golangci-lint run
 
+    - name: Check logger setup
+      run: |
+        output_logger=/tmp/find_logger
+        find . \
+          -path ./logger -prune -o \
+          -path ./examples -prune -o \
+          -path ./.tmp -prune -o \
+          -type f -name "*.go" -exec grep -r "\slog\." {} \; > ${output_logger}
+
+        if [[ $(wc -l ${output_logger} | awk '{print $1}') -gt 0 ]]
+        then
+          cat ${output_logger}
+          echo -en "\n\nYou are using the wrong logger, please use the builtin logger"
+          exit 1
+        fi
+
     - name: Run unit testing
       run: |
         GITHUB_REPO=$(head -1 go.mod | sed 's#module ##g')
