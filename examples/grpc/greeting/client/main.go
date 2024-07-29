@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", rafty.GRPCAddress, rafty.GRPCPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", rafty.GRPCAddress, rafty.GRPCPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Fail to connect to grpc server %s", err.Error())
 	}

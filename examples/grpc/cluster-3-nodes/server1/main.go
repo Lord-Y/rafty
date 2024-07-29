@@ -24,11 +24,11 @@ func main() {
 	}
 
 	s := rafty.NewServer(addr)
-	s.Rafty.ID = "abe35d4f-787e-4262-9894-f6475ed81028"
-	s.Rafty.Peers = peers
+	s.ID = "abe35d4f-787e-4262-9894-f6475ed81028"
+	s.Peers = peers
 
 	err := s.Start()
 	if err != nil {
-		s.Rafty.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+		s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
 	}
 }
