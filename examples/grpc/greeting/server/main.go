@@ -15,8 +15,11 @@ func main() {
 	}
 
 	s := rafty.NewServer(addr)
+	// ready := make(chan struct{})
+	// err := s.Start(ready)
 	err := s.Start()
 	if err != nil {
 		log.Println(err)
 	}
+	// close(ready)
 }
