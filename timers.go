@@ -19,6 +19,8 @@ func (r *Rafty) randomElectionTimeout(preVote bool) time.Duration {
 // startElectionTimer permit during election campain to start electionTimer
 // when preVote set to true, preVoteElectionTimer will be restarted
 func (r *Rafty) startElectionTimer(preVote bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if preVote {
 		r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
 		return
@@ -40,8 +42,12 @@ func (r *Rafty) resetElectionTimer(preVote bool) {
 // when preVote set to true, preVoteElectionTimer will be stopped
 func (r *Rafty) stopElectionTimer(preVote bool) {
 	if preVote {
-		r.preVoteElectionTimer.Stop()
+		if r.preVoteElectionTimer != nil {
+			r.preVoteElectionTimer.Stop()
+		}
 		return
 	}
-	r.electionTimer.Stop()
+	if r.electionTimer != nil {
+		r.electionTimer.Stop()
+	}
 }

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/Lord-Y/rafty/grpcrequests"
-	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
@@ -18,34 +18,47 @@ func (r *Rafty) handleSendPreVoteRequestReader() {
 
 func (r *Rafty) handlePreVoteResponseError(vote voteResponseErrorWrapper) {
 	if vote.err != nil {
-		r.Logger.Error().Err(vote.err).Msgf("Fail to get pre request vote from peer %s", vote.peer.address.String())
+		r.Logger.Error().Err(vote.err).Msgf("Fail to get pre vote request from peer %s", vote.peer.address.String())
 	}
 }
 
 func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
+	if r.startElectionCampain {
+		return
+	}
+
+	if r.leader != nil {
+		r.stopElectionTimer(true)
+		r.CurrentTerm = vote.response.GetCurrentTerm()
+		r.switchState(Follower, true, r.CurrentTerm)
+		return
+	}
+
 	if vote.response.GetState() == Follower.String() || vote.response.GetState() == Candidate.String() {
 		if vote.response.GetCurrentTerm() > r.CurrentTerm {
-			r.Logger.Info().Msgf("Peer %s / %s has a higher term %d > %d", vote.peer.address.String(), vote.response.GetPeerID(), vote.response.GetCurrentTerm(), r.CurrentTerm)
+			r.Logger.Info().Msgf("Peer %s / %s has a higher term than me %d > %d", vote.peer.address.String(), vote.response.GetPeerID(), vote.response.GetCurrentTerm(), r.CurrentTerm)
 			r.stopElectionTimer(true)
 			r.CurrentTerm = vote.response.GetCurrentTerm()
-			r.switchState(Follower, true)
+			r.switchState(Follower, true, r.CurrentTerm)
 			return
 		}
 
 		if vote.response.GetCurrentTerm() <= r.CurrentTerm {
 			if !r.checkIfPeerInSliceIndex(true, vote.peer.address.String()) {
 				r.PreCandidatePeers = append(r.PreCandidatePeers, vote.peer)
-				log.Info().Msgf("Peer %s / %s will be part of the election campain", vote.peer.address.String(), vote.response.GetPeerID())
+				r.Logger.Info().Msgf("Peer %s / %s will be part of the election campain", vote.peer.address.String(), vote.response.GetPeerID())
 			}
 
 			var majority bool
-			switch {
-			case len(r.Peers)+1 == 3:
-				if len(r.PreCandidatePeers)+1 >= 2 {
+			if r.leaderLost {
+				if len(r.PreCandidatePeers)+1 == int(r.MinimumClusterSize)-1 {
+					r.Logger.Trace().Msgf("PreCandidatePeers majority length when leader is lost %d", r.MinimumClusterSize-1)
 					majority = true
 				}
-			case len(r.Peers)+1 == 5:
-				if len(r.PreCandidatePeers)+1 >= 3 {
+			} else {
+				// TODO: review this part when more than 3 nodes are involved
+				if len(r.PreCandidatePeers)+1 == int(r.MinimumClusterSize) {
+					r.Logger.Trace().Msgf("PreCandidatePeers majority length %d", r.MinimumClusterSize)
 					majority = true
 				}
 			}
@@ -53,13 +66,16 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 			if majority {
 				r.stopElectionTimer(true)
 				r.startElectionCampain = true
-				log.Info().Msg("Pre vote quorum as been reach, let's start election campain")
+				r.Logger.Info().Msgf("Pre vote quorum as been reach, let's start election campain with term %d", r.CurrentTerm+1)
+				r.resetElectionTimer(false)
+				r.switchState(Candidate, false, r.CurrentTerm)
+				r.runAsCandidate()
 				return
 			}
 			return
 		}
 	}
-	r.switchState(Follower, true)
+	r.switchState(Follower, true, r.CurrentTerm)
 }
 
 func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
@@ -67,7 +83,20 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 	if reader.GetState() == Candidate.String() && (r.State == Candidate || r.State == Follower) {
 		// if I already vote for someone for the current term
 		// reject the vote request
-		if r.CurrentTerm == reader.GetCurrentTerm() {
+		if r.CurrentTerm == reader.GetCurrentTerm() && r.votedFor == "" {
+			r.Logger.Trace().Msgf("Vote granted to peer %s for term %d", reader.GetId(), reader.GetCurrentTerm())
+			r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
+				CurrentTerm:        r.CurrentTerm,
+				CurrentCommitIndex: r.CurrentCommitIndex,
+				LastApplied:        r.LastApplied,
+				PeerID:             r.ID,
+			}
+			return
+		}
+
+		// if I already vote for someone for the current term
+		// reject the vote request
+		if r.CurrentTerm == reader.GetCurrentTerm() && r.votedFor != "" {
 			r.Logger.Trace().Msgf("Reject vote request from peer %s for current term %d because I already voted", reader.GetId(), r.CurrentTerm)
 			r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
 				CurrentTerm:        r.CurrentTerm,
@@ -99,6 +128,8 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 		if r.CurrentTerm < reader.GetCurrentTerm() {
 			r.Logger.Trace().Msgf("Vote granted to peer %s for term %d", reader.GetId(), reader.GetCurrentTerm())
 			r.CurrentTerm = reader.GetCurrentTerm()
+			r.votedFor = reader.GetId()
+			r.votedForTerm = reader.GetCurrentTerm()
 			r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
 				CurrentTerm:        r.CurrentTerm,
 				CurrentCommitIndex: r.CurrentCommitIndex,
@@ -128,6 +159,9 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 		// vote for the candidate
 		if r.CurrentCommitIndex < reader.GetCurrentCommitIndex() {
 			r.Logger.Trace().Msgf("Vote granted to peer %s for term %d, my current commit index %d < %d", reader.GetId(), reader.GetCurrentTerm(), r.CurrentCommitIndex, reader.GetCurrentCommitIndex())
+			r.votedFor = reader.GetId()
+			r.votedForTerm = reader.GetCurrentTerm()
+
 			r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
 				CurrentTerm:        r.CurrentTerm,
 				CurrentCommitIndex: r.CurrentCommitIndex,
@@ -193,7 +227,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 		if r.CurrentTerm < reader.GetCurrentTerm() {
 			r.CurrentTerm = reader.GetCurrentTerm()
 			r.saveLeaderInformations(leaderMap{})
-			r.switchState(Follower, true)
+			r.switchState(Follower, true, r.CurrentTerm)
 			r.Logger.Trace().Msgf("Vote granted to peer %s for term %d", reader.GetId(), reader.GetCurrentTerm())
 			r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
 				CurrentTerm:        r.CurrentTerm,
@@ -227,7 +261,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 		// step down as follower
 		if r.CurrentCommitIndex < reader.GetCurrentCommitIndex() {
 			r.saveLeaderInformations(leaderMap{})
-			r.switchState(Follower, false)
+			r.switchState(Follower, false, r.CurrentTerm)
 			r.Logger.Trace().Msgf("Stepping down as follower, my current commit index %d < %d", r.CurrentCommitIndex, reader.GetCurrentCommitIndex())
 			r.Logger.Trace().Msgf("Vote granted to peer %s for term %d", reader.GetId(), reader.GetCurrentTerm())
 			r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
@@ -262,7 +296,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 		// step down as follower
 		if r.LastApplied < reader.GetLastApplied() {
 			r.saveLeaderInformations(leaderMap{})
-			r.switchState(Follower, false)
+			r.switchState(Follower, false, r.CurrentTerm)
 			r.Logger.Trace().Msgf("Vote granted to peer %s for term %d", reader.GetId(), reader.GetCurrentTerm())
 			r.Logger.Trace().Msgf("Stepping down as follower as my last applied index %d < %d", r.LastApplied, reader.GetLastApplied())
 			r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
@@ -295,7 +329,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 
 		// reject anyway
 		// step down as follower
-		r.switchState(Follower, true)
+		r.switchState(Follower, true, r.CurrentTerm)
 		r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
 			CurrentTerm:        r.CurrentTerm,
 			CurrentCommitIndex: r.CurrentCommitIndex,
@@ -308,7 +342,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 
 func (r *Rafty) handleVoteResponseError(vote voteResponseErrorWrapper) {
 	if vote.err != nil {
-		r.Logger.Err(vote.err).Msgf("Fail to send vote request to peer %s / %s with status code %v", vote.peer.address.String(), vote.peer.id, status.Code(vote.err))
+		r.Logger.Err(vote.err).Msgf("Fail to send vote request to peer %s / %s with status code %s", vote.peer.address.String(), vote.peer.id, status.Code(vote.err))
 	}
 }
 
@@ -359,15 +393,23 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 		r.stopElectionTimer(true)
 		r.stopElectionTimer(false)
 		r.Logger.Trace().Msgf("Me %s / %s with term %d has won the election", r.Address.String(), r.ID, r.CurrentTerm)
-
+		r.switchState(Leader, true, r.CurrentTerm)
 		r.runAsLeader()
-		return
 	}
 }
 
 func (r *Rafty) handleGetLeaderReader(reader *grpcrequests.GetLeaderRequest) {
 	r.Logger.Trace().Msgf("Peer %s / %s is looking for the leader", reader.GetPeerAddress(), reader.GetPeerID())
-	go r.switchPeerToUpOrDown(reader.GetPeerID(), reader.GetPeerAddress(), true)
+
+	if r.State == Leader {
+		r.rpcGetLeaderChanWritter <- &grpcrequests.GetLeaderResponse{
+			LeaderID:      r.ID,
+			LeaderAddress: r.Address.String(),
+			PeerID:        r.ID,
+		}
+		return
+	}
+
 	if r.leader == nil {
 		r.rpcGetLeaderChanWritter <- &grpcrequests.GetLeaderResponse{
 			LeaderID:      "",
@@ -384,21 +426,11 @@ func (r *Rafty) handleGetLeaderReader(reader *grpcrequests.GetLeaderRequest) {
 	}
 }
 
-func (r *Rafty) handleSetLeaderReader(reader *grpcrequests.SetLeaderRequest) {
-	r.saveLeaderInformations(leaderMap{
-		id:      reader.GetId(),
-		address: reader.GetAddress(),
-	})
-	r.switchState(Follower, true)
-	lastContactDate := time.Now()
-	r.LeaderLastContactDate = &lastContactDate
-	r.resetElectionTimer(false)
-	r.rpcSetLeaderChanWritter <- &grpcrequests.SetLeaderResponse{Message: reader.GetId()}
-}
-
 func (r *Rafty) handleSendHeartbeatsReader(reader *grpcrequests.SendHeartbeatRequest) {
-	// if I am the current leader and I receive heartbeat from an another leader
+	// if I am the current leader and I receive heartbeat from an another leader we both step down as follower
 	if r.State == Leader {
+		r.heartbeatTicker.Stop()
+		r.switchState(Follower, false, r.CurrentTerm)
 		r.Logger.Trace().Msgf("Multiple leaders detected for term %d", reader.GetCurrentTerm())
 		r.rpcSendHeartbeatsChanWritter <- &grpcrequests.SendHeartbeatResponse{
 			PeerID:          r.ID,
@@ -415,16 +447,23 @@ func (r *Rafty) handleSendHeartbeatsReader(reader *grpcrequests.SendHeartbeatReq
 			address: reader.GetLeaderAddress(),
 		})
 	}
+
+	if r.leader == nil {
+		r.saveLeaderInformations(leaderMap{
+			id:      reader.GetLeaderID(),
+			address: reader.GetLeaderAddress(),
+		})
+		r.switchState(Follower, false, reader.GetCurrentTerm())
+	}
+
 	lastContactDate := time.Now()
 	r.mu.Lock()
 	r.LeaderLastContactDate = &lastContactDate
+	r.CurrentTerm = reader.GetCurrentTerm()
+	r.leaderLost = false
 	r.mu.Unlock()
 	r.stopElectionTimer(true)
 	r.resetElectionTimer(false)
-
-	if r.CurrentTerm < reader.GetCurrentTerm() {
-		r.CurrentTerm = reader.GetCurrentTerm()
-	}
 
 	r.rpcSendHeartbeatsChanWritter <- &grpcrequests.SendHeartbeatResponse{
 		PeerID:      r.ID,
@@ -434,25 +473,45 @@ func (r *Rafty) handleSendHeartbeatsReader(reader *grpcrequests.SendHeartbeatReq
 
 func (r *Rafty) handleHeartBeatsResponseError(response heartbeatErrorWrapper) {
 	if response.err != nil {
+		if r.State != Leader {
+			return
+		}
 		got := status.Code(response.err)
-		r.Logger.Err(response.err).Msgf("Fail to request send heartbeat to peer %s / %s with status code %v", response.peer.address.String(), response.peer.id, got)
+		r.Logger.Err(response.err).Msgf("Fail to send heartbeat to peer %s / %s with status code %s", response.peer.address.String(), response.peer.id, got)
+		if got == codes.Unavailable || got == codes.Canceled || got == codes.DeadlineExceeded {
+			r.Logger.Warn().Msgf("Peer %s / %s seems to be down", response.peer.address.String(), response.peer.id)
+		}
 	}
 }
 
 func (r *Rafty) handleHeartBeatsResponse(response heartbeatResponseWrapper) {
 	if response.response.GetMultipleLeaders() {
 		r.heartbeatTicker.Stop()
-		r.CurrentTerm = response.response.GetCurrentTerm()
+		r.switchState(Follower, true, r.CurrentTerm)
 		r.resetElectionTimer(false)
 		r.saveLeaderInformations(leaderMap{})
-		r.switchState(Follower, true)
+	}
+}
+
+func (r *Rafty) handleClientGetLeaderReader() {
+	if r.State == Leader {
+		r.rpcClientGetLeaderChanWritter <- &grpcrequests.ClientGetLeaderResponse{
+			LeaderID:      r.ID,
+			LeaderAddress: r.Address.String(),
+		}
+		return
 	}
 
-	if r.CurrentTerm < response.response.GetCurrentTerm() {
-		r.heartbeatTicker.Stop()
-		r.CurrentTerm = response.response.GetCurrentTerm()
-		r.saveLeaderInformations(leaderMap{})
-		r.resetElectionTimer(false)
-		r.switchState(Follower, true)
+	if r.leader == nil {
+		r.rpcClientGetLeaderChanWritter <- &grpcrequests.ClientGetLeaderResponse{
+			LeaderID:      "",
+			LeaderAddress: "",
+		}
+		return
+	}
+
+	r.rpcClientGetLeaderChanWritter <- &grpcrequests.ClientGetLeaderResponse{
+		LeaderID:      r.leader.id,
+		LeaderAddress: r.leader.address,
 	}
 }
