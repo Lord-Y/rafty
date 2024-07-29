@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -115,9 +114,10 @@ const (
 	Rafty_SendVoteRequest_FullMethodName          = "/grpcrequests.Rafty/SendVoteRequest"
 	Rafty_SetLeader_FullMethodName                = "/grpcrequests.Rafty/SetLeader"
 	Rafty_GetLeader_FullMethodName                = "/grpcrequests.Rafty/GetLeader"
+	Rafty_ClientGetLeader_FullMethodName          = "/grpcrequests.Rafty/ClientGetLeader"
 	Rafty_SendAppendEntriesRequest_FullMethodName = "/grpcrequests.Rafty/SendAppendEntriesRequest"
 	Rafty_SendHeartbeats_FullMethodName           = "/grpcrequests.Rafty/SendHeartbeats"
-	Rafty_SendNotifyShutdown_FullMethodName       = "/grpcrequests.Rafty/SendNotifyShutdown"
+	Rafty_AskNodeID_FullMethodName                = "/grpcrequests.Rafty/AskNodeID"
 )
 
 // RaftyClient is the client API for Rafty service.
@@ -128,9 +128,10 @@ type RaftyClient interface {
 	SendVoteRequest(ctx context.Context, in *VoteRequest, opts ...grpc.CallOption) (*VoteResponse, error)
 	SetLeader(ctx context.Context, in *SetLeaderRequest, opts ...grpc.CallOption) (*SetLeaderResponse, error)
 	GetLeader(ctx context.Context, in *GetLeaderRequest, opts ...grpc.CallOption) (*GetLeaderResponse, error)
+	ClientGetLeader(ctx context.Context, in *ClientGetLeaderRequest, opts ...grpc.CallOption) (*ClientGetLeaderResponse, error)
 	SendAppendEntriesRequest(ctx context.Context, in *SendAppendEntryRequest, opts ...grpc.CallOption) (*SendAppendEntryResponse, error)
 	SendHeartbeats(ctx context.Context, in *SendHeartbeatRequest, opts ...grpc.CallOption) (*SendHeartbeatResponse, error)
-	SendNotifyShutdown(ctx context.Context, in *SendNotifyShutdownRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	AskNodeID(ctx context.Context, in *AskNodeIDRequest, opts ...grpc.CallOption) (*AskNodeIDResponse, error)
 }
 
 type raftyClient struct {
@@ -181,6 +182,16 @@ func (c *raftyClient) GetLeader(ctx context.Context, in *GetLeaderRequest, opts 
 	return out, nil
 }
 
+func (c *raftyClient) ClientGetLeader(ctx context.Context, in *ClientGetLeaderRequest, opts ...grpc.CallOption) (*ClientGetLeaderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClientGetLeaderResponse)
+	err := c.cc.Invoke(ctx, Rafty_ClientGetLeader_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *raftyClient) SendAppendEntriesRequest(ctx context.Context, in *SendAppendEntryRequest, opts ...grpc.CallOption) (*SendAppendEntryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SendAppendEntryResponse)
@@ -201,10 +212,10 @@ func (c *raftyClient) SendHeartbeats(ctx context.Context, in *SendHeartbeatReque
 	return out, nil
 }
 
-func (c *raftyClient) SendNotifyShutdown(ctx context.Context, in *SendNotifyShutdownRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *raftyClient) AskNodeID(ctx context.Context, in *AskNodeIDRequest, opts ...grpc.CallOption) (*AskNodeIDResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, Rafty_SendNotifyShutdown_FullMethodName, in, out, cOpts...)
+	out := new(AskNodeIDResponse)
+	err := c.cc.Invoke(ctx, Rafty_AskNodeID_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -219,9 +230,10 @@ type RaftyServer interface {
 	SendVoteRequest(context.Context, *VoteRequest) (*VoteResponse, error)
 	SetLeader(context.Context, *SetLeaderRequest) (*SetLeaderResponse, error)
 	GetLeader(context.Context, *GetLeaderRequest) (*GetLeaderResponse, error)
+	ClientGetLeader(context.Context, *ClientGetLeaderRequest) (*ClientGetLeaderResponse, error)
 	SendAppendEntriesRequest(context.Context, *SendAppendEntryRequest) (*SendAppendEntryResponse, error)
 	SendHeartbeats(context.Context, *SendHeartbeatRequest) (*SendHeartbeatResponse, error)
-	SendNotifyShutdown(context.Context, *SendNotifyShutdownRequest) (*emptypb.Empty, error)
+	AskNodeID(context.Context, *AskNodeIDRequest) (*AskNodeIDResponse, error)
 	mustEmbedUnimplementedRaftyServer()
 }
 
@@ -241,14 +253,17 @@ func (UnimplementedRaftyServer) SetLeader(context.Context, *SetLeaderRequest) (*
 func (UnimplementedRaftyServer) GetLeader(context.Context, *GetLeaderRequest) (*GetLeaderResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLeader not implemented")
 }
+func (UnimplementedRaftyServer) ClientGetLeader(context.Context, *ClientGetLeaderRequest) (*ClientGetLeaderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClientGetLeader not implemented")
+}
 func (UnimplementedRaftyServer) SendAppendEntriesRequest(context.Context, *SendAppendEntryRequest) (*SendAppendEntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendAppendEntriesRequest not implemented")
 }
 func (UnimplementedRaftyServer) SendHeartbeats(context.Context, *SendHeartbeatRequest) (*SendHeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendHeartbeats not implemented")
 }
-func (UnimplementedRaftyServer) SendNotifyShutdown(context.Context, *SendNotifyShutdownRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendNotifyShutdown not implemented")
+func (UnimplementedRaftyServer) AskNodeID(context.Context, *AskNodeIDRequest) (*AskNodeIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AskNodeID not implemented")
 }
 func (UnimplementedRaftyServer) mustEmbedUnimplementedRaftyServer() {}
 
@@ -335,6 +350,24 @@ func _Rafty_GetLeader_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Rafty_ClientGetLeader_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientGetLeaderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RaftyServer).ClientGetLeader(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Rafty_ClientGetLeader_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RaftyServer).ClientGetLeader(ctx, req.(*ClientGetLeaderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Rafty_SendAppendEntriesRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SendAppendEntryRequest)
 	if err := dec(in); err != nil {
@@ -371,20 +404,20 @@ func _Rafty_SendHeartbeats_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Rafty_SendNotifyShutdown_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendNotifyShutdownRequest)
+func _Rafty_AskNodeID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AskNodeIDRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(RaftyServer).SendNotifyShutdown(ctx, in)
+		return srv.(RaftyServer).AskNodeID(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Rafty_SendNotifyShutdown_FullMethodName,
+		FullMethod: Rafty_AskNodeID_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftyServer).SendNotifyShutdown(ctx, req.(*SendNotifyShutdownRequest))
+		return srv.(RaftyServer).AskNodeID(ctx, req.(*AskNodeIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -413,6 +446,10 @@ var Rafty_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Rafty_GetLeader_Handler,
 		},
 		{
+			MethodName: "ClientGetLeader",
+			Handler:    _Rafty_ClientGetLeader_Handler,
+		},
+		{
 			MethodName: "SendAppendEntriesRequest",
 			Handler:    _Rafty_SendAppendEntriesRequest_Handler,
 		},
@@ -421,8 +458,8 @@ var Rafty_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Rafty_SendHeartbeats_Handler,
 		},
 		{
-			MethodName: "SendNotifyShutdown",
-			Handler:    _Rafty_SendNotifyShutdown_Handler,
+			MethodName: "AskNodeID",
+			Handler:    _Rafty_AskNodeID_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -98,9 +98,22 @@ message SendHeartbeatResponse {
   bool multipleLeaders = 3;
 }
 
-message SendNotifyShutdownRequest {
-  string id = 1; 
-  string address = 2; 
+message AskNodeIDRequest {
+  string id = 1;
+  string address = 2;
+}
+
+message AskNodeIDResponse {
+  string peerID = 1;
+}
+
+message ClientGetLeaderRequest {
+  string message = 1;
+}
+
+message ClientGetLeaderResponse {
+  string leaderID = 1;
+  string leaderAddress = 2;
 }
 
 service Rafty {
@@ -108,7 +121,8 @@ service Rafty {
   rpc SendVoteRequest(VoteRequest) returns (VoteResponse) {}
   rpc SetLeader(SetLeaderRequest) returns (SetLeaderResponse) {}
   rpc GetLeader(GetLeaderRequest) returns (GetLeaderResponse) {}
+  rpc ClientGetLeader(ClientGetLeaderRequest) returns (ClientGetLeaderResponse) {}
   rpc SendAppendEntriesRequest(SendAppendEntryRequest) returns (SendAppendEntryResponse) {}
   rpc SendHeartbeats(SendHeartbeatRequest) returns (SendHeartbeatResponse) {}
-  rpc SendNotifyShutdown(SendNotifyShutdownRequest) returns (google.protobuf.Empty) {}
+  rpc AskNodeID(AskNodeIDRequest) returns (AskNodeIDResponse) {}
 }
