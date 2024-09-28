@@ -15,11 +15,10 @@ When trying to run `go run main.go` on MacOS from `examples/grpc/cluster-3-nodes
 
 The solution is to add the new loopback ips:
 ```bash
-sudo ifconfig lo0 alias 127.0.0.2
-sudo ifconfig lo0 alias 127.0.0.3
+for i in $(seq 2 10); do sudo ifconfig lo0 alias 127.0.0.$i;done
 ```
 To delete them:
 ```bash
-sudo ifconfig lo0 delete 127.0.0.2
-sudo ifconfig lo0 delete 127.0.0.3
+for i in $(seq 2 10); do sudo ifconfig lo0 delete 127.0.0.$i;done
+
 ```
