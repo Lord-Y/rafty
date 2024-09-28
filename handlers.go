@@ -28,7 +28,7 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 	}
 
 	if r.leader != nil {
-		r.stopElectionTimer(true)
+		r.stopElectionTimer(true, false)
 		r.CurrentTerm = vote.response.GetCurrentTerm()
 		r.switchState(Follower, true, r.CurrentTerm)
 		return
@@ -37,7 +37,7 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 	if vote.response.GetState() == Follower.String() || vote.response.GetState() == Candidate.String() {
 		if vote.response.GetCurrentTerm() > r.CurrentTerm {
 			r.Logger.Info().Msgf("Peer %s / %s has a higher term than me %d > %d", vote.peer.address.String(), vote.response.GetPeerID(), vote.response.GetCurrentTerm(), r.CurrentTerm)
-			r.stopElectionTimer(true)
+			r.stopElectionTimer(true, false)
 			r.CurrentTerm = vote.response.GetCurrentTerm()
 			r.switchState(Follower, true, r.CurrentTerm)
 			return
@@ -64,10 +64,10 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 			}
 
 			if majority {
-				r.stopElectionTimer(true)
+				r.stopElectionTimer(true, false)
 				r.startElectionCampain = true
 				r.Logger.Info().Msgf("Pre vote quorum as been reach, let's start election campain with term %d", r.CurrentTerm+1)
-				r.resetElectionTimer(false)
+				r.resetElectionTimer(false, true)
 				r.switchState(Candidate, false, r.CurrentTerm)
 				r.runAsCandidate()
 				return
@@ -353,12 +353,12 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 
 	if vote.savedCurrentTerm < vote.response.GetCurrentTerm() {
 		r.CurrentTerm = vote.response.GetCurrentTerm()
-		r.resetElectionTimer(false)
+		r.resetElectionTimer(false, true)
 		r.runAsFollower()
 		return
 	}
 	if vote.response.GetNewLeaderDetected() {
-		r.resetElectionTimer(true)
+		r.resetElectionTimer(true, false)
 		r.CurrentTerm = vote.response.GetCurrentTerm()
 		r.runAsFollower()
 	}
@@ -378,7 +378,7 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 	}
 	if vote.response.GetRequesterStepDown() {
 		r.CurrentTerm = vote.response.GetCurrentTerm()
-		r.resetElectionTimer(false)
+		r.resetElectionTimer(false, true)
 		r.runAsFollower()
 		return
 	}
@@ -390,8 +390,7 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 		}
 	}
 	if votes*2 > len(r.PreCandidatePeers)+1 {
-		r.stopElectionTimer(true)
-		r.stopElectionTimer(false)
+		r.stopElectionTimer(true, true)
 		r.Logger.Trace().Msgf("Me %s / %s with term %d has won the election", r.Address.String(), r.ID, r.CurrentTerm)
 		r.switchState(Leader, true, r.CurrentTerm)
 		r.runAsLeader()
@@ -462,8 +461,8 @@ func (r *Rafty) handleSendHeartbeatsReader(reader *grpcrequests.SendHeartbeatReq
 	r.CurrentTerm = reader.GetCurrentTerm()
 	r.leaderLost = false
 	r.mu.Unlock()
-	r.stopElectionTimer(true)
-	r.resetElectionTimer(false)
+	r.stopElectionTimer(true, false)
+	r.resetElectionTimer(false, true)
 
 	r.rpcSendHeartbeatsChanWritter <- &grpcrequests.SendHeartbeatResponse{
 		PeerID:      r.ID,
@@ -488,7 +487,7 @@ func (r *Rafty) handleHeartBeatsResponse(response heartbeatResponseWrapper) {
 	if response.response.GetMultipleLeaders() {
 		r.heartbeatTicker.Stop()
 		r.switchState(Follower, true, r.CurrentTerm)
-		r.resetElectionTimer(false)
+		r.resetElectionTimer(false, true)
 		r.saveLeaderInformations(leaderMap{})
 	}
 }

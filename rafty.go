@@ -419,8 +419,7 @@ func (r *Rafty) start() {
 	// sleeping a bit to make sure all remaining getLeaderRequest calls are closed
 	time.Sleep(2 * time.Second)
 
-	r.startElectionTimer(true)
-	r.startElectionTimer(false)
+	r.startElectionTimer(true, true)
 
 	for {
 		select {
@@ -452,8 +451,7 @@ func (r *Rafty) start() {
 		// if pre vote election succeed
 		case <-r.electionTimer.C:
 			if r.State == Candidate && r.startElectionCampain {
-				r.resetElectionTimer(false)
-				// r.switchState(Candidate, true, r.CurrentTerm)
+				r.resetElectionTimer(false, true)
 			}
 
 			switch r.State {
@@ -495,7 +493,7 @@ func (r *Rafty) runAsFollower() {
 	now := time.Now()
 	// if we haven't heard the leader
 	if r.LeaderLastContactDate != nil && now.Sub(*r.LeaderLastContactDate) > time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) {
-		r.resetElectionTimer(true)
+		r.resetElectionTimer(true, false)
 		r.mu.Lock()
 		r.leaderLost = true
 		if r.leader != nil {
@@ -534,8 +532,8 @@ func (r *Rafty) runAsCandidate() {
 			r.Logger.Info().Msgf("Peer %s has no id so we cannot start the election", peer.address.String())
 			r.switchState(Follower, true, currentTerm)
 			r.startElectionCampain = false
-			r.stopElectionTimer(false)
-			r.resetElectionTimer(true)
+			r.stopElectionTimer(false, true)
+			r.resetElectionTimer(true, false)
 			return
 		}
 
@@ -684,11 +682,11 @@ func (r *Rafty) getLeaderRequest() {
 // and decided if they are suitable for election campain
 func (r *Rafty) preVoteRequest() {
 	if r.State != Follower {
-		r.stopElectionTimer(true)
+		r.stopElectionTimer(true, false)
 		return
 	}
 
-	r.resetElectionTimer(true)
+	r.resetElectionTimer(true, false)
 	r.PreCandidatePeers = nil
 
 	for _, peer := range r.Peers {
@@ -711,7 +709,7 @@ func (r *Rafty) preVoteRequest() {
 			}
 			go func() {
 				if r.leader != nil {
-					r.stopElectionTimer(true)
+					r.stopElectionTimer(true, false)
 					r.switchState(Follower, true, currentTerm)
 					return
 				}
@@ -796,10 +794,10 @@ func (r *Rafty) sendHeartBeats(peer Peer) {
 
 func (r *Rafty) StopAll() {
 	if r.electionTimer != nil {
-		r.stopElectionTimer(false)
+		r.stopElectionTimer(false, true)
 	}
 	if r.preVoteElectionTimer != nil {
-		r.stopElectionTimer(true)
+		r.stopElectionTimer(true, false)
 	}
 	if r.heartbeatTicker != nil {
 		r.heartbeatTicker.Stop()
