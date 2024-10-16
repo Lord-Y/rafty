@@ -21,9 +21,11 @@ func (r *Rafty) startElectionTimer(preVote, electionCampain bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if preVote {
+		r.preVoteElectionTimerEnabled.Store(true)
 		r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
 	}
 	if electionCampain {
+		r.electionTimerEnabled.Store(true)
 		r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
 	}
 }
@@ -33,9 +35,11 @@ func (r *Rafty) resetElectionTimer(preVote, electionCampain bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if preVote {
+		r.preVoteElectionTimerEnabled.Store(true)
 		r.preVoteElectionTimer.Reset(r.randomElectionTimeout(true))
 	}
 	if electionCampain {
+		r.electionTimerEnabled.Store(true)
 		r.electionTimer.Reset(r.randomElectionTimeout(false))
 	}
 }
@@ -45,11 +49,13 @@ func (r *Rafty) stopElectionTimer(preVote, electionCampain bool) {
 	if preVote {
 		if r.preVoteElectionTimer != nil {
 			r.preVoteElectionTimer.Stop()
+			r.preVoteElectionTimerEnabled.Store(false)
 		}
 	}
 	if electionCampain {
 		if r.electionTimer != nil {
 			r.electionTimer.Stop()
+			r.electionTimerEnabled.Store(false)
 		}
 	}
 }
