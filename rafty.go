@@ -2,9 +2,11 @@ package rafty
 
 import (
 	"context"
+	"errors"
 	"net"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Lord-Y/rafty/grpcrequests"
@@ -26,7 +28,7 @@ const (
 
 // State represent the current status of the raft server.
 // The state can only be Leader, Candidate, Follower, ReadOnly, Down
-type State uint16
+type State uint32
 
 const (
 	// Down state is a node that has been unreachable for a long period of time
@@ -53,10 +55,10 @@ const (
 	Leader
 
 	// preVoteElectionTimeoutMin is the minimum preVote election timeout that will be used during preRequestVotes process
-	preVoteElectionTimeoutMin int = 90
+	preVoteElectionTimeoutMin int = 70
 
 	// preVoteElectionTimeoutMax is the maximum preVote election timeout that will be used during preRequestVotes process
-	preVoteElectionTimeoutMax int = 120
+	preVoteElectionTimeoutMax int = 150
 
 	// electionTimeoutMin is the minimum election timeout that will be used to elect a new leader
 	electionTimeoutMin int = 150
@@ -68,6 +70,14 @@ const (
 	// after this amount of time, the leader will be considered down
 	// and a new leader election campain will be started
 	leaderHeartBeatTimeout int = 75
+
+	// maxAppendEntries will hold how much append entries the leader will send to the follower at once
+	maxAppendEntries uint64 = 10000
+)
+
+var (
+	errAppendEntriesToLeader = errors.New("Cannot append entries from leader")
+	errTermTooOld            = errors.New("Requester term older than mine")
 )
 
 // String return a human readable state of the raft server
@@ -158,25 +168,25 @@ type Rafty struct {
 	// LeaderLastContactDate is the last date we heard from the leader
 	LeaderLastContactDate *time.Time
 
-	// heartbeatTicker is used when the current server is the Leader
-	// It will be used to send heartbeats to Followers
-	heartbeatTicker *time.Ticker
-
-	// heartbeatResponseChan is the chan that will receive hearbeats reply
-	heartbeatResponseChan chan heartbeatResponseWrapper
-
-	// heartbeatErrorChan is the chan that will receive hearbeats error
-	heartbeatErrorChan chan heartbeatErrorWrapper
-
 	// preVoteElectionTimer is used during the preVote campain
 	// but also to detect if the Follower server
 	// need to step up as a Candidate server
 	preVoteElectionTimer *time.Timer
 
+	// preVoteElectionTimerEnabled is a boolean that allow us in some cases
+	// to now if preVoteElectionTimer has been started or resetted.
+	// preVoteElectionTimer can never be nil once initialiazed so see this variable as an helper
+	preVoteElectionTimerEnabled atomic.Bool
+
 	// electionTimer is used during the election campain
 	// but also to detect if a Follower
 	// need to step up as a Candidate server
 	electionTimer *time.Timer
+
+	// electionTimerEnabled is a boolean that allow us in some cases
+	// to now if electionTimer has been started or resetted.
+	// electionTimer can never be nil once initialiazed so see this variable as an helper
+	electionTimerEnabled atomic.Bool
 
 	// preVoteResponseChan is the chan that will receive pre vote reply
 	preVoteResponseChan chan preVoteResponseWrapper
@@ -221,10 +231,10 @@ type Rafty struct {
 	rpcSendHeartbeatsChanWritter chan *grpcrequests.SendHeartbeatResponse
 
 	// rpcSendAppendEntriesRequestChanReader will be use to handle rpc call
-	rpcSendAppendEntriesRequestChanReader chan *grpcrequests.SendAppendEntryRequest
+	rpcSendAppendEntriesRequestChanReader chan *grpcrequests.AppendEntryRequest
 
 	// rpcSendAppendEntriesRequestChanWritter will be use to answer rpc call
-	rpcSendAppendEntriesRequestChanWritter chan *grpcrequests.SendAppendEntryResponse
+	rpcSendAppendEntriesRequestChanWritter chan *grpcrequests.AppendEntryResponse
 
 	// rpcClientGetLeaderChanReader will be use to handle rpc call
 	rpcClientGetLeaderChanReader chan *grpcrequests.ClientGetLeaderRequest
@@ -233,7 +243,7 @@ type Rafty struct {
 	rpcClientGetLeaderChanWritter chan *grpcrequests.ClientGetLeaderResponse
 
 	// quoroms hold the list of the voters with their decisions
-	quoroms []*quorom
+	quoroms []quorom
 
 	wg sync.WaitGroup
 
@@ -248,10 +258,10 @@ type Rafty struct {
 	// PreCandidatePeers hold the list of the peers
 	// that will be use to elect a new leader
 	// if no leader has been detected
-	PreCandidatePeers []*Peer
+	PreCandidatePeers []Peer
 
 	// Peers hold the list of the peers
-	Peers []*Peer
+	Peers []Peer
 
 	// oldLeader hold informations about the old leader
 	oldLeader *leaderMap
@@ -265,7 +275,7 @@ type Rafty struct {
 
 	// startElectionCampain permit to start election campain as
 	// pre vote quorum as been reached
-	startElectionCampain bool
+	startElectionCampain atomic.Bool
 
 	// quit will be used to stop all go routines
 	quit chan struct{}
@@ -289,12 +299,47 @@ type Rafty struct {
 
 	// votedForTerm is the node the current node voted for during the election campain
 	votedForTerm uint64
+
+	// commitIndex is the highest log entry known to be committed
+	// initialized to 0, increases monotically
+	commitIndex uint64
+
+	// lastLogIndex is the highest log entry applied to state machine
+	// initialized to 0, increases monotically
+	lastLogIndex uint64
+
+	// nextIndex is for each server, index of the next log entry
+	// to send to that server
+	// initialized to leader last log index + 1
+	nextIndex map[string]uint64
+
+	// matchIndex is for each server, index of the highest log entry
+	// known to be replicated on server
+	// initialized to 0, increases monotically
+	matchIndex map[string]uint64
+
+	// volatileStateInitialized is an helper to initialized
+	// nextIndex and matchIndex for each peers according to raft paper
+	volatileStateInitialized atomic.Bool
+
+	// log hold all logs entries
+	log []*logEntry
+
+	// MaxAppendEntries will hold how much append entries the leader will send to the follower at once
+	MaxAppendEntries uint64
+}
+
+// logEntry hold the command and term that has been applied
+// to the current node
+type logEntry struct {
+	Command interface{}
+	Term    uint64
 }
 
 // preVoteResponseWrapper is a struct that will be used to send response to the appropriate channel
 type preVoteResponseWrapper struct {
 	// peer hold the peer address
-	peer *Peer
+	peer Peer
 
 	// response hold the message returned by peers
 	response *grpcrequests.PreVoteResponse
@@ -303,7 +348,7 @@ type preVoteResponseWrapper struct {
 // voteResponseWrapper is a struct that will be used to send response to the appropriate channel
 type voteResponseWrapper struct {
 	// peer hold the peer address
-	peer *Peer
+	peer Peer
 
 	// response hold the message returned by peers
 	response *grpcrequests.VoteResponse
@@ -315,28 +360,7 @@ type voteResponseWrapper struct {
 // requestvoteResponseErrorWrapper is a struct that will be used to handle errors and sent back to the appropriate channel
 type voteResponseErrorWrapper struct {
 	// peer hold the peer address
-	peer *Peer
-
-	// err is the error itself
-	err error
-}
-
-// voteResponseWrapper is a struct that will be used to send response to the appropriate channel
-type heartbeatResponseWrapper struct {
-	// peer hold the peer address
-	peer *Peer
-
-	// response hold the message returned by peers
-	response *grpcrequests.SendHeartbeatResponse
-
-	// currentTerm is a copy of the currentTerm during the election campain
-	currentTerm uint64
-}
-
-// heartbeatErrorWrapper is a struct that will be used to handle errors and sent back to the appropriate channel
-type heartbeatErrorWrapper struct {
-	// peer hold the peer address
-	peer *Peer
+	peer Peer
 
 	// err is the error itself
 	err error
@@ -352,8 +376,6 @@ func NewRafty() *Rafty {
 		preVoteResponseErrorChan:               make(chan voteResponseErrorWrapper),
 		voteResponseChan:                       make(chan voteResponseWrapper),
 		voteResponseErrorChan:                  make(chan voteResponseErrorWrapper),
-		heartbeatResponseChan:                  make(chan heartbeatResponseWrapper),
-		heartbeatErrorChan:                     make(chan heartbeatErrorWrapper),
 		rpcPreVoteRequestChanReader:            make(chan struct{}),
 		rpcPreVoteRequestChanWritter:           make(chan *grpcrequests.PreVoteResponse),
 		rpcSendVoteRequestChanReader:           make(chan *grpcrequests.VoteRequest),
@@ -362,8 +384,8 @@ func NewRafty() *Rafty {
 		rpcGetLeaderChanWritter:                make(chan *grpcrequests.GetLeaderResponse),
 		rpcSendHeartbeatsChanReader:            make(chan *grpcrequests.SendHeartbeatRequest),
 		rpcSendHeartbeatsChanWritter:           make(chan *grpcrequests.SendHeartbeatResponse),
-		rpcSendAppendEntriesRequestChanReader:  make(chan *grpcrequests.SendAppendEntryRequest),
-		rpcSendAppendEntriesRequestChanWritter: make(chan *grpcrequests.SendAppendEntryResponse),
+		rpcSendAppendEntriesRequestChanReader:  make(chan *grpcrequests.AppendEntryRequest),
+		rpcSendAppendEntriesRequestChanWritter: make(chan *grpcrequests.AppendEntryResponse),
 
 		// client rpc
 		rpcClientGetLeaderChanReader:  make(chan *grpcrequests.ClientGetLeaderRequest),
@@ -384,13 +406,17 @@ func (r *Rafty) start() {
 		r.MinimumClusterSize = 3
 	}
 
+	if r.MaxAppendEntries == 0 {
+		r.MaxAppendEntries = maxAppendEntries
+	}
+
 	if r.ID == "" {
 		r.ID = uuid.NewString()
 	}
 
-	if r.State == Down {
-		r.State = Follower
-		r.Logger.Info().Msgf("Me, id %s / %s is starting as %s", r.Address.String(), r.ID, r.State.String())
+	if r.getState() == Down {
+		r.switchState(Follower, false, r.getCurrentTerm())
+		r.Logger.Info().Msgf("Me %s / %s is starting as %s", r.Address.String(), r.ID, r.State.String())
 	}
 	r.mu.Unlock()
 
@@ -399,248 +425,53 @@ func (r *Rafty) start() {
 		r.Logger.Fatal().Err(err).Msg("Fail to parse peer ip/port")
 	}
 
+	for _, peer := range r.Peers {
+		r.connectToPeer(peer.address.String())
+	}
+
+	r.startClusterWithMinimumSize()
+	r.startElectionTimer(true, true)
+	go r.loopingOverNodeState()
+	go r.checkLeaderLastContactDate()
+	// go r.switchStateLoop()
+}
+
+// startClusterWithMinimumSize allow us to reach minimum cluster size
+// before doing anything else
+func (r *Rafty) startClusterWithMinimumSize() {
+	myAddress, myId := r.getMyAddress()
 	for {
 		if r.MinimumClusterSize == r.clusterSizeCounter+1 {
-			r.Logger.Info().Msgf("Minimum cluster size has been reached for me %s / %s, %d out of %d", r.Address.String(), r.ID, r.clusterSizeCounter+1, r.MinimumClusterSize)
+			r.Logger.Info().Msgf("Minimum cluster size has been reached for me %s / %s, %d out of %d", myAddress, myId, r.clusterSizeCounter+1, r.MinimumClusterSize)
 			break
 		}
 
 		select {
 		// stop go routine when os signal is receive or ctrl+c
 		case <-r.quit:
+			r.switchState(Down, false, r.getCurrentTerm())
 			return
 
 		case <-time.After(5 * time.Second):
 			r.Logger.Info().Msgf("Minimum cluster size has not been reached for me %s / %s, %d out of %d", r.Address.String(), r.ID, r.clusterSizeCounter+1, r.MinimumClusterSize)
-			r.getLeaderRequest()
-		}
-	}
-
-	// sleeping a bit to make sure all remaining getLeaderRequest calls are closed
-	time.Sleep(2 * time.Second)
-
-	r.startElectionTimer(true, true)
-
-	for {
-		select {
-		// stop go routine when os signal is receive or ctrl+c
-		case <-r.quit:
-			return
+			r.SendGetLeaderRequest()
 
 		// handle get leader requests from other nodes
 		case reader := <-r.rpcGetLeaderChanReader:
 			r.handleGetLeaderReader(reader)
-
-		// when pre vote election timer time out, start a pre vote election
-		case <-r.preVoteElectionTimer.C:
-			r.preVoteRequest()
-
-		// handle pre vote response from other nodes
-		case preVote := <-r.preVoteResponseChan:
-			r.handlePreVoteResponse(preVote)
-
-		// handle pre vote response error from other nodes
-		case preVoteError := <-r.preVoteResponseErrorChan:
-			r.handlePreVoteResponseError(preVoteError)
-
-		// receive and answer pre vote requests from other nodes
-		case <-r.rpcPreVoteRequestChanReader:
-			r.handleSendPreVoteRequestReader()
-
-		// when vote election timer time out, start a new election campain
-		// if pre vote election succeed
-		case <-r.electionTimer.C:
-			if r.State == Candidate && r.startElectionCampain {
-				r.resetElectionTimer(false, true)
-			}
-
-			switch r.State {
-			case Follower:
-				r.runAsFollower()
-			case Candidate:
-				r.runAsCandidate()
-			case Leader:
-				r.runAsLeader()
-			}
-
-		// receive and answer request vote from other nodes
-		case reader := <-r.rpcSendVoteRequestChanReader:
-			r.handleSendVoteRequestReader(reader)
-
-		// handle vote response from other nodes
-		// and become a leader if conditions are met
-		case vote := <-r.voteResponseChan:
-			r.handleVoteResponse(vote)
-
-		// handle vote response error from other nodes
-		case voteError := <-r.voteResponseErrorChan:
-			r.handleVoteResponseError(voteError)
-
-		// handle heartbeats from leader
-		case reader := <-r.rpcSendHeartbeatsChanReader:
-			r.handleSendHeartbeatsReader(reader)
-
-		// handle client get leader
-		case <-r.rpcClientGetLeaderChanReader:
-			r.handleClientGetLeaderReader()
 		}
 	}
 }
 
-func (r *Rafty) runAsFollower() {
-	r.switchState(Follower, false, r.CurrentTerm)
-
-	now := time.Now()
-	// if we haven't heard the leader
-	if r.LeaderLastContactDate != nil && now.Sub(*r.LeaderLastContactDate) > time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) {
-		r.resetElectionTimer(true, false)
-		r.mu.Lock()
-		r.leaderLost = true
-		if r.leader != nil {
-			r.oldLeader = r.leader
-			r.Logger.Info().Msgf("Leader %s / %s has been lost for term %d", r.oldLeader.address, r.oldLeader.id, r.CurrentTerm)
-			r.leader = nil
-			r.quoroms = nil
-			r.votedFor = ""
-			r.PreCandidatePeers = nil
-		}
-		r.mu.Unlock()
-	}
-}
-
-func (r *Rafty) runAsCandidate() {
-	if r.State != Candidate {
-		return
-	}
-
-	r.mu.Lock()
-	r.CurrentTerm += 1
-	currentTerm := r.CurrentTerm
-	state := r.State.String()
-	currentCommitIndex := r.CurrentCommitIndex
-	lastApplied := r.LastApplied
-	r.mu.Unlock()
-
-	r.Logger.Info().Msgf("Starting election campain with term %d", currentTerm)
-	for _, peer := range r.PreCandidatePeers {
-		r.mu.Lock()
-		myAddress := r.Address.String()
-		myId := r.ID
-		peer := *peer
-		r.mu.Unlock()
-		if peer.id == "" {
-			r.Logger.Info().Msgf("Peer %s has no id so we cannot start the election", peer.address.String())
-			r.switchState(Follower, true, currentTerm)
-			r.startElectionCampain = false
-			r.stopElectionTimer(false, true)
-			r.resetElectionTimer(true, false)
-			return
-		}
-
-		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.State == Candidate {
-			if !r.healthyPeer(peer) {
-				return
-			}
-			go func() {
-				r.Logger.Trace().Msgf("Me %s / %s contact peer %s / %s with term %d for election campain", myAddress, myId, peer.address.String(), peer.id, currentTerm)
-
-				response, err := peer.rclient.SendVoteRequest(
-					context.Background(),
-					&grpcrequests.VoteRequest{
-						Id:                 myId,
-						State:              state,
-						CurrentTerm:        currentTerm,
-						CurrentCommitIndex: currentCommitIndex,
-						LastApplied:        lastApplied,
-					},
-					grpc.WaitForReady(true),
-					grpc.UseCompressor(gzip.Name),
-				)
-
-				if err != nil {
-					r.voteResponseErrorChan <- voteResponseErrorWrapper{
-						peer: &peer,
-						err:  err,
-					}
-					return
-				}
-
-				r.voteResponseChan <- voteResponseWrapper{
-					peer:             &peer,
-					response:         response,
-					savedCurrentTerm: currentTerm,
-				}
-			}()
-		}
-	}
-}
-
-func (r *Rafty) runAsLeader() {
-	timer := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
-	r.heartbeatTicker = time.NewTicker(timer)
-	defer r.heartbeatTicker.Stop()
-
-	for {
-		select {
-		// stop go routine when os signal is receive or ctrl+c
-		case <-r.quit:
-			return
-
-		// handle heartbeats from other leader
-		case reader := <-r.rpcSendHeartbeatsChanReader:
-			r.handleSendHeartbeatsReader(reader)
-
-		// handle heartbeat request from other nodes
-		case hearbeat := <-r.heartbeatResponseChan:
-			r.handleHeartBeatsResponse(hearbeat)
-
-		// handle heartbeat response error from other nodes
-		case hearbeatError := <-r.heartbeatErrorChan:
-			r.handleHeartBeatsResponseError(hearbeatError)
-
-		// handle get leader requests from other nodes
-		case reader := <-r.rpcGetLeaderChanReader:
-			r.handleGetLeaderReader(reader)
-
-		// handle client get leader
-		case <-r.rpcClientGetLeaderChanReader:
-			r.handleClientGetLeaderReader()
-
-		default:
-			// go select is non-deterministic so as per doc it will randomly
-			// select a chan and we do not want the random part,
-			// that why we put this new select block here in order to have a high/low priority channel handler
-			// Channels above have priorities over this one
-			//nolint gosimple
-			select {
-			// send heartbeats to other nodes when ticker time out
-			case <-r.heartbeatTicker.C:
-				if r.State != Leader {
-					return
-				}
-				for _, peer := range r.Peers {
-					peer := *peer
-					r.sendHeartBeats(peer)
-				}
-			}
-		}
-	}
-}
-
-// getLeaderRequest allow the current node
+// SendGetLeaderRequest allow the current node
 // ask to other nodes who is the actual leader
 // it also permit to get id of other nodes
-func (r *Rafty) getLeaderRequest() {
-	for _, peer := range r.Peers {
-		r.mu.Lock()
-		currentTerm := r.CurrentTerm
-		myAddress := r.Address.String()
-		myId := r.ID
-		state := r.State
-		peer := *peer
-		r.mu.Unlock()
-		r.connectToPeer(peer.address.String())
+func (r *Rafty) SendGetLeaderRequest() {
+	currentTerm := r.getCurrentTerm()
+	myAddress, myId := r.getMyAddress()
+	state := r.getState()
 
+	for _, peer := range r.Peers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.leader == nil {
 			if !r.healthyPeer(peer) {
 				return
@@ -663,144 +494,14 @@ func (r *Rafty) getLeaderRequest() {
 				}
 
 				peerIndex := r.getPeerSliceIndex(peer.address.String())
-				r.mu.Lock()
 				r.Peers[peerIndex].id = response.GetPeerID()
-				r.mu.Unlock()
 
 				if response.GetLeaderID() != "" {
-					r.Logger.Info().Msgf("Peer with id %s is the leader", response.GetLeaderID())
-					r.switchState(Follower, true, currentTerm)
+					r.Logger.Info().Msgf("Peer with %s / %s is the leader", response.GetLeaderAddress(), response.GetLeaderID())
+					r.switchState(Follower, false, currentTerm)
 					return
 				}
 			}()
 		}
 	}
-}
-
-// preVoteRequest connect to peers in order to check who is the leader
-// If no leader, fetch their currentTerm
-// and decided if they are suitable for election campain
-func (r *Rafty) preVoteRequest() {
-	if r.State != Follower {
-		r.stopElectionTimer(true, false)
-		return
-	}
-
-	r.resetElectionTimer(true, false)
-	r.PreCandidatePeers = nil
-
-	for _, peer := range r.Peers {
-		r.mu.Lock()
-		if r.State != Follower {
-			r.mu.Unlock()
-			return
-		}
-		currentTerm := r.CurrentTerm
-		myAddress := r.Address.String()
-		myId := r.ID
-		state := r.State
-		peer := *peer
-		r.mu.Unlock()
-		r.connectToPeer(peer.address.String())
-
-		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) {
-			if !r.healthyPeer(peer) {
-				return
-			}
-			go func() {
-				if r.leader != nil {
-					r.stopElectionTimer(true, false)
-					r.switchState(Follower, true, currentTerm)
-					return
-				}
-				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d for pre vote request", myAddress, myId, state.String(), peer.address.String(), currentTerm)
-
-				response, err := peer.rclient.SendPreVoteRequest(
-					context.Background(),
-					&grpcrequests.PreVoteRequest{
-						Id:          myId,
-						State:       state.String(),
-						CurrentTerm: currentTerm,
-					},
-					grpc.WaitForReady(true),
-					grpc.UseCompressor(gzip.Name),
-				)
-				if err != nil {
-					r.preVoteResponseErrorChan <- voteResponseErrorWrapper{
-						peer: &peer,
-						err:  err,
-					}
-					return
-				}
-				r.preVoteResponseChan <- preVoteResponseWrapper{
-					peer:     &peer,
-					response: response,
-				}
-			}()
-		}
-	}
-}
-
-// sendHeartBeats send heartbeats to followers
-// in order to prevent re-election
-func (r *Rafty) sendHeartBeats(peer Peer) {
-	r.mu.Lock()
-	if r.State != Leader {
-		r.mu.Unlock()
-		return
-	}
-	currentTerm := r.CurrentTerm
-	myAddress := r.Address.String()
-	myId := r.ID
-	r.mu.Unlock()
-	if peer.id == "" {
-		return
-	}
-	r.connectToPeer(peer.address.String())
-
-	if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) {
-		if !r.healthyPeer(peer) {
-			return
-		}
-		go func() {
-			r.Logger.Trace().Msgf("Me the leader %s / %s, send heartbeat to peer %s / %s for term %d", myAddress, myId, peer.address.String(), peer.id, currentTerm)
-
-			response, err := peer.rclient.SendHeartbeats(
-				context.Background(),
-				&grpcrequests.SendHeartbeatRequest{
-					LeaderID:      myId,
-					LeaderAddress: myAddress,
-					CurrentTerm:   currentTerm,
-				},
-				grpc.WaitForReady(true),
-				grpc.UseCompressor(gzip.Name),
-			)
-
-			if err != nil {
-				r.heartbeatErrorChan <- heartbeatErrorWrapper{
-					peer: &peer,
-					err:  err,
-				}
-				return
-			}
-			r.heartbeatResponseChan <- heartbeatResponseWrapper{
-				peer:        &peer,
-				response:    response,
-				currentTerm: currentTerm,
-			}
-		}()
-	}
-}
-
-func (r *Rafty) StopAll() {
-	if r.electionTimer != nil {
-		r.stopElectionTimer(false, true)
-	}
-	if r.preVoteElectionTimer != nil {
-		r.stopElectionTimer(true, false)
-	}
-	if r.heartbeatTicker != nil {
-		r.heartbeatTicker.Stop()
-	}
-	r.disconnectToPeers()
 }

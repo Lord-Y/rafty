@@ -2,9 +2,11 @@ package rafty
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/Lord-Y/rafty/grpcrequests"
@@ -16,9 +18,8 @@ import (
 )
 
 func (r *Rafty) parsePeers() error {
-	var uniqPeers []*Peer
+	var uniqPeers []Peer
 	for _, peer := range r.Peers {
-		peer := *peer
 		var addr net.TCPAddr
 		host, port, err := net.SplitHostPort(peer.Address)
 		if err != nil {
@@ -28,7 +29,7 @@ func (r *Rafty) parsePeers() error {
 					Port: int(GRPCPort),
 				}
 				if r.Status.Address.String() != addr.String() {
-					uniqPeers = append(uniqPeers, &Peer{
+					uniqPeers = append(uniqPeers, Peer{
 						Address: addr.String(),
 						address: addr,
 					})
@@ -46,7 +47,7 @@ func (r *Rafty) parsePeers() error {
 				Port: p,
 			}
 			if r.Status.Address.String() != addr.String() {
-				uniqPeers = append(uniqPeers, &Peer{
+				uniqPeers = append(uniqPeers, Peer{
 					Address: addr.String(),
 					address: addr,
 				})
@@ -64,7 +65,7 @@ func (r *Rafty) parsePeers() error {
 func (r *Rafty) getPeerSliceIndex(addr string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	index := slices.IndexFunc(r.Peers, func(p *Peer) bool {
+	index := slices.IndexFunc(r.Peers, func(p Peer) bool {
 		return p.address.String() == addr
 	})
 	if index != -1 {
@@ -77,31 +78,76 @@ func (r *Rafty) getPeerSliceIndex(addr string) int {
 // if peer is present in the peer list
 func (r *Rafty) checkIfPeerInSliceIndex(preVote bool, addr string) bool {
 	if preVote {
-		index := slices.IndexFunc(r.PreCandidatePeers, func(p *Peer) bool {
+		index := slices.IndexFunc(r.PreCandidatePeers, func(p Peer) bool {
 			return p.address.String() == addr
 		})
 		return index != -1
 	}
 
-	index := slices.IndexFunc(r.Peers, func(p *Peer) bool {
+	index := slices.IndexFunc(r.Peers, func(p Peer) bool {
 		return p.address.String() == addr
 	})
 	return index != -1
 }
 
+func (r *Rafty) loopingOverNodeState() {
+	for r.getState() != Down {
+		select {
+		// stop go routine when os signal is receive or ctrl+c
+		case <-r.quit:
+			r.switchState(Down, false, r.getCurrentTerm())
+			return
+		default:
+		}
+
+		switch r.getState() {
+		case Follower:
+			r.runAsFollower()
+		case Candidate:
+			r.runAsCandidate()
+		case Leader:
+			r.runAsLeader()
+		}
+	}
+}
+
 // switchState permits to switch to the mentionned state
 // and print a nice message if needed
 func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	if r.getState() == state {
+		return
+	}
+	addr := (*uint32)(&r.State)
+	atomic.StoreUint32(addr, uint32(state))
 
-	if r.State == state {
+	if state == Follower {
+		r.volatileStateInitialized.Store(false)
+		// r.resetQuorum()
+	}
+
+	if niceMessage {
+		myAddress, myId := r.getMyAddress()
+		switch state {
+		case Follower:
+			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", myAddress, myId, state, currentTerm)
+		case Candidate:
+			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
+		case Leader:
+			r.stopElectionTimer(true, true)
+			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
+		}
+	}
+}
+
+// logState permits to log mentionned state
+// with a nice message if needed
+func (r *Rafty) logState(state State, niceMessage bool, currentTerm uint64) {
+	if r.getState() == state {
 		return
 	}
 
-	r.State = state
 	if niceMessage {
-		switch r.State {
+		switch state {
 		case Follower:
 			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", r.Address.String(), r.ID, state, currentTerm)
 		case Candidate:
@@ -141,7 +187,7 @@ func (r *Rafty) saveLeaderInformations(newLeader leaderMap) {
 func (r *Rafty) connectToPeer(address string) {
 	peerIndex := r.getPeerSliceIndex(address)
 	r.mu.Lock()
-	peer := *r.Peers[peerIndex]
+	peer := r.Peers[peerIndex]
 	r.mu.Unlock()
 	if peer.client == nil {
 		opts := []grpc.DialOption{
@@ -174,7 +220,7 @@ func (r *Rafty) connectToPeer(address string) {
 		r.mu.Unlock()
 
 		if r.Peers[peerIndex].id == "" {
-			r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.Address.String())
+			r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.Peers[peerIndex].address.String())
 			ctx := context.Background()
 			response, err := r.Peers[peerIndex].rclient.AskNodeID(ctx, &grpcrequests.AskNodeIDRequest{
 				Id:      r.ID,
@@ -218,19 +264,56 @@ func (r *Rafty) healthyPeer(peer Peer) bool {
 	return false
 }
 
-// disconnectToPeers permits to disconnect to all grpc servers
-func (r *Rafty) disconnectToPeers() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, peer := range r.Peers {
-		if peer.client != nil {
-			err := peer.client.Close()
-			if err != nil {
-				r.Logger.Err(err).Msgf("Fail to close connection to peer %s", peer.id)
-				return
-			}
-			peer.client = nil
-			peer.rclient = nil
+func (r *Rafty) convertEntriesToProtobufEntries(entries []*logEntry) []*grpcrequests.LogEntry {
+	pbEntries := make([]*grpcrequests.LogEntry, len(entries))
+	for _, entry := range entries {
+		if entry.Command == nil {
+			pbEntries = append(pbEntries,
+				&grpcrequests.LogEntry{
+					Term: entry.Term,
+				},
+			)
+		} else {
+			result, _ := json.Marshal(entry.Command)
+			pbEntries = append(pbEntries,
+				&grpcrequests.LogEntry{
+					Term:    entry.Term,
+					Command: result,
+				},
+			)
 		}
 	}
+	return pbEntries
+}
+
+func (r *Rafty) convertProtobufEntriesToEntries(pbEntries *grpcrequests.LogEntry) *logEntry {
+	if len(pbEntries.Command) == 0 {
+		return &logEntry{
+			Term:    pbEntries.Term,
+			Command: pbEntries.Command,
+		}
+	}
+
+	var result interface{}
+	_ = json.Unmarshal(pbEntries.Command, result)
+	return &logEntry{
+		Term:    pbEntries.Term,
+		Command: result,
+	}
+}
+
+// min return the minimum value based on provided values
+func min(a, b uint64) uint64 {
+	if a > b {
+		return b
+	}
+	return a
+}
+
+// max return the maximum value based on provided values
+func max(a, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+	return b
 }
