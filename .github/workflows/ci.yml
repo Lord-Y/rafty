@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         go:
-        - '1.22.3'
+        - '1.22.7'
     env:
       GOLANGCI_LINT_VERSION: 1.59.0
     steps:
