@@ -11,6 +11,12 @@ func (rpc *rpcManager) SayHello(ctx context.Context, in *grpcrequests.HelloReque
 	return &grpcrequests.HelloReply{Message: "Hello " + in.GetName()}, nil
 }
 
+func (rpc *rpcManager) GetLeader(ctx context.Context, in *grpcrequests.GetLeaderRequest) (*grpcrequests.GetLeaderResponse, error) {
+	rpc.rafty.rpcGetLeaderChanReader <- in
+	response := <-rpc.rafty.rpcGetLeaderChanWritter
+	return response, nil
+}
+
 func (rpc *rpcManager) SendPreVoteRequest(ctx context.Context, in *grpcrequests.PreVoteRequest) (*grpcrequests.PreVoteResponse, error) {
 	var s struct{}
 	rpc.rafty.rpcPreVoteRequestChanReader <- s
@@ -21,12 +27,6 @@ func (rpc *rpcManager) SendPreVoteRequest(ctx context.Context, in *grpcrequests.
 func (rpc *rpcManager) SendVoteRequest(ctx context.Context, in *grpcrequests.VoteRequest) (*grpcrequests.VoteResponse, error) {
 	rpc.rafty.rpcSendVoteRequestChanReader <- in
 	response := <-rpc.rafty.rpcSendVoteRequestChanWritter
-	return response, nil
-}
-
-func (rpc *rpcManager) GetLeader(ctx context.Context, in *grpcrequests.GetLeaderRequest) (*grpcrequests.GetLeaderResponse, error) {
-	rpc.rafty.rpcGetLeaderChanReader <- in
-	response := <-rpc.rafty.rpcGetLeaderChanWritter
 	return response, nil
 }
 
@@ -46,7 +46,7 @@ func (rpc *rpcManager) SendHeartbeats(ctx context.Context, in *grpcrequests.Send
 	return response, nil
 }
 
-func (rpc *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *grpcrequests.SendAppendEntryRequest) (*grpcrequests.SendAppendEntryResponse, error) {
+func (rpc *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *grpcrequests.AppendEntryRequest) (*grpcrequests.AppendEntryResponse, error) {
 	rpc.rafty.rpcSendAppendEntriesRequestChanReader <- in
 	response := <-rpc.rafty.rpcSendAppendEntriesRequestChanWritter
 	return response, nil
