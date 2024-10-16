@@ -2,8 +2,6 @@ syntax = "proto3";
 
 option go_package = "github.com/Lord-Y/rafty/grpcrequests";
 
-import "google/protobuf/empty.proto";
-
 package grpcrequests;
 
 message HelloRequest {
@@ -31,22 +29,20 @@ message PreVoteResponse {
 }
 
 message VoteRequest {
-  string id = 1;
-  string state = 2;
-  uint64 currentTerm = 3;
-  uint64 currentCommitIndex = 4;
-  uint64 lastApplied = 5;
+  string candidateId = 1;
+  string candidateAddress = 2;
+  string state = 3;
+  uint64 currentTerm = 4;
+  uint64 lastLogIndex = 5;
+  uint64 lastLogTerm = 6;
 }
 
 message VoteResponse {
   bool voteGranted = 1;
   uint64 currentTerm = 2;
-  uint64 currentCommitIndex = 3;
-  uint64 lastApplied = 4;
-  bool alreadyVoted = 5;
-  string peerID = 6;
-  bool newLeaderDetected = 7;
-  bool requesterStepDown = 8;
+  string peerID = 3;
+  bool newLeaderDetected = 4;
+  bool requesterStepDown = 5;
 }
 
 message SetLeaderRequest {
@@ -70,20 +66,24 @@ message GetLeaderResponse {
   string peerID = 3;
 }
 
-message SendAppendEntryRequest {
-  string leaderID = 1;
-  uint64 currentTerm = 2;
-  uint64 currentCommitIndex = 3;
-  uint64 lastApplied = 4;
+message LogEntry {
+  uint64 term = 1;
+  bytes command = 2;
 }
 
-message SendAppendEntryResponse {
-  string peerID = 1;
-  uint64 currentTerm = 2;
-  uint64 currentCommitIndex = 3;
-  uint64 lastApplied = 4;
-  bool ack = 5;
-  bool leaderIsBehind = 6;
+message AppendEntryRequest {
+  string leaderID = 1;
+  string leaderAddress = 2;
+  uint64 term = 3;
+  uint64 prevLogIndex = 4;
+  uint64 prevLogTerm = 5;
+  repeated LogEntry entries = 6;
+  uint64 leaderCommitIndex = 7;
+}
+
+message AppendEntryResponse {
+  uint64 term = 1;
+  bool success = 2;
 }
 
 message SendHeartbeatRequest {
@@ -122,7 +122,7 @@ service Rafty {
   rpc SetLeader(SetLeaderRequest) returns (SetLeaderResponse) {}
   rpc GetLeader(GetLeaderRequest) returns (GetLeaderResponse) {}
   rpc ClientGetLeader(ClientGetLeaderRequest) returns (ClientGetLeaderResponse) {}
-  rpc SendAppendEntriesRequest(SendAppendEntryRequest) returns (SendAppendEntryResponse) {}
+  rpc SendAppendEntriesRequest(AppendEntryRequest) returns (AppendEntryResponse) {}
   rpc SendHeartbeats(SendHeartbeatRequest) returns (SendHeartbeatResponse) {}
   rpc AskNodeID(AskNodeIDRequest) returns (AskNodeIDResponse) {}
 }
