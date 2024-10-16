@@ -29,7 +29,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 		var addr net.TCPAddr
 
 		server := new(rafty.Rafty)
-		peers := []*rafty.Peer{}
+		peers := []rafty.Peer{}
 		addr = net.TCPAddr{
 			IP:   net.ParseIP(*ipAddress),
 			Port: int(rafty.GRPCPort) + int(i),
@@ -52,7 +52,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 			}
 
 			if addr.String() != peerAddr {
-				peers = append(peers, &rafty.Peer{
+				peers = append(peers, rafty.Peer{
 					Address: peerAddr,
 				})
 
