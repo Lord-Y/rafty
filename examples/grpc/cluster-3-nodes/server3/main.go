@@ -11,7 +11,7 @@ func main() {
 		IP:   net.ParseIP("127.0.0.3"),
 		Port: 50053,
 	}
-	peers := []*rafty.Peer{
+	peers := []rafty.Peer{
 		{
 			Address: "127.0.0.1",
 		},
