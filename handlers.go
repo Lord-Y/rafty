@@ -301,7 +301,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 			previousEntry := reader.GetEntries()[index-nextIndex]
 			if index > uint64(cap(r.log)) {
 				totalOfEntries := nextIndex + totalLogs
-				newLog := make([]*logEntry, index, totalOfEntries*2)
+				newLog := make([]*grpcrequests.LogEntry, index, totalOfEntries*2)
 				copy(newLog, r.log)
 				r.log = newLog
 			}
@@ -313,7 +313,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 			}
 
 			if index > totalLogs {
-				r.log = append(r.log, r.convertProtobufEntriesToEntries(previousEntry))
+				r.log = append(r.log, previousEntry)
 				newEntries++
 			}
 		}
