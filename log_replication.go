@@ -32,7 +32,7 @@ func (r *Rafty) appendEntries() {
 		if totalLogs > 0 {
 			prevLogTerm = r.log[prevLogIndex].Term
 			if uint64(totalLogs) >= nextIndex {
-				entries = r.convertEntriesToProtobufEntries(r.log[nextIndex:])
+				entries = r.log[nextIndex:]
 			}
 			if len(entries) > int(maxAppendEntries) {
 				entries = entries[:maxAppendEntries]

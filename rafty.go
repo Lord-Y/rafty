@@ -323,17 +323,10 @@ type Rafty struct {
 	volatileStateInitialized atomic.Bool
 
 	// log hold all logs entries
-	log []*logEntry
+	log []*grpcrequests.LogEntry
 
 	// MaxAppendEntries will hold how much append entries the leader will send to the follower at once
 	MaxAppendEntries uint64
-}
-
-// logEntry hold the command and term that has been applied
-// to the current node
-type logEntry struct {
-	Command interface{}
-	Term    uint64
 }
 
 // preVoteResponseWrapper is a struct that will be used to send response to the appropriate channel
