@@ -2,7 +2,6 @@ package rafty
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 	"slices"
 	"strconv"
@@ -262,44 +261,6 @@ func (r *Rafty) healthyPeer(peer Peer) bool {
 		return true
 	}
 	return false
-}
-
-func (r *Rafty) convertEntriesToProtobufEntries(entries []*logEntry) []*grpcrequests.LogEntry {
-	pbEntries := make([]*grpcrequests.LogEntry, len(entries))
-	for _, entry := range entries {
-		if entry.Command == nil {
-			pbEntries = append(pbEntries,
-				&grpcrequests.LogEntry{
-					Term: entry.Term,
-				},
-			)
-		} else {
-			result, _ := json.Marshal(entry.Command)
-			pbEntries = append(pbEntries,
-				&grpcrequests.LogEntry{
-					Term:    entry.Term,
-					Command: result,
-				},
-			)
-		}
-	}
-	return pbEntries
-}
-
-func (r *Rafty) convertProtobufEntriesToEntries(pbEntries *grpcrequests.LogEntry) *logEntry {
-	if len(pbEntries.Command) == 0 {
-		return &logEntry{
-			Term:    pbEntries.Term,
-			Command: pbEntries.Command,
-		}
-	}
-
-	var result interface{}
-	_ = json.Unmarshal(pbEntries.Command, result)
-	return &logEntry{
-		Term:    pbEntries.Term,
-		Command: result,
-	}
 }
 
 // min return the minimum value based on provided values
