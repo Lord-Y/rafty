@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 )
 
+// appendEntries permits to send append entries to followers
 func (r *Rafty) appendEntries() {
 	currentTerm := r.getCurrentTerm()
 	commitIndex := r.getCommitIndex()
@@ -26,7 +27,7 @@ func (r *Rafty) appendEntries() {
 			prevLogTerm uint64
 			entries     []*grpcrequests.LogEntry
 		)
-		nextIndex := r.getNextIndex(r.nextIndex[peer.id])
+		nextIndex := r.getNextIndex(peer.id)
 		prevLogIndex := nextIndex - 1
 
 		if totalLogs > 0 {
@@ -78,12 +79,18 @@ func (r *Rafty) appendEntries() {
 
 				if r.getState() == Leader && response.GetTerm() == currentTerm {
 					if response.GetSuccess() {
-						r.setNextIndex(r.nextIndex[peer.id], max(prevLogIndex+uint64(totalEntries)+1, 1))
-						r.setMatchIndex(r.matchIndex[peer.id], nextIndex-1)
-						r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to %s / %s", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id)
+						if totalLogs > 0 {
+							r.setNextAndMatchIndex(peer.id, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
+						} else {
+							r.setNextAndMatchIndex(peer.id, 1, 0)
+						}
+						nextIndex, matchIndex := r.getNextAndMatchIndex(peer.id)
+
+						r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries of %s / %s with nextIndex: %d / matchIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id, nextIndex, matchIndex)
 					} else {
-						r.setNextIndex(r.nextIndex[peer.id], max(nextIndex-1, 1))
-						r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).Msgf("Me %s / %s with state %s and term %d failed to append entries to %s / %s because it rejected it", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id)
+						nextIndex := r.getNextIndex(peer.id)
+
+						r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).Msgf("Me %s / %s with state %s and term %d failed to append entries of %s / %s because it rejected it, nextIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id, nextIndex)
 					}
 				}
 			}()
