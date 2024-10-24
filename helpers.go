@@ -49,21 +49,25 @@ func (r *Rafty) getMyAddress() (addr, id string) {
 }
 
 // getNextIndex permits to safely retrieve node next index
-func (r *Rafty) getNextIndex(x uint64) uint64 {
-	addr := (*uint64)(&x)
-	return atomic.LoadUint64(addr)
+func (r *Rafty) getNextIndex(peerId string) uint64 {
+	r.murw.RLock()
+	defer r.murw.RUnlock()
+	return r.nextIndex[peerId]
 }
 
-// setNextIndex permits to safely set node next index
-func (r *Rafty) setNextIndex(k, v uint64) {
-	addr := (*uint64)(&k)
-	atomic.StoreUint64(addr, v)
+// setNextAndMatchIndex permits to retrieve node next index and match index
+func (r *Rafty) getNextAndMatchIndex(peerId string) (uint64, uint64) {
+	r.murw.RLock()
+	defer r.murw.RUnlock()
+	return r.nextIndex[peerId], r.matchIndex[peerId]
 }
 
-// setMatchIndex permits to safely set node match index
-func (r *Rafty) setMatchIndex(k, v uint64) {
-	addr := (*uint64)(&k)
-	atomic.StoreUint64(addr, v)
+// setNextAndMatchIndex permits to set node next index and match index
+func (r *Rafty) setNextAndMatchIndex(peerId string, nextIndex, matchIndex uint64) {
+	r.murw.Lock()
+	defer r.murw.Unlock()
+	r.nextIndex[peerId] = nextIndex
+	r.matchIndex[peerId] = matchIndex
 }
 
 // getCommitIndex permits to safely retrieve node last log index
