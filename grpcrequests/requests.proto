@@ -116,6 +116,15 @@ message ClientGetLeaderResponse {
   string leaderAddress = 2;
 }
 
+message ForwardCommandToLeaderRequest {
+  bytes command = 1;
+}
+
+message ForwardCommandToLeaderResponse {
+  bytes data = 1;
+  string error = 2;
+}
+
 service Rafty {
   rpc SendPreVoteRequest(PreVoteRequest) returns (PreVoteResponse) {}
   rpc SendVoteRequest(VoteRequest) returns (VoteResponse) {}
@@ -125,4 +134,5 @@ service Rafty {
   rpc SendAppendEntriesRequest(AppendEntryRequest) returns (AppendEntryResponse) {}
   rpc SendHeartbeats(SendHeartbeatRequest) returns (SendHeartbeatResponse) {}
   rpc AskNodeID(AskNodeIDRequest) returns (AskNodeIDResponse) {}
+  rpc ForwardCommandToLeader(ForwardCommandToLeaderRequest) returns (ForwardCommandToLeaderResponse) {}
 }

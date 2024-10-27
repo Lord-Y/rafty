@@ -118,6 +118,7 @@ const (
 	Rafty_SendAppendEntriesRequest_FullMethodName = "/grpcrequests.Rafty/SendAppendEntriesRequest"
 	Rafty_SendHeartbeats_FullMethodName           = "/grpcrequests.Rafty/SendHeartbeats"
 	Rafty_AskNodeID_FullMethodName                = "/grpcrequests.Rafty/AskNodeID"
+	Rafty_ForwardCommandToLeader_FullMethodName   = "/grpcrequests.Rafty/ForwardCommandToLeader"
 )
 
 // RaftyClient is the client API for Rafty service.
@@ -132,6 +133,7 @@ type RaftyClient interface {
 	SendAppendEntriesRequest(ctx context.Context, in *AppendEntryRequest, opts ...grpc.CallOption) (*AppendEntryResponse, error)
 	SendHeartbeats(ctx context.Context, in *SendHeartbeatRequest, opts ...grpc.CallOption) (*SendHeartbeatResponse, error)
 	AskNodeID(ctx context.Context, in *AskNodeIDRequest, opts ...grpc.CallOption) (*AskNodeIDResponse, error)
+	ForwardCommandToLeader(ctx context.Context, in *ForwardCommandToLeaderRequest, opts ...grpc.CallOption) (*ForwardCommandToLeaderResponse, error)
 }
 
 type raftyClient struct {
@@ -222,6 +224,16 @@ func (c *raftyClient) AskNodeID(ctx context.Context, in *AskNodeIDRequest, opts 
 	return out, nil
 }
 
+func (c *raftyClient) ForwardCommandToLeader(ctx context.Context, in *ForwardCommandToLeaderRequest, opts ...grpc.CallOption) (*ForwardCommandToLeaderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ForwardCommandToLeaderResponse)
+	err := c.cc.Invoke(ctx, Rafty_ForwardCommandToLeader_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RaftyServer is the server API for Rafty service.
 // All implementations must embed UnimplementedRaftyServer
 // for forward compatibility
@@ -234,6 +246,7 @@ type RaftyServer interface {
 	SendAppendEntriesRequest(context.Context, *AppendEntryRequest) (*AppendEntryResponse, error)
 	SendHeartbeats(context.Context, *SendHeartbeatRequest) (*SendHeartbeatResponse, error)
 	AskNodeID(context.Context, *AskNodeIDRequest) (*AskNodeIDResponse, error)
+	ForwardCommandToLeader(context.Context, *ForwardCommandToLeaderRequest) (*ForwardCommandToLeaderResponse, error)
 	mustEmbedUnimplementedRaftyServer()
 }
 
@@ -264,6 +277,9 @@ func (UnimplementedRaftyServer) SendHeartbeats(context.Context, *SendHeartbeatRe
 }
 func (UnimplementedRaftyServer) AskNodeID(context.Context, *AskNodeIDRequest) (*AskNodeIDResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AskNodeID not implemented")
+}
+func (UnimplementedRaftyServer) ForwardCommandToLeader(context.Context, *ForwardCommandToLeaderRequest) (*ForwardCommandToLeaderResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ForwardCommandToLeader not implemented")
 }
 func (UnimplementedRaftyServer) mustEmbedUnimplementedRaftyServer() {}
 
@@ -422,6 +438,24 @@ func _Rafty_AskNodeID_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Rafty_ForwardCommandToLeader_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForwardCommandToLeaderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RaftyServer).ForwardCommandToLeader(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Rafty_ForwardCommandToLeader_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RaftyServer).ForwardCommandToLeader(ctx, req.(*ForwardCommandToLeaderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Rafty_ServiceDesc is the grpc.ServiceDesc for Rafty service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -460,6 +494,10 @@ var Rafty_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AskNodeID",
 			Handler:    _Rafty_AskNodeID_Handler,
+		},
+		{
+			MethodName: "ForwardCommandToLeader",
+			Handler:    _Rafty_ForwardCommandToLeader_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
