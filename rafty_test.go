@@ -20,7 +20,13 @@ func TestStart(t *testing.T) {
 		//nolint gosimple
 		select {
 		case <-time.After(30 * time.Millisecond):
-			found = cc.clientGetLeader()
+			found, _, _ = cc.clientGetLeader()
+			if found {
+				for _, node := range cc.cluster {
+					_, err := node.SubmitCommand(command{kind: commandSet, key: "key", value: "value"})
+					assert.Nil(err)
+				}
+			}
 		}
 	}
 

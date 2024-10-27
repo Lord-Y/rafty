@@ -183,7 +183,6 @@ func (r *Rafty) runAsLeader() {
 		// to later apply commands
 		case command := <-r.rpcForwardCommandToLeaderRequestChanReader:
 			heartbeatTicker.Stop()
-			r.Logger.Info().Msg("LEADER FORWARD")
 			r.log = append(r.log, &grpcrequests.LogEntry{Term: r.getCurrentTerm(), Command: command.GetCommand()})
 			r.appendEntries(make(chan appendEntriesResponse, 1), false, true)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
