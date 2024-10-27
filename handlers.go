@@ -353,8 +353,12 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 }
 
 func (r *rpcManager) ForwardCommandToLeader(_ context.Context, reader *grpcrequests.ForwardCommandToLeaderRequest) (*grpcrequests.ForwardCommandToLeaderResponse, error) {
-	r.rafty.rpcForwardCommandToLeaderRequestChanReader <- &grpcrequests.ForwardCommandToLeaderRequest{Command: reader.Command}
+	cmd := r.rafty.decodeCommand(reader.Command)
+	if cmd.kind == commandSet {
+		r.rafty.rpcForwardCommandToLeaderRequestChanReader <- &grpcrequests.ForwardCommandToLeaderRequest{Command: reader.Command}
 
-	response := <-r.rafty.rpcForwardCommandToLeaderRequestChanWritter
-	return &grpcrequests.ForwardCommandToLeaderResponse{Data: response.Data, Error: response.Error}, nil
+		response := <-r.rafty.rpcForwardCommandToLeaderRequestChanWritter
+		return &grpcrequests.ForwardCommandToLeaderResponse{Data: response.Data, Error: response.Error}, nil
+	}
+	return &grpcrequests.ForwardCommandToLeaderResponse{}, nil
 }
