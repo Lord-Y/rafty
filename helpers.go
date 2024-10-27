@@ -55,6 +55,13 @@ func (r *Rafty) getNextIndex(peerId string) uint64 {
 	return r.nextIndex[peerId]
 }
 
+// setNextIndex permits to safely set node next index
+func (r *Rafty) setNextIndex(peerId string, v uint64) {
+	r.murw.RLock()
+	defer r.murw.RUnlock()
+	r.nextIndex[peerId] = v
+}
+
 // setNextAndMatchIndex permits to retrieve node next index and match index
 func (r *Rafty) getNextAndMatchIndex(peerId string) (uint64, uint64) {
 	r.murw.RLock()

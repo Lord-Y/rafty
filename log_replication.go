@@ -139,7 +139,8 @@ func (r *Rafty) appendEntries(clientChan chan appendEntriesResponse, replyToClie
 
 						r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries of %s / %s with nextIndex: %d / matchIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id, nextIndex, matchIndex)
 					} else {
-						nextIndex := r.getNextIndex(peer.id)
+						nextIndex := max(nextIndex-1, 1)
+						r.setNextIndex(peer.id, nextIndex)
 
 						r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).Msgf("Me %s / %s with state %s and term %d failed to append entries of %s / %s because it rejected it, nextIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id, nextIndex)
 					}
