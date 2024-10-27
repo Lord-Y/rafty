@@ -60,7 +60,6 @@ func (r *Rafty) preVoteRequest() {
 // startElection permit to send vote request
 // to other nodes in order to elect a leader
 func (r *Rafty) startElection() {
-	// r.Logger.Info().Msg("startElection")
 	r.resetElectionTimer(false, true)
 	myAddress, myId := r.getMyAddress()
 	currentTerm := r.incrementCurrentTerm()
