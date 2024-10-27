@@ -24,13 +24,14 @@ So let's try to redo the wheel with more explanations.
 Here is a list of the supported features of `rafty`:
 - [x] PreVote election
 - [x] Leader election
-- [x] Log replication
-- [] Write log on storage
-- [] Log compaction
+- [] Logs
+  - [x] Log replication
+  - [] Submit/Read commands
+  - [] Log compaction
 - [] Membership changes
-  - Add member
-  - remove member
-  - promote member
+  - [] Add member
+  - [] remove member
+  - [] promote member
 
 ## References
 
@@ -45,3 +46,4 @@ Here is a list of the supported features of `rafty`:
 - https://github.com/lni/dragonboat
 - https://github.com/lni/dragonboat-example
 - https://github.com/PlatformLab/epaxos/tree/master
+- https://www.cs.princeton.edu/courses/archive/fall18/cos418/docs/p7-raft.pdf
