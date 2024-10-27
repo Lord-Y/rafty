@@ -107,7 +107,7 @@ func (cc *clusterConfig) startOrStopSpecificicNode(index int, action string) err
 	}
 }
 
-func (cc *clusterConfig) clientGetLeader() bool {
+func (cc *clusterConfig) clientGetLeader() (bool, string, string) {
 	assert := assert.New(cc.t)
 	nodeAddr := cc.cluster[0].Address.String()
 	conn, err := grpc.NewClient(
@@ -128,8 +128,8 @@ func (cc *clusterConfig) clientGetLeader() bool {
 	}
 	if response.GetLeaderAddress() == "" && response.GetLeaderID() == "" {
 		cc.cluster[0].Logger.Info().Msgf("No leader found")
-		return false
+		return false, response.GetLeaderAddress(), response.GetLeaderID()
 	}
 	cc.cluster[0].Logger.Info().Msgf("%s / %s is the leader", response.GetLeaderAddress(), response.GetLeaderID())
-	return true
+	return true, "", ""
 }
