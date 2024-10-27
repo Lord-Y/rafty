@@ -127,13 +127,13 @@ func (r *Rafty) appendEntries(clientChan chan appendEntriesResponse, replyToClie
 						}
 
 						if int(majority.Load()) >= totalMajority {
-							r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
 							if replyToClient {
 								clientChan <- appendEntriesResponse{}
 							}
 							if replyToClientGRPC {
 								r.rpcForwardCommandToLeaderRequestChanWritter <- &grpcrequests.ForwardCommandToLeaderResponse{}
 							}
+							r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
 						}
 						nextIndex, matchIndex := r.getNextAndMatchIndex(peer.id)
 
