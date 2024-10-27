@@ -200,6 +200,10 @@ type Rafty struct {
 	// voteResponseErrorChan is the chan that will receive vote reply error
 	voteResponseErrorChan chan voteResponseErrorWrapper
 
+	// triggerAppendEntriesChan is the chan that will trigger append entries
+	// without waiting leader hearbeat append entries
+	triggerAppendEntriesChan chan triggerAppendEntries
+
 	// rpcPreVoteRequestChanReader will be use to handle rpc call
 	rpcPreVoteRequestChanReader chan struct{}
 
@@ -236,6 +240,12 @@ type Rafty struct {
 	// rpcSendAppendEntriesRequestChanWritter will be use to answer rpc call
 	rpcSendAppendEntriesRequestChanWritter chan *grpcrequests.AppendEntryResponse
 
+	// rpcForwardCommandToLeaderRequestChanReader will be use to handle rpc client call to leader
+	rpcForwardCommandToLeaderRequestChanReader chan *grpcrequests.ForwardCommandToLeaderRequest
+
+	// rpcForwardCommandToLeaderRequestChanWritter will be use to answer rpc client call from leader
+	rpcForwardCommandToLeaderRequestChanWritter chan *grpcrequests.ForwardCommandToLeaderResponse
+
 	// rpcClientGetLeaderChanReader will be use to handle rpc call
 	rpcClientGetLeaderChanReader chan *grpcrequests.ClientGetLeaderRequest
 
@@ -249,6 +259,9 @@ type Rafty struct {
 
 	// mu is use to ensure lock concurrency
 	mu sync.Mutex
+
+	// murw will be mostly use with map to avoid data races
+	murw sync.RWMutex
 
 	// Logger expose zerolog so it can be override
 	Logger *zerolog.Logger
@@ -271,7 +284,7 @@ type Rafty struct {
 
 	// leaderLost is a boolean that allow the node to properly
 	// restart pre election campain when leader is lost
-	leaderLost bool
+	leaderLost atomic.Bool
 
 	// startElectionCampain permit to start election campain as
 	// pre vote quorum as been reached
@@ -363,22 +376,25 @@ func NewRafty() *Rafty {
 	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
 
 	return &Rafty{
-		Logger:                                 &logger,
-		quit:                                   make(chan struct{}),
-		preVoteResponseChan:                    make(chan preVoteResponseWrapper),
-		preVoteResponseErrorChan:               make(chan voteResponseErrorWrapper),
-		voteResponseChan:                       make(chan voteResponseWrapper),
-		voteResponseErrorChan:                  make(chan voteResponseErrorWrapper),
-		rpcPreVoteRequestChanReader:            make(chan struct{}),
-		rpcPreVoteRequestChanWritter:           make(chan *grpcrequests.PreVoteResponse),
-		rpcSendVoteRequestChanReader:           make(chan *grpcrequests.VoteRequest),
-		rpcSendVoteRequestChanWritter:          make(chan *grpcrequests.VoteResponse),
-		rpcGetLeaderChanReader:                 make(chan *grpcrequests.GetLeaderRequest),
-		rpcGetLeaderChanWritter:                make(chan *grpcrequests.GetLeaderResponse),
-		rpcSendHeartbeatsChanReader:            make(chan *grpcrequests.SendHeartbeatRequest),
-		rpcSendHeartbeatsChanWritter:           make(chan *grpcrequests.SendHeartbeatResponse),
-		rpcSendAppendEntriesRequestChanReader:  make(chan *grpcrequests.AppendEntryRequest),
-		rpcSendAppendEntriesRequestChanWritter: make(chan *grpcrequests.AppendEntryResponse),
+		Logger:                                      &logger,
+		quit:                                        make(chan struct{}),
+		preVoteResponseChan:                         make(chan preVoteResponseWrapper),
+		preVoteResponseErrorChan:                    make(chan voteResponseErrorWrapper),
+		voteResponseChan:                            make(chan voteResponseWrapper),
+		voteResponseErrorChan:                       make(chan voteResponseErrorWrapper),
+		triggerAppendEntriesChan:                    make(chan triggerAppendEntries),
+		rpcPreVoteRequestChanReader:                 make(chan struct{}),
+		rpcPreVoteRequestChanWritter:                make(chan *grpcrequests.PreVoteResponse),
+		rpcSendVoteRequestChanReader:                make(chan *grpcrequests.VoteRequest),
+		rpcSendVoteRequestChanWritter:               make(chan *grpcrequests.VoteResponse),
+		rpcGetLeaderChanReader:                      make(chan *grpcrequests.GetLeaderRequest),
+		rpcGetLeaderChanWritter:                     make(chan *grpcrequests.GetLeaderResponse),
+		rpcSendHeartbeatsChanReader:                 make(chan *grpcrequests.SendHeartbeatRequest),
+		rpcSendHeartbeatsChanWritter:                make(chan *grpcrequests.SendHeartbeatResponse),
+		rpcSendAppendEntriesRequestChanReader:       make(chan *grpcrequests.AppendEntryRequest),
+		rpcSendAppendEntriesRequestChanWritter:      make(chan *grpcrequests.AppendEntryResponse),
+		rpcForwardCommandToLeaderRequestChanReader:  make(chan *grpcrequests.ForwardCommandToLeaderRequest),
+		rpcForwardCommandToLeaderRequestChanWritter: make(chan *grpcrequests.ForwardCommandToLeaderResponse),
 
 		// client rpc
 		rpcClientGetLeaderChanReader:  make(chan *grpcrequests.ClientGetLeaderRequest),
@@ -426,7 +442,6 @@ func (r *Rafty) start() {
 	r.startElectionTimer(true, true)
 	go r.loopingOverNodeState()
 	go r.checkLeaderLastContactDate()
-	// go r.switchStateLoop()
 }
 
 // startClusterWithMinimumSize allow us to reach minimum cluster size

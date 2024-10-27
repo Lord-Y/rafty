@@ -278,3 +278,19 @@ func max(a, b uint64) uint64 {
 	}
 	return b
 }
+
+// getPeerClient will be used to retrieve
+// the index of the peer and return its related struct
+func (r *Rafty) getPeerClient(peerId string) Peer {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	index := slices.IndexFunc(r.Peers, func(p Peer) bool {
+		r.Logger.Info().Msgf("p.id %s peerId %s", p.id, peerId)
+		return p.id == peerId
+	})
+	r.Logger.Info().Msgf("index %d", index)
+	if index != -1 {
+		return r.Peers[index]
+	}
+	return Peer{}
+}

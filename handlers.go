@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"context"
 	"time"
 
 	"github.com/Lord-Y/rafty/grpcrequests"
@@ -70,7 +71,7 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 
 		var majority bool
 		minimumClusterSize := r.getMinimumClusterSize()
-		if r.leaderLost {
+		if r.leaderLost.Load() {
 			if len(r.getPrecandidate())+1 == int(minimumClusterSize)-1 {
 				r.Logger.Trace().Msgf("PreCandidatePeers majority length when leader is lost %d", r.MinimumClusterSize-1)
 				majority = true
@@ -184,7 +185,6 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 		r.switchState(Follower, false, vote.response.GetCurrentTerm())
 		return
 	}
-	// r.Logger.Info().Msgf("Peer %s / %s term %d YYYY", vote.peer.address.String(), vote.response.GetPeerID(), vote.response.GetCurrentTerm())
 
 	if vote.response.GetNewLeaderDetected() {
 		r.setCurrentTerm(vote.response.GetCurrentTerm())
@@ -193,14 +193,18 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 	}
 
 	if vote.response.GetVoteGranted() {
+		r.mu.Lock()
 		r.quoroms = append(r.quoroms, quorom{
 			VoterID:     vote.response.GetPeerID(),
 			VoteGranted: true,
 		})
+		r.mu.Unlock()
 	} else {
+		r.mu.Lock()
 		r.quoroms = append(r.quoroms, quorom{
 			VoterID: vote.response.GetPeerID(),
 		})
+		r.mu.Unlock()
 		r.Logger.Info().Msgf("Peer %s / %s already voted for someone", vote.peer.address.String(), vote.peer.id)
 	}
 
@@ -342,8 +346,15 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 	r.mu.Lock()
 	lastContactDate := time.Now()
 	r.LeaderLastContactDate = &lastContactDate
-	r.leaderLost = false
+	r.leaderLost.Store(false)
 	r.mu.Unlock()
 
 	r.rpcSendAppendEntriesRequestChanWritter <- &grpcrequests.AppendEntryResponse{Term: reader.GetTerm(), Success: true}
+}
+
+func (r *rpcManager) ForwardCommandToLeader(_ context.Context, reader *grpcrequests.ForwardCommandToLeaderRequest) (*grpcrequests.ForwardCommandToLeaderResponse, error) {
+	r.rafty.rpcForwardCommandToLeaderRequestChanReader <- &grpcrequests.ForwardCommandToLeaderRequest{Command: reader.Command}
+
+	response := <-r.rafty.rpcForwardCommandToLeaderRequestChanWritter
+	return &grpcrequests.ForwardCommandToLeaderResponse{Data: response.Data, Error: response.Error}, nil
 }

@@ -1,6 +1,10 @@
 package rafty
 
-import "time"
+import (
+	"time"
+
+	"github.com/Lord-Y/rafty/grpcrequests"
+)
 
 func (r *Rafty) runAsFollower() {
 	r.logState(r.getState(), true, r.getCurrentTerm())
@@ -11,6 +15,7 @@ func (r *Rafty) runAsFollower() {
 			r.switchState(Down, false, r.getCurrentTerm())
 			return
 
+		// start pre vote request
 		case <-r.preVoteElectionTimer.C:
 			if !r.preVoteElectionTimerEnabled.Load() {
 				return
@@ -116,13 +121,13 @@ func (r *Rafty) runAsLeader() {
 				r.nextIndex = make(map[string]uint64)
 				r.matchIndex = make(map[string]uint64)
 			}
-			r.setNextIndex(r.nextIndex[peer.id], r.getLastLogIndex()+1)
-			r.setMatchIndex(r.matchIndex[peer.id], 0)
+			r.setNextAndMatchIndex(peer.id, 0, 0)
 		}
 		r.volatileStateInitialized.Store(true)
 	}
 
-	go r.sendHeartBeats()
+	heartbeatTicker := time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
+	defer heartbeatTicker.Stop()
 
 	for r.getState() == Leader {
 		select {
@@ -162,6 +167,26 @@ func (r *Rafty) runAsLeader() {
 		// handle client get leader
 		case <-r.rpcClientGetLeaderChanReader:
 			r.handleClientGetLeaderReader()
+
+		// send heartbeats to other nodes when ticker time out
+		case <-heartbeatTicker.C:
+			r.appendEntries(make(chan appendEntriesResponse, 1), false, false)
+
+		// this chan is used by clients to apply commands on the leader
+		case data := <-r.triggerAppendEntriesChan:
+			heartbeatTicker.Stop()
+			r.log = append(r.log, &grpcrequests.LogEntry{Term: r.getCurrentTerm(), Command: data.command})
+			r.appendEntries(data.responseChan, true, false)
+			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
+
+		// commands sent by clients to Follower nodes will be forwarded to the leader
+		// to later apply commands
+		case command := <-r.rpcForwardCommandToLeaderRequestChanReader:
+			heartbeatTicker.Stop()
+			r.Logger.Info().Msg("LEADER FORWARD")
+			r.log = append(r.log, &grpcrequests.LogEntry{Term: r.getCurrentTerm(), Command: command.GetCommand()})
+			r.appendEntries(make(chan appendEntriesResponse, 1), false, true)
+			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 		}
 	}
 }
@@ -182,7 +207,7 @@ func (r *Rafty) checkLeaderLastContactDate() {
 			leaderLastContactDate := r.LeaderLastContactDate
 			leaderLost := false
 			if leaderLastContactDate != nil && time.Since(*leaderLastContactDate) > timeout {
-				r.leaderLost = true
+				r.leaderLost.Store(true)
 				leaderLost = true
 				if r.leader != nil {
 					r.oldLeader = r.leader
@@ -198,23 +223,6 @@ func (r *Rafty) checkLeaderLastContactDate() {
 					r.resetElectionTimer(true, false)
 				}
 			}
-		}
-	}
-}
-
-func (r *Rafty) sendHeartBeats() {
-	heartbeatTicker := time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
-	defer heartbeatTicker.Stop()
-
-	for r.getState() == Leader {
-		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
-			return
-
-		// send heartbeats to other nodes when ticker time out
-		case <-heartbeatTicker.C:
-			r.appendEntries()
 		}
 	}
 }
