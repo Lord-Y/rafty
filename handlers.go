@@ -1,7 +1,6 @@
 package rafty
 
 import (
-	"context"
 	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -350,15 +349,4 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntry
 	r.mu.Unlock()
 
 	r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{Term: reader.GetTerm(), Success: true}
-}
-
-func (r *rpcManager) ForwardCommandToLeader(_ context.Context, reader *raftypb.ForwardCommandToLeaderRequest) (*raftypb.ForwardCommandToLeaderResponse, error) {
-	cmd := r.rafty.decodeCommand(reader.Command)
-	if cmd.kind == commandSet {
-		r.rafty.rpcForwardCommandToLeaderRequestChanReader <- &raftypb.ForwardCommandToLeaderRequest{Command: reader.Command}
-
-		response := <-r.rafty.rpcForwardCommandToLeaderRequestChanWritter
-		return &raftypb.ForwardCommandToLeaderResponse{Data: response.Data, Error: response.Error}, nil
-	}
-	return &raftypb.ForwardCommandToLeaderResponse{}, nil
 }
