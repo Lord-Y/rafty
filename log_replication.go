@@ -49,17 +49,21 @@ type triggerAppendEntries struct {
 }
 
 // appendEntries permits to send append entries to followers
-func (r *Rafty) appendEntries(clientChan chan appendEntriesResponse, replyToClient, replyToClientGRPC bool) {
+func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesResponse, replyToClient, replyToClientGRPC bool) {
 	currentTerm := r.getCurrentTerm()
 	commitIndex := r.getCommitIndex()
 	myAddress, myId := r.getMyAddress()
 	state := r.getState()
+	myNextIndex := r.getNextIndex(r.ID)
 	r.mu.Lock()
 	peers := r.Peers
 	totalPeers := len(peers)
-	totalLogs := len(r.log) - 1
+	totalLogs := len(r.log)
 	r.mu.Unlock()
-	var majority atomic.Uint64
+	var (
+		majority                   atomic.Uint64
+		leaderVolatileStateUpdated atomic.Bool
+	)
 	totalMajority := (totalPeers / 2) + 1
 
 	for _, peer := range peers {
@@ -70,7 +74,7 @@ func (r *Rafty) appendEntries(clientChan chan appendEntriesResponse, replyToClie
 		nextIndex := r.getNextIndex(peer.id)
 		prevLogIndex := nextIndex - 1
 
-		if totalLogs > 0 {
+		if totalLogs > 0 && int(prevLogIndex) >= 0 {
 			prevLogTerm = r.log[prevLogIndex].Term
 			if uint64(totalLogs) >= nextIndex {
 				entries = r.log[nextIndex:]
@@ -101,6 +105,7 @@ func (r *Rafty) appendEntries(clientChan chan appendEntriesResponse, replyToClie
 						PrevLogTerm:       prevLogTerm,
 						Entries:           entries,
 						LeaderCommitIndex: commitIndex,
+						Heartbeat:         heartbeat,
 					},
 					grpc.WaitForReady(true),
 					grpc.UseCompressor(gzip.Name),
@@ -120,20 +125,29 @@ func (r *Rafty) appendEntries(clientChan chan appendEntriesResponse, replyToClie
 				if r.getState() == Leader && response.GetTerm() == currentTerm {
 					if response.GetSuccess() {
 						majority.Add(1)
-						if totalLogs > 0 {
-							r.setNextAndMatchIndex(peer.id, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
-						} else {
-							r.setNextAndMatchIndex(peer.id, 1, 0)
-						}
-
 						if int(majority.Load()) >= totalMajority {
-							if replyToClient {
-								clientChan <- appendEntriesResponse{}
+							r.Logger.Info().Msgf("Majority replication reached %t totalLogs %d heartbeat %t", int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
+							if totalLogs > 0 && !heartbeat {
+								r.setNextAndMatchIndex(peer.id, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
+
+								if !leaderVolatileStateUpdated.Load() {
+									r.setNextAndMatchIndex(r.ID, myNextIndex+1, myNextIndex)
+									r.incrementLeaderCommitIndex()
+									r.incrementLastApplied()
+									leaderVolatileStateUpdated.Store(true)
+								}
+
+								leaderNextIndex, leaderMatchIndex := r.getNextAndMatchIndex(r.ID)
+								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d nextIndex: %d / matchIndex: %d leaderVolatileStateUpdated %t", myAddress, myId, state.String(), currentTerm, leaderNextIndex, leaderMatchIndex, leaderVolatileStateUpdated.Load())
+
+								if replyToClient {
+									clientChan <- appendEntriesResponse{}
+								}
+								if replyToClientGRPC {
+									r.rpcForwardCommandToLeaderRequestChanWritter <- &grpcrequests.ForwardCommandToLeaderResponse{}
+								}
+								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
 							}
-							if replyToClientGRPC {
-								r.rpcForwardCommandToLeaderRequestChanWritter <- &grpcrequests.ForwardCommandToLeaderResponse{}
-							}
-							r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
 						}
 						nextIndex, matchIndex := r.getNextAndMatchIndex(peer.id)
 
@@ -183,7 +197,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 				if !r.healthyPeer(peer) {
 					return nil, fmt.Errorf("NoLeader")
 				}
-				r.Logger.Info().Msgf("peer.rclient.ForwardCommandToLeader %s", string(command))
+
 				response, err := peer.rclient.ForwardCommandToLeader(
 					context.Background(),
 					&grpcrequests.ForwardCommandToLeaderRequest{
@@ -203,7 +217,6 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 				}
 				return response.Data, err
 			}
-			r.Logger.Info().Msgf("peer leader not healthy")
 		}
 	}
 	return nil, fmt.Errorf("CommandNotFound")
