@@ -4,15 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/Lord-Y/rafty/grpcrequests"
+	"github.com/Lord-Y/rafty/raftypb"
 	"google.golang.org/grpc/status"
 )
 
-func (r *Rafty) handleGetLeaderReader(reader *grpcrequests.GetLeaderRequest) {
+func (r *Rafty) handleGetLeaderReader(reader *raftypb.GetLeaderRequest) {
 	r.Logger.Trace().Msgf("Peer %s / %s is looking for the leader", reader.GetPeerAddress(), reader.GetPeerID())
 
 	if r.getState() == Leader {
-		r.rpcGetLeaderChanWritter <- &grpcrequests.GetLeaderResponse{
+		r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
 			LeaderID:      r.ID,
 			LeaderAddress: r.Address.String(),
 			PeerID:        r.ID,
@@ -22,7 +22,7 @@ func (r *Rafty) handleGetLeaderReader(reader *grpcrequests.GetLeaderRequest) {
 
 	leader := r.getLeader()
 	if leader == nil {
-		r.rpcGetLeaderChanWritter <- &grpcrequests.GetLeaderResponse{
+		r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
 			LeaderID:      "",
 			LeaderAddress: "",
 			PeerID:        r.ID,
@@ -30,7 +30,7 @@ func (r *Rafty) handleGetLeaderReader(reader *grpcrequests.GetLeaderRequest) {
 		return
 	}
 
-	r.rpcGetLeaderChanWritter <- &grpcrequests.GetLeaderResponse{
+	r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
 		LeaderID:      leader.id,
 		LeaderAddress: leader.address,
 		PeerID:        r.ID,
@@ -40,7 +40,7 @@ func (r *Rafty) handleGetLeaderReader(reader *grpcrequests.GetLeaderRequest) {
 func (r *Rafty) handleSendPreVoteRequestReader() {
 	state := r.getState()
 	currentTerm := r.getCurrentTerm()
-	r.rpcPreVoteRequestChanWritter <- &grpcrequests.PreVoteResponse{
+	r.rpcPreVoteRequestChanWritter <- &raftypb.PreVoteResponse{
 		PeerID:      r.ID,
 		State:       state.String(),
 		CurrentTerm: currentTerm,
@@ -93,7 +93,7 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 	}
 }
 
-func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
+func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 	state := r.getState()
 	myAddress, myId := r.getMyAddress()
 	currentTerm := r.getCurrentTerm()
@@ -103,7 +103,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 
 	if currentTerm > reader.GetCurrentTerm() {
 		r.Logger.Trace().Msgf("Me %s / %s with state %s rejected vote request from peer %s / %s, my current term %d > %d", myAddress, myId, state.String(), reader.GetCandidateAddress(), reader.GetCandidateId(), currentTerm, reader.GetCurrentTerm())
-		r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
+		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 			CurrentTerm:       currentTerm,
 			PeerID:            r.ID,
 			RequesterStepDown: true,
@@ -120,7 +120,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 		r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 		r.setLeaderLastContactDate()
 		go r.switchState(Follower, false, reader.GetCurrentTerm())
-		r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
+		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 			CurrentTerm: reader.GetCurrentTerm(),
 			VoteGranted: true,
 			PeerID:      r.ID,
@@ -130,7 +130,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 
 	if votedFor != "" && votedFor != reader.GetCandidateId() {
 		r.Logger.Trace().Msgf("Me %s / %s with state %s rejected vote request from peer %s / %s, for term %d because I already voted", myAddress, myId, state.String(), reader.GetCandidateAddress(), reader.GetCandidateId(), currentTerm)
-		r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
+		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 			CurrentTerm: currentTerm,
 			PeerID:      r.ID,
 		}
@@ -144,7 +144,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 			r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 			r.setLeaderLastContactDate()
 			go r.switchState(Follower, false, reader.GetCurrentTerm())
-			r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
+			r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 				CurrentTerm: currentTerm,
 				PeerID:      r.ID,
 				VoteGranted: true,
@@ -153,7 +153,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 		}
 
 		r.Logger.Trace().Msgf("Me %s / %s with state %s rejected vote request from peer %s / %s for current term %d because my lastLogIndex %d > %d", myAddress, myId, state.String(), reader.GetCandidateAddress(), reader.GetCandidateId(), currentTerm, lastLogIndex, reader.GetLastLogIndex())
-		r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
+		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 			CurrentTerm:       currentTerm,
 			PeerID:            r.ID,
 			RequesterStepDown: true,
@@ -165,7 +165,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *grpcrequests.VoteRequest) {
 	r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 	r.setLeaderLastContactDate()
 	go r.switchState(Follower, false, reader.GetCurrentTerm())
-	r.rpcSendVoteRequestChanWritter <- &grpcrequests.VoteResponse{
+	r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 		CurrentTerm: currentTerm,
 		PeerID:      r.ID,
 		VoteGranted: true,
@@ -234,7 +234,7 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 
 func (r *Rafty) handleClientGetLeaderReader() {
 	if r.getState() == Leader {
-		r.rpcClientGetLeaderChanWritter <- &grpcrequests.ClientGetLeaderResponse{
+		r.rpcClientGetLeaderChanWritter <- &raftypb.ClientGetLeaderResponse{
 			LeaderID:      r.ID,
 			LeaderAddress: r.Address.String(),
 		}
@@ -242,20 +242,20 @@ func (r *Rafty) handleClientGetLeaderReader() {
 	}
 
 	if r.leader == nil {
-		r.rpcClientGetLeaderChanWritter <- &grpcrequests.ClientGetLeaderResponse{
+		r.rpcClientGetLeaderChanWritter <- &raftypb.ClientGetLeaderResponse{
 			LeaderID:      "",
 			LeaderAddress: "",
 		}
 		return
 	}
 
-	r.rpcClientGetLeaderChanWritter <- &grpcrequests.ClientGetLeaderResponse{
+	r.rpcClientGetLeaderChanWritter <- &raftypb.ClientGetLeaderResponse{
 		LeaderID:      r.leader.id,
 		LeaderAddress: r.leader.address,
 	}
 }
 
-func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.AppendEntryRequest) {
+func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntryRequest) {
 	// if our local term is greater than leader term
 	// reply false §5.1
 	state := r.getState()
@@ -263,7 +263,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 	myAddress, myId := r.getMyAddress()
 	if currentTerm > reader.GetTerm() {
 		r.Logger.Error().Err(errTermTooOld).Msgf("Me %s / %s with state %s has higher term %d > %d than leader %s / %s for append entries", myAddress, myId, state.String(), currentTerm, reader.GetTerm(), reader.GetLeaderAddress(), reader.GetLeaderID())
-		r.rpcSendAppendEntriesRequestChanWritter <- &grpcrequests.AppendEntryResponse{
+		r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{
 			Term: currentTerm,
 		}
 		return
@@ -277,7 +277,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 		r.switchState(Follower, false, reader.GetTerm())
 	case Leader:
 		r.Logger.Error().Err(errAppendEntriesToLeader).Msgf("Me %s / %s with state %s cannot receive append entries from %s / %s for term %d", myAddress, myId, state.String(), reader.GetLeaderAddress(), reader.GetLeaderID(), currentTerm)
-		r.rpcSendAppendEntriesRequestChanWritter <- &grpcrequests.AppendEntryResponse{
+		r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{
 			Term: currentTerm,
 		}
 		return
@@ -295,7 +295,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 		// reply false
 		if !matchingLog {
 			r.Logger.Error().Err(errTermTooOld).Msgf("Me %s / %s with state %s has no matching log from leader %s / %s append entries", myAddress, myId, state.String(), reader.GetLeaderAddress(), reader.GetLeaderID())
-			r.rpcSendAppendEntriesRequestChanWritter <- &grpcrequests.AppendEntryResponse{}
+			r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{}
 			return
 		}
 
@@ -305,7 +305,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 			previousEntry := reader.GetEntries()[index-nextIndex]
 			if index > uint64(cap(r.log)) {
 				totalOfEntries := nextIndex + totalLogs
-				newLog := make([]*grpcrequests.LogEntry, index, totalOfEntries*2)
+				newLog := make([]*raftypb.LogEntry, index, totalOfEntries*2)
 				copy(newLog, r.log)
 				r.log = newLog
 			}
@@ -349,16 +349,16 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 	r.leaderLost.Store(false)
 	r.mu.Unlock()
 
-	r.rpcSendAppendEntriesRequestChanWritter <- &grpcrequests.AppendEntryResponse{Term: reader.GetTerm(), Success: true}
+	r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{Term: reader.GetTerm(), Success: true}
 }
 
-func (r *rpcManager) ForwardCommandToLeader(_ context.Context, reader *grpcrequests.ForwardCommandToLeaderRequest) (*grpcrequests.ForwardCommandToLeaderResponse, error) {
+func (r *rpcManager) ForwardCommandToLeader(_ context.Context, reader *raftypb.ForwardCommandToLeaderRequest) (*raftypb.ForwardCommandToLeaderResponse, error) {
 	cmd := r.rafty.decodeCommand(reader.Command)
 	if cmd.kind == commandSet {
-		r.rafty.rpcForwardCommandToLeaderRequestChanReader <- &grpcrequests.ForwardCommandToLeaderRequest{Command: reader.Command}
+		r.rafty.rpcForwardCommandToLeaderRequestChanReader <- &raftypb.ForwardCommandToLeaderRequest{Command: reader.Command}
 
 		response := <-r.rafty.rpcForwardCommandToLeaderRequestChanWritter
-		return &grpcrequests.ForwardCommandToLeaderResponse{Data: response.Data, Error: response.Error}, nil
+		return &raftypb.ForwardCommandToLeaderResponse{Data: response.Data, Error: response.Error}, nil
 	}
-	return &grpcrequests.ForwardCommandToLeaderResponse{}, nil
+	return &raftypb.ForwardCommandToLeaderResponse{}, nil
 }

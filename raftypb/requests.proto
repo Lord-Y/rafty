@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-option go_package = "github.com/Lord-Y/rafty/grpcrequests";
+option go_package = "github.com/Lord-Y/rafty/raftypb";
 
-package grpcrequests;
+package raftypb;
 
 message HelloRequest {
   string name = 1;

@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Lord-Y/rafty/grpcrequests"
 	"github.com/Lord-Y/rafty/logger"
+	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -117,7 +117,7 @@ type Peer struct {
 	client *grpc.ClientConn
 
 	// rclient hold gprc rafty client
-	rclient grpcrequests.RaftyClient
+	rclient raftypb.RaftyClient
 }
 
 type leaderMap struct {
@@ -151,8 +151,8 @@ type Status struct {
 }
 
 type rpcManager struct {
-	grpcrequests.UnimplementedGreeterServer
-	grpcrequests.RaftyServer
+	raftypb.UnimplementedGreeterServer
+	raftypb.RaftyServer
 
 	rafty *Rafty
 }
@@ -208,49 +208,49 @@ type Rafty struct {
 	rpcPreVoteRequestChanReader chan struct{}
 
 	// rpcPreVoteRequestChanWritter will be use to answer rpc call
-	rpcPreVoteRequestChanWritter chan *grpcrequests.PreVoteResponse
+	rpcPreVoteRequestChanWritter chan *raftypb.PreVoteResponse
 
 	// rpcSendVoteRequestChanReader will be use to handle rpc call
-	rpcSendVoteRequestChanReader chan *grpcrequests.VoteRequest
+	rpcSendVoteRequestChanReader chan *raftypb.VoteRequest
 
 	// rpcSendVoteRequestChanWritter will be use to answer rpc call
-	rpcSendVoteRequestChanWritter chan *grpcrequests.VoteResponse
+	rpcSendVoteRequestChanWritter chan *raftypb.VoteResponse
 
 	// rpcGetLeaderChanReader will be use to handle rpc call
-	rpcGetLeaderChanReader chan *grpcrequests.GetLeaderRequest
+	rpcGetLeaderChanReader chan *raftypb.GetLeaderRequest
 
 	// rpcGetLeaderChanWritter will be use to answer rpc call
-	rpcGetLeaderChanWritter chan *grpcrequests.GetLeaderResponse
+	rpcGetLeaderChanWritter chan *raftypb.GetLeaderResponse
 
 	// rpcSetLeaderChanReader will be use to handle rpc call
-	rpcSetLeaderChanReader chan *grpcrequests.SetLeaderRequest
+	rpcSetLeaderChanReader chan *raftypb.SetLeaderRequest
 
 	// rpcSetLeaderChanWritter will be use to answer rpc call
-	rpcSetLeaderChanWritter chan *grpcrequests.SetLeaderResponse
+	rpcSetLeaderChanWritter chan *raftypb.SetLeaderResponse
 
 	// rpcSendHeartbeatsChanReader will be use to handle rpc call
-	rpcSendHeartbeatsChanReader chan *grpcrequests.SendHeartbeatRequest
+	rpcSendHeartbeatsChanReader chan *raftypb.SendHeartbeatRequest
 
 	// rpcSendHeartbeatsChanWritter will be use to answer rpc call
-	rpcSendHeartbeatsChanWritter chan *grpcrequests.SendHeartbeatResponse
+	rpcSendHeartbeatsChanWritter chan *raftypb.SendHeartbeatResponse
 
 	// rpcSendAppendEntriesRequestChanReader will be use to handle rpc call
-	rpcSendAppendEntriesRequestChanReader chan *grpcrequests.AppendEntryRequest
+	rpcSendAppendEntriesRequestChanReader chan *raftypb.AppendEntryRequest
 
 	// rpcSendAppendEntriesRequestChanWritter will be use to answer rpc call
-	rpcSendAppendEntriesRequestChanWritter chan *grpcrequests.AppendEntryResponse
+	rpcSendAppendEntriesRequestChanWritter chan *raftypb.AppendEntryResponse
 
 	// rpcForwardCommandToLeaderRequestChanReader will be use to handle rpc client call to leader
-	rpcForwardCommandToLeaderRequestChanReader chan *grpcrequests.ForwardCommandToLeaderRequest
+	rpcForwardCommandToLeaderRequestChanReader chan *raftypb.ForwardCommandToLeaderRequest
 
 	// rpcForwardCommandToLeaderRequestChanWritter will be use to answer rpc client call from leader
-	rpcForwardCommandToLeaderRequestChanWritter chan *grpcrequests.ForwardCommandToLeaderResponse
+	rpcForwardCommandToLeaderRequestChanWritter chan *raftypb.ForwardCommandToLeaderResponse
 
 	// rpcClientGetLeaderChanReader will be use to handle rpc call
-	rpcClientGetLeaderChanReader chan *grpcrequests.ClientGetLeaderRequest
+	rpcClientGetLeaderChanReader chan *raftypb.ClientGetLeaderRequest
 
 	// rpcClientGetLeaderChanWritter will be use to answer rpc call
-	rpcClientGetLeaderChanWritter chan *grpcrequests.ClientGetLeaderResponse
+	rpcClientGetLeaderChanWritter chan *raftypb.ClientGetLeaderResponse
 
 	// quoroms hold the list of the voters with their decisions
 	quoroms []quorom
@@ -336,7 +336,7 @@ type Rafty struct {
 	volatileStateInitialized atomic.Bool
 
 	// log hold all logs entries
-	log []*grpcrequests.LogEntry
+	log []*raftypb.LogEntry
 
 	// MaxAppendEntries will hold how much append entries the leader will send to the follower at once
 	MaxAppendEntries uint64
@@ -348,7 +348,7 @@ type preVoteResponseWrapper struct {
 	peer Peer
 
 	// response hold the message returned by peers
-	response *grpcrequests.PreVoteResponse
+	response *raftypb.PreVoteResponse
 }
 
 // voteResponseWrapper is a struct that will be used to send response to the appropriate channel
@@ -357,7 +357,7 @@ type voteResponseWrapper struct {
 	peer Peer
 
 	// response hold the message returned by peers
-	response *grpcrequests.VoteResponse
+	response *raftypb.VoteResponse
 
 	// savedCurrentTerm is a copy of the currentTerm during the election campain
 	savedCurrentTerm uint64
@@ -384,21 +384,21 @@ func NewRafty() *Rafty {
 		voteResponseErrorChan:                       make(chan voteResponseErrorWrapper),
 		triggerAppendEntriesChan:                    make(chan triggerAppendEntries),
 		rpcPreVoteRequestChanReader:                 make(chan struct{}),
-		rpcPreVoteRequestChanWritter:                make(chan *grpcrequests.PreVoteResponse),
-		rpcSendVoteRequestChanReader:                make(chan *grpcrequests.VoteRequest),
-		rpcSendVoteRequestChanWritter:               make(chan *grpcrequests.VoteResponse),
-		rpcGetLeaderChanReader:                      make(chan *grpcrequests.GetLeaderRequest),
-		rpcGetLeaderChanWritter:                     make(chan *grpcrequests.GetLeaderResponse),
-		rpcSendHeartbeatsChanReader:                 make(chan *grpcrequests.SendHeartbeatRequest),
-		rpcSendHeartbeatsChanWritter:                make(chan *grpcrequests.SendHeartbeatResponse),
-		rpcSendAppendEntriesRequestChanReader:       make(chan *grpcrequests.AppendEntryRequest),
-		rpcSendAppendEntriesRequestChanWritter:      make(chan *grpcrequests.AppendEntryResponse),
-		rpcForwardCommandToLeaderRequestChanReader:  make(chan *grpcrequests.ForwardCommandToLeaderRequest),
-		rpcForwardCommandToLeaderRequestChanWritter: make(chan *grpcrequests.ForwardCommandToLeaderResponse),
+		rpcPreVoteRequestChanWritter:                make(chan *raftypb.PreVoteResponse),
+		rpcSendVoteRequestChanReader:                make(chan *raftypb.VoteRequest),
+		rpcSendVoteRequestChanWritter:               make(chan *raftypb.VoteResponse),
+		rpcGetLeaderChanReader:                      make(chan *raftypb.GetLeaderRequest),
+		rpcGetLeaderChanWritter:                     make(chan *raftypb.GetLeaderResponse),
+		rpcSendHeartbeatsChanReader:                 make(chan *raftypb.SendHeartbeatRequest),
+		rpcSendHeartbeatsChanWritter:                make(chan *raftypb.SendHeartbeatResponse),
+		rpcSendAppendEntriesRequestChanReader:       make(chan *raftypb.AppendEntryRequest),
+		rpcSendAppendEntriesRequestChanWritter:      make(chan *raftypb.AppendEntryResponse),
+		rpcForwardCommandToLeaderRequestChanReader:  make(chan *raftypb.ForwardCommandToLeaderRequest),
+		rpcForwardCommandToLeaderRequestChanWritter: make(chan *raftypb.ForwardCommandToLeaderResponse),
 
 		// client rpc
-		rpcClientGetLeaderChanReader:  make(chan *grpcrequests.ClientGetLeaderRequest),
-		rpcClientGetLeaderChanWritter: make(chan *grpcrequests.ClientGetLeaderResponse),
+		rpcClientGetLeaderChanReader:  make(chan *raftypb.ClientGetLeaderRequest),
+		rpcClientGetLeaderChanWritter: make(chan *raftypb.ClientGetLeaderResponse),
 	}
 }
 
@@ -489,7 +489,7 @@ func (r *Rafty) SendGetLeaderRequest() {
 
 				response, err := peer.rclient.GetLeader(
 					context.Background(),
-					&grpcrequests.GetLeaderRequest{
+					&raftypb.GetLeaderRequest{
 						PeerID:      r.ID,
 						PeerAddress: r.Address.String(),
 					},

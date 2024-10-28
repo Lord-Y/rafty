@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync/atomic"
 
-	"github.com/Lord-Y/rafty/grpcrequests"
+	"github.com/Lord-Y/rafty/raftypb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/encoding/gzip"
@@ -69,7 +69,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 	for _, peer := range peers {
 		var (
 			prevLogTerm uint64
-			entries     []*grpcrequests.LogEntry
+			entries     []*raftypb.LogEntry
 		)
 		nextIndex := r.getNextIndex(peer.id)
 		prevLogIndex := nextIndex - 1
@@ -97,7 +97,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 
 				response, err := peer.rclient.SendAppendEntriesRequest(
 					context.Background(),
-					&grpcrequests.AppendEntryRequest{
+					&raftypb.AppendEntryRequest{
 						LeaderID:          myId,
 						LeaderAddress:     myAddress,
 						Term:              currentTerm,
@@ -126,7 +126,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 					if response.GetSuccess() {
 						majority.Add(1)
 						if int(majority.Load()) >= totalMajority {
-							r.Logger.Info().Msgf("Majority replication reached %t totalLogs %d heartbeat %t", int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
+							r.Logger.Trace().Msgf("Majority replication reached %t totalLogs %d heartbeat %t", int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
 							if totalLogs > 0 && !heartbeat {
 								r.setNextAndMatchIndex(peer.id, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
 
@@ -144,14 +144,14 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 									clientChan <- appendEntriesResponse{}
 								}
 								if replyToClientGRPC {
-									r.rpcForwardCommandToLeaderRequestChanWritter <- &grpcrequests.ForwardCommandToLeaderResponse{}
+									r.rpcForwardCommandToLeaderRequestChanWritter <- &raftypb.ForwardCommandToLeaderResponse{}
 								}
 								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
 							}
 						}
 						nextIndex, matchIndex := r.getNextAndMatchIndex(peer.id)
 
-						r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries of %s / %s with nextIndex: %d / matchIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id, nextIndex, matchIndex)
+						r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries of %s / %s with nextIndex: %d / matchIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id, nextIndex, int(matchIndex))
 					} else {
 						nextIndex := max(nextIndex-1, 1)
 						r.setNextIndex(peer.id, nextIndex)
@@ -200,7 +200,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 
 				response, err := peer.rclient.ForwardCommandToLeader(
 					context.Background(),
-					&grpcrequests.ForwardCommandToLeaderRequest{
+					&raftypb.ForwardCommandToLeaderRequest{
 						Command: command,
 					},
 					grpc.WaitForReady(true),
