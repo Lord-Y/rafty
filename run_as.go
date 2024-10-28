@@ -116,11 +116,12 @@ func (r *Rafty) runAsLeader() {
 	// According to raft paper, we need to reset nextIndex and matchIndex
 	// when becoming a leader
 	if !r.volatileStateInitialized.Load() {
+		if r.nextIndex == nil {
+			r.nextIndex = make(map[string]uint64)
+			r.matchIndex = make(map[string]uint64)
+		}
+		r.setNextAndMatchIndex(r.ID, 0, 0)
 		for _, peer := range r.Peers {
-			if r.nextIndex == nil {
-				r.nextIndex = make(map[string]uint64)
-				r.matchIndex = make(map[string]uint64)
-			}
 			r.setNextAndMatchIndex(peer.id, 0, 0)
 		}
 		r.volatileStateInitialized.Store(true)
@@ -170,13 +171,13 @@ func (r *Rafty) runAsLeader() {
 
 		// send heartbeats to other nodes when ticker time out
 		case <-heartbeatTicker.C:
-			r.appendEntries(make(chan appendEntriesResponse, 1), false, false)
+			r.appendEntries(true, make(chan appendEntriesResponse, 1), false, false)
 
 		// this chan is used by clients to apply commands on the leader
 		case data := <-r.triggerAppendEntriesChan:
 			heartbeatTicker.Stop()
 			r.log = append(r.log, &grpcrequests.LogEntry{Term: r.getCurrentTerm(), Command: data.command})
-			r.appendEntries(data.responseChan, true, false)
+			r.appendEntries(false, data.responseChan, true, false)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 
 		// commands sent by clients to Follower nodes will be forwarded to the leader
@@ -184,7 +185,7 @@ func (r *Rafty) runAsLeader() {
 		case command := <-r.rpcForwardCommandToLeaderRequestChanReader:
 			heartbeatTicker.Stop()
 			r.log = append(r.log, &grpcrequests.LogEntry{Term: r.getCurrentTerm(), Command: command.GetCommand()})
-			r.appendEntries(make(chan appendEntriesResponse, 1), false, true)
+			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 		}
 	}

@@ -287,7 +287,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *grpcrequests.Append
 	r.stopElectionTimer(true, false)
 
 	totalLogs := uint64(len(r.log))
-	if totalLogs > 0 {
+	if totalLogs > 0 && !reader.GetHeartbeat() {
 		// reader.GetPrevLogIndex() == 0 is the induction step: the initial empty state of logs that satisfy the Log Matching Property
 		matchingLog := reader.GetPrevLogIndex() == 0 || (reader.GetPrevLogIndex() < totalLogs && r.log[reader.PrevLogIndex].Term == reader.GetPrevLogTerm())
 
