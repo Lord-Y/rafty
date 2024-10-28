@@ -79,6 +79,7 @@ message AppendEntryRequest {
   uint64 prevLogTerm = 5;
   repeated LogEntry entries = 6;
   uint64 leaderCommitIndex = 7;
+  bool heartbeat = 8;
 }
 
 message AppendEntryResponse {
