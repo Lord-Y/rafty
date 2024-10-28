@@ -145,8 +145,21 @@ func (r *Rafty) setLeaderLastContactDate() {
 	r.LeaderLastContactDate = &now
 }
 
+// getLeader permits to retrieve current leader id
 func (r *Rafty) getLeader() *leaderMap {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.leader
+}
+
+// incrementLeaderCommitIndex permits to safely increase leader current commit index
+func (r *Rafty) incrementLeaderCommitIndex() uint64 {
+	addr := (*uint64)(&r.CurrentCommitIndex)
+	return atomic.AddUint64(addr, 1)
+}
+
+// incrementLastApplied permits to safely increase leader lastApplied
+func (r *Rafty) incrementLastApplied() uint64 {
+	addr := (*uint64)(&r.LastApplied)
+	return atomic.AddUint64(addr, 1)
 }
