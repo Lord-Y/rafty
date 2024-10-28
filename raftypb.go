@@ -47,12 +47,12 @@ func (rpc *rpcManager) ClientGetLeader(ctx context.Context, in *raftypb.ClientGe
 	return response, nil
 }
 
-func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, reader *raftypb.ForwardCommandToLeaderRequest) (*raftypb.ForwardCommandToLeaderResponse, error) {
-	cmd := r.rafty.decodeCommand(reader.Command)
+func (rpc *rpcManager) ForwardCommandToLeader(ctx context.Context, reader *raftypb.ForwardCommandToLeaderRequest) (*raftypb.ForwardCommandToLeaderResponse, error) {
+	cmd := rpc.rafty.decodeCommand(reader.Command)
 	if cmd.kind == commandSet {
-		r.rafty.rpcForwardCommandToLeaderRequestChanReader <- &raftypb.ForwardCommandToLeaderRequest{Command: reader.Command}
+		rpc.rafty.rpcForwardCommandToLeaderRequestChanReader <- &raftypb.ForwardCommandToLeaderRequest{Command: reader.Command}
 
-		response := <-r.rafty.rpcForwardCommandToLeaderRequestChanWritter
+		response := <-rpc.rafty.rpcForwardCommandToLeaderRequestChanWritter
 		return &raftypb.ForwardCommandToLeaderResponse{Data: response.Data, Error: response.Error}, nil
 	}
 	return &raftypb.ForwardCommandToLeaderResponse{}, nil
