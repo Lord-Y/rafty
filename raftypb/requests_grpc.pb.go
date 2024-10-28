@@ -19,104 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	Greeter_SayHello_FullMethodName = "/raftypb.Greeter/SayHello"
-)
-
-// GreeterClient is the client API for Greeter service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type GreeterClient interface {
-	SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error)
-}
-
-type greeterClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewGreeterClient(cc grpc.ClientConnInterface) GreeterClient {
-	return &greeterClient{cc}
-}
-
-func (c *greeterClient) SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(HelloReply)
-	err := c.cc.Invoke(ctx, Greeter_SayHello_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// GreeterServer is the server API for Greeter service.
-// All implementations must embed UnimplementedGreeterServer
-// for forward compatibility
-type GreeterServer interface {
-	SayHello(context.Context, *HelloRequest) (*HelloReply, error)
-	mustEmbedUnimplementedGreeterServer()
-}
-
-// UnimplementedGreeterServer must be embedded to have forward compatible implementations.
-type UnimplementedGreeterServer struct {
-}
-
-func (UnimplementedGreeterServer) SayHello(context.Context, *HelloRequest) (*HelloReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SayHello not implemented")
-}
-func (UnimplementedGreeterServer) mustEmbedUnimplementedGreeterServer() {}
-
-// UnsafeGreeterServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to GreeterServer will
-// result in compilation errors.
-type UnsafeGreeterServer interface {
-	mustEmbedUnimplementedGreeterServer()
-}
-
-func RegisterGreeterServer(s grpc.ServiceRegistrar, srv GreeterServer) {
-	s.RegisterService(&Greeter_ServiceDesc, srv)
-}
-
-func _Greeter_SayHello_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(HelloRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(GreeterServer).SayHello(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Greeter_SayHello_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GreeterServer).SayHello(ctx, req.(*HelloRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-// Greeter_ServiceDesc is the grpc.ServiceDesc for Greeter service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var Greeter_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "raftypb.Greeter",
-	HandlerType: (*GreeterServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "SayHello",
-			Handler:    _Greeter_SayHello_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "raftypb/requests.proto",
-}
-
-const (
 	Rafty_SendPreVoteRequest_FullMethodName       = "/raftypb.Rafty/SendPreVoteRequest"
 	Rafty_SendVoteRequest_FullMethodName          = "/raftypb.Rafty/SendVoteRequest"
 	Rafty_SetLeader_FullMethodName                = "/raftypb.Rafty/SetLeader"
 	Rafty_GetLeader_FullMethodName                = "/raftypb.Rafty/GetLeader"
 	Rafty_ClientGetLeader_FullMethodName          = "/raftypb.Rafty/ClientGetLeader"
 	Rafty_SendAppendEntriesRequest_FullMethodName = "/raftypb.Rafty/SendAppendEntriesRequest"
-	Rafty_SendHeartbeats_FullMethodName           = "/raftypb.Rafty/SendHeartbeats"
 	Rafty_AskNodeID_FullMethodName                = "/raftypb.Rafty/AskNodeID"
 	Rafty_ForwardCommandToLeader_FullMethodName   = "/raftypb.Rafty/ForwardCommandToLeader"
 )
@@ -131,7 +39,6 @@ type RaftyClient interface {
 	GetLeader(ctx context.Context, in *GetLeaderRequest, opts ...grpc.CallOption) (*GetLeaderResponse, error)
 	ClientGetLeader(ctx context.Context, in *ClientGetLeaderRequest, opts ...grpc.CallOption) (*ClientGetLeaderResponse, error)
 	SendAppendEntriesRequest(ctx context.Context, in *AppendEntryRequest, opts ...grpc.CallOption) (*AppendEntryResponse, error)
-	SendHeartbeats(ctx context.Context, in *SendHeartbeatRequest, opts ...grpc.CallOption) (*SendHeartbeatResponse, error)
 	AskNodeID(ctx context.Context, in *AskNodeIDRequest, opts ...grpc.CallOption) (*AskNodeIDResponse, error)
 	ForwardCommandToLeader(ctx context.Context, in *ForwardCommandToLeaderRequest, opts ...grpc.CallOption) (*ForwardCommandToLeaderResponse, error)
 }
@@ -204,16 +111,6 @@ func (c *raftyClient) SendAppendEntriesRequest(ctx context.Context, in *AppendEn
 	return out, nil
 }
 
-func (c *raftyClient) SendHeartbeats(ctx context.Context, in *SendHeartbeatRequest, opts ...grpc.CallOption) (*SendHeartbeatResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SendHeartbeatResponse)
-	err := c.cc.Invoke(ctx, Rafty_SendHeartbeats_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *raftyClient) AskNodeID(ctx context.Context, in *AskNodeIDRequest, opts ...grpc.CallOption) (*AskNodeIDResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AskNodeIDResponse)
@@ -244,7 +141,6 @@ type RaftyServer interface {
 	GetLeader(context.Context, *GetLeaderRequest) (*GetLeaderResponse, error)
 	ClientGetLeader(context.Context, *ClientGetLeaderRequest) (*ClientGetLeaderResponse, error)
 	SendAppendEntriesRequest(context.Context, *AppendEntryRequest) (*AppendEntryResponse, error)
-	SendHeartbeats(context.Context, *SendHeartbeatRequest) (*SendHeartbeatResponse, error)
 	AskNodeID(context.Context, *AskNodeIDRequest) (*AskNodeIDResponse, error)
 	ForwardCommandToLeader(context.Context, *ForwardCommandToLeaderRequest) (*ForwardCommandToLeaderResponse, error)
 	mustEmbedUnimplementedRaftyServer()
@@ -271,9 +167,6 @@ func (UnimplementedRaftyServer) ClientGetLeader(context.Context, *ClientGetLeade
 }
 func (UnimplementedRaftyServer) SendAppendEntriesRequest(context.Context, *AppendEntryRequest) (*AppendEntryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendAppendEntriesRequest not implemented")
-}
-func (UnimplementedRaftyServer) SendHeartbeats(context.Context, *SendHeartbeatRequest) (*SendHeartbeatResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendHeartbeats not implemented")
 }
 func (UnimplementedRaftyServer) AskNodeID(context.Context, *AskNodeIDRequest) (*AskNodeIDResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AskNodeID not implemented")
@@ -402,24 +295,6 @@ func _Rafty_SendAppendEntriesRequest_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Rafty_SendHeartbeats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendHeartbeatRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RaftyServer).SendHeartbeats(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Rafty_SendHeartbeats_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftyServer).SendHeartbeats(ctx, req.(*SendHeartbeatRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Rafty_AskNodeID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AskNodeIDRequest)
 	if err := dec(in); err != nil {
@@ -486,10 +361,6 @@ var Rafty_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendAppendEntriesRequest",
 			Handler:    _Rafty_SendAppendEntriesRequest_Handler,
-		},
-		{
-			MethodName: "SendHeartbeats",
-			Handler:    _Rafty_SendHeartbeats_Handler,
 		},
 		{
 			MethodName: "AskNodeID",
