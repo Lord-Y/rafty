@@ -6,11 +6,6 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
-func (rpc *rpcManager) SayHello(ctx context.Context, in *raftypb.HelloRequest) (*raftypb.HelloReply, error) {
-	rpc.rafty.Logger.Info().Msgf("Received: %s", in.GetName())
-	return &raftypb.HelloReply{Message: "Hello " + in.GetName()}, nil
-}
-
 func (rpc *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest) (*raftypb.GetLeaderResponse, error) {
 	rpc.rafty.rpcGetLeaderChanReader <- in
 	response := <-rpc.rafty.rpcGetLeaderChanWritter
@@ -38,12 +33,6 @@ func (rpc *rpcManager) SetLeader(ctx context.Context, in *raftypb.SetLeaderReque
 
 func (rpc *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest) (*raftypb.AskNodeIDResponse, error) {
 	return &raftypb.AskNodeIDResponse{PeerID: rpc.rafty.ID}, nil
-}
-
-func (rpc *rpcManager) SendHeartbeats(ctx context.Context, in *raftypb.SendHeartbeatRequest) (*raftypb.SendHeartbeatResponse, error) {
-	rpc.rafty.rpcSendHeartbeatsChanReader <- in
-	response := <-rpc.rafty.rpcSendHeartbeatsChanWritter
-	return response, nil
 }
 
 func (rpc *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.AppendEntryRequest) (*raftypb.AppendEntryResponse, error) {

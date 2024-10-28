@@ -4,18 +4,6 @@ option go_package = "github.com/Lord-Y/rafty/raftypb";
 
 package raftypb;
 
-message HelloRequest {
-  string name = 1;
-}
-
-message HelloReply {
-  string message = 1;
-}
-
-service Greeter {
-  rpc SayHello(HelloRequest) returns (HelloReply) {}
-}
-
 message PreVoteRequest {
   string id = 1;
   string state = 2;
@@ -87,18 +75,6 @@ message AppendEntryResponse {
   bool success = 2;
 }
 
-message SendHeartbeatRequest {
-  string leaderID = 1;
-  string leaderAddress = 3;
-  uint64 currentTerm = 2;
-}
-
-message SendHeartbeatResponse {
-  string peerID = 1;
-  uint64 currentTerm = 2;
-  bool multipleLeaders = 3;
-}
-
 message AskNodeIDRequest {
   string id = 1;
   string address = 2;
@@ -133,7 +109,6 @@ service Rafty {
   rpc GetLeader(GetLeaderRequest) returns (GetLeaderResponse) {}
   rpc ClientGetLeader(ClientGetLeaderRequest) returns (ClientGetLeaderResponse) {}
   rpc SendAppendEntriesRequest(AppendEntryRequest) returns (AppendEntryResponse) {}
-  rpc SendHeartbeats(SendHeartbeatRequest) returns (SendHeartbeatResponse) {}
   rpc AskNodeID(AskNodeIDRequest) returns (AskNodeIDResponse) {}
   rpc ForwardCommandToLeader(ForwardCommandToLeaderRequest) returns (ForwardCommandToLeaderResponse) {}
 }

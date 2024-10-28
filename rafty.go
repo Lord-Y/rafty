@@ -151,7 +151,6 @@ type Status struct {
 }
 
 type rpcManager struct {
-	raftypb.UnimplementedGreeterServer
 	raftypb.RaftyServer
 
 	rafty *Rafty
@@ -227,12 +226,6 @@ type Rafty struct {
 
 	// rpcSetLeaderChanWritter will be use to answer rpc call
 	rpcSetLeaderChanWritter chan *raftypb.SetLeaderResponse
-
-	// rpcSendHeartbeatsChanReader will be use to handle rpc call
-	rpcSendHeartbeatsChanReader chan *raftypb.SendHeartbeatRequest
-
-	// rpcSendHeartbeatsChanWritter will be use to answer rpc call
-	rpcSendHeartbeatsChanWritter chan *raftypb.SendHeartbeatResponse
 
 	// rpcSendAppendEntriesRequestChanReader will be use to handle rpc call
 	rpcSendAppendEntriesRequestChanReader chan *raftypb.AppendEntryRequest
@@ -389,8 +382,6 @@ func NewRafty() *Rafty {
 		rpcSendVoteRequestChanWritter:               make(chan *raftypb.VoteResponse),
 		rpcGetLeaderChanReader:                      make(chan *raftypb.GetLeaderRequest),
 		rpcGetLeaderChanWritter:                     make(chan *raftypb.GetLeaderResponse),
-		rpcSendHeartbeatsChanReader:                 make(chan *raftypb.SendHeartbeatRequest),
-		rpcSendHeartbeatsChanWritter:                make(chan *raftypb.SendHeartbeatResponse),
 		rpcSendAppendEntriesRequestChanReader:       make(chan *raftypb.AppendEntryRequest),
 		rpcSendAppendEntriesRequestChanWritter:      make(chan *raftypb.AppendEntryResponse),
 		rpcForwardCommandToLeaderRequestChanReader:  make(chan *raftypb.ForwardCommandToLeaderRequest),
