@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Lord-Y/rafty/grpcrequests"
+	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -42,7 +42,7 @@ func (r *Rafty) Start() error {
 	}
 	r.mu.Unlock()
 
-	grpcrequests.RegisterRaftyServer(r.grpcServer, &rm)
+	raftypb.RegisterRaftyServer(r.grpcServer, &rm)
 	healthCheck := health.NewServer()
 	healthgrpc.RegisterHealthServer(r.grpcServer, healthCheck)
 	reflection.Register(r.grpcServer)

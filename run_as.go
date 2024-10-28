@@ -3,7 +3,7 @@ package rafty
 import (
 	"time"
 
-	"github.com/Lord-Y/rafty/grpcrequests"
+	"github.com/Lord-Y/rafty/raftypb"
 )
 
 func (r *Rafty) runAsFollower() {
@@ -176,7 +176,7 @@ func (r *Rafty) runAsLeader() {
 		// this chan is used by clients to apply commands on the leader
 		case data := <-r.triggerAppendEntriesChan:
 			heartbeatTicker.Stop()
-			r.log = append(r.log, &grpcrequests.LogEntry{Term: r.getCurrentTerm(), Command: data.command})
+			r.log = append(r.log, &raftypb.LogEntry{Term: r.getCurrentTerm(), Command: data.command})
 			r.appendEntries(false, data.responseChan, true, false)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 
@@ -184,7 +184,7 @@ func (r *Rafty) runAsLeader() {
 		// to later apply commands
 		case command := <-r.rpcForwardCommandToLeaderRequestChanReader:
 			heartbeatTicker.Stop()
-			r.log = append(r.log, &grpcrequests.LogEntry{Term: r.getCurrentTerm(), Command: command.GetCommand()})
+			r.log = append(r.log, &raftypb.LogEntry{Term: r.getCurrentTerm(), Command: command.GetCommand()})
 			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 		}

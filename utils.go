@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Lord-Y/rafty/grpcrequests"
+	"github.com/Lord-Y/rafty/raftypb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
@@ -215,13 +215,13 @@ func (r *Rafty) connectToPeer(address string) {
 			r.clusterSizeCounter++
 		}
 		r.Peers[peerIndex].client = conn
-		r.Peers[peerIndex].rclient = grpcrequests.NewRaftyClient(conn)
+		r.Peers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
 		r.mu.Unlock()
 
 		if r.Peers[peerIndex].id == "" {
 			r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.Peers[peerIndex].address.String())
 			ctx := context.Background()
-			response, err := r.Peers[peerIndex].rclient.AskNodeID(ctx, &grpcrequests.AskNodeIDRequest{
+			response, err := r.Peers[peerIndex].rclient.AskNodeID(ctx, &raftypb.AskNodeIDRequest{
 				Id:      r.ID,
 				Address: r.Address.String(),
 			},

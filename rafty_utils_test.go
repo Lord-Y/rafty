@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Lord-Y/rafty/grpcrequests"
+	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -118,11 +118,11 @@ func (cc *clusterConfig) clientGetLeader() (bool, string, string) {
 		assert.Errorf(err, "Fail to connect to grpc server %s", nodeAddr)
 	}
 	defer conn.Close()
-	client := grpcrequests.NewRaftyClient(conn)
+	client := raftypb.NewRaftyClient(conn)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	response, err := client.ClientGetLeader(ctx, &grpcrequests.ClientGetLeaderRequest{Message: "Who is the leader?"})
+	response, err := client.ClientGetLeader(ctx, &raftypb.ClientGetLeaderRequest{Message: "Who is the leader?"})
 	if err != nil {
 		assert.Errorf(err, "Fail to ask %s who is the leader", nodeAddr)
 	}

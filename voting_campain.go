@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/Lord-Y/rafty/grpcrequests"
+	"github.com/Lord-Y/rafty/raftypb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/encoding/gzip"
@@ -33,7 +33,7 @@ func (r *Rafty) preVoteRequest() {
 
 				response, err := peer.rclient.SendPreVoteRequest(
 					context.Background(),
-					&grpcrequests.PreVoteRequest{
+					&raftypb.PreVoteRequest{
 						Id:          myId,
 						State:       state.String(),
 						CurrentTerm: currentTerm,
@@ -93,7 +93,7 @@ func (r *Rafty) startElection() {
 
 				response, err := peer.rclient.SendVoteRequest(
 					context.Background(),
-					&grpcrequests.VoteRequest{
+					&raftypb.VoteRequest{
 						CandidateId:      myId,
 						CandidateAddress: myAddress,
 						State:            state.String(),

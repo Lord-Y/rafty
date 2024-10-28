@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.4.0
 // - protoc             v5.27.3
-// source: grpcrequests/requests.proto
+// source: raftypb/requests.proto
 
-package grpcrequests
+package raftypb
 
 import (
 	context "context"
@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	Greeter_SayHello_FullMethodName = "/grpcrequests.Greeter/SayHello"
+	Greeter_SayHello_FullMethodName = "/raftypb.Greeter/SayHello"
 )
 
 // GreeterClient is the client API for Greeter service.
@@ -97,7 +97,7 @@ func _Greeter_SayHello_Handler(srv interface{}, ctx context.Context, dec func(in
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Greeter_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "grpcrequests.Greeter",
+	ServiceName: "raftypb.Greeter",
 	HandlerType: (*GreeterServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -106,19 +106,19 @@ var Greeter_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "grpcrequests/requests.proto",
+	Metadata: "raftypb/requests.proto",
 }
 
 const (
-	Rafty_SendPreVoteRequest_FullMethodName       = "/grpcrequests.Rafty/SendPreVoteRequest"
-	Rafty_SendVoteRequest_FullMethodName          = "/grpcrequests.Rafty/SendVoteRequest"
-	Rafty_SetLeader_FullMethodName                = "/grpcrequests.Rafty/SetLeader"
-	Rafty_GetLeader_FullMethodName                = "/grpcrequests.Rafty/GetLeader"
-	Rafty_ClientGetLeader_FullMethodName          = "/grpcrequests.Rafty/ClientGetLeader"
-	Rafty_SendAppendEntriesRequest_FullMethodName = "/grpcrequests.Rafty/SendAppendEntriesRequest"
-	Rafty_SendHeartbeats_FullMethodName           = "/grpcrequests.Rafty/SendHeartbeats"
-	Rafty_AskNodeID_FullMethodName                = "/grpcrequests.Rafty/AskNodeID"
-	Rafty_ForwardCommandToLeader_FullMethodName   = "/grpcrequests.Rafty/ForwardCommandToLeader"
+	Rafty_SendPreVoteRequest_FullMethodName       = "/raftypb.Rafty/SendPreVoteRequest"
+	Rafty_SendVoteRequest_FullMethodName          = "/raftypb.Rafty/SendVoteRequest"
+	Rafty_SetLeader_FullMethodName                = "/raftypb.Rafty/SetLeader"
+	Rafty_GetLeader_FullMethodName                = "/raftypb.Rafty/GetLeader"
+	Rafty_ClientGetLeader_FullMethodName          = "/raftypb.Rafty/ClientGetLeader"
+	Rafty_SendAppendEntriesRequest_FullMethodName = "/raftypb.Rafty/SendAppendEntriesRequest"
+	Rafty_SendHeartbeats_FullMethodName           = "/raftypb.Rafty/SendHeartbeats"
+	Rafty_AskNodeID_FullMethodName                = "/raftypb.Rafty/AskNodeID"
+	Rafty_ForwardCommandToLeader_FullMethodName   = "/raftypb.Rafty/ForwardCommandToLeader"
 )
 
 // RaftyClient is the client API for Rafty service.
@@ -460,7 +460,7 @@ func _Rafty_ForwardCommandToLeader_Handler(srv interface{}, ctx context.Context,
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Rafty_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "grpcrequests.Rafty",
+	ServiceName: "raftypb.Rafty",
 	HandlerType: (*RaftyServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -501,5 +501,5 @@ var Rafty_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "grpcrequests/requests.proto",
+	Metadata: "raftypb/requests.proto",
 }
