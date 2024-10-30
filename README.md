@@ -26,7 +26,8 @@ Here is a list of the supported features of `rafty`:
 - [x] Leader election
 - [] Logs
   - [x] Log replication
-  - [] Submit/Read commands
+  - [x] Submit write commands
+  - [] Submit read commands
   - [] Log compaction
 - [] Membership changes
   - [] Add member
