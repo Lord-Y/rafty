@@ -68,6 +68,9 @@ func (r *Rafty) startElection() {
 	preCandidatePeers := r.PreCandidatePeers
 	r.quoroms = nil
 	r.mu.Unlock()
+	if err := r.persistMetadata(); err != nil {
+		r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+	}
 	var lastLogTerm uint64
 	if lastLogIndex > 0 {
 		lastLogTerm = r.getX(r.log[lastLogIndex].Term)

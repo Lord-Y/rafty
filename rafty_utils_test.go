@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -66,6 +68,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 func (cc *clusterConfig) startCluster() {
 	cc.cluster = cc.makeCluster()
 	for i, node := range cc.cluster {
+		node.DataDir = filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i))
 		go func() {
 			if err := node.Start(); err != nil {
 				cc.t.Errorf("Fail to start cluster node %d with error %s", i, err.Error())

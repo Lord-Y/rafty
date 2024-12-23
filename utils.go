@@ -77,9 +77,11 @@ func (r *Rafty) getPeerSliceIndex(addr string) int {
 // if peer is present in the peer list
 func (r *Rafty) checkIfPeerInSliceIndex(preVote bool, addr string) bool {
 	if preVote {
+		r.murw.Lock()
 		index := slices.IndexFunc(r.PreCandidatePeers, func(p Peer) bool {
 			return p.address.String() == addr
 		})
+		r.murw.Unlock()
 		return index != -1
 	}
 

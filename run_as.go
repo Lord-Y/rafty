@@ -171,21 +171,23 @@ func (r *Rafty) runAsLeader() {
 
 		// send heartbeats to other nodes when ticker time out
 		case <-heartbeatTicker.C:
-			r.appendEntries(true, make(chan appendEntriesResponse, 1), false, false)
+			r.appendEntries(true, make(chan appendEntriesResponse, 1), false, false, -1)
 
 		// this chan is used by clients to apply commands on the leader
 		case data := <-r.triggerAppendEntriesChan:
 			heartbeatTicker.Stop()
-			r.log = append(r.log, &raftypb.LogEntry{Term: r.getCurrentTerm(), Command: data.command})
-			r.appendEntries(false, data.responseChan, true, false)
+			r.log = append(r.log, &raftypb.LogEntry{TimeStamp: uint32(time.Now().Unix()), Term: r.getCurrentTerm(), Command: data.command})
+			entryIndex := len(r.log) - 1
+			r.appendEntries(false, data.responseChan, true, false, entryIndex)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 
 		// commands sent by clients to Follower nodes will be forwarded to the leader
 		// to later apply commands
 		case command := <-r.rpcForwardCommandToLeaderRequestChanReader:
 			heartbeatTicker.Stop()
-			r.log = append(r.log, &raftypb.LogEntry{Term: r.getCurrentTerm(), Command: command.GetCommand()})
-			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true)
+			r.log = append(r.log, &raftypb.LogEntry{TimeStamp: uint32(time.Now().Unix()), Term: r.getCurrentTerm(), Command: command.GetCommand()})
+			entryIndex := len(r.log) - 1
+			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true, entryIndex)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 		}
 	}
