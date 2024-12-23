@@ -124,6 +124,9 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 			VoteGranted: true,
 			PeerID:      r.ID,
 		}
+		if err := r.persistMetadata(); err != nil {
+			r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+		}
 		return
 	}
 
@@ -148,6 +151,9 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 				PeerID:      r.ID,
 				VoteGranted: true,
 			}
+			if err := r.persistMetadata(); err != nil {
+				r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+			}
 			return
 		}
 
@@ -169,6 +175,9 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 		PeerID:      r.ID,
 		VoteGranted: true,
 	}
+	if err := r.persistMetadata(); err != nil {
+		r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+	}
 }
 
 func (r *Rafty) handleVoteResponseError(vote voteResponseErrorWrapper) {
@@ -182,12 +191,18 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 		r.Logger.Info().Msgf("Peer %s / %s has a higher term than me %d > %d", vote.peer.address.String(), vote.response.GetPeerID(), vote.response.GetCurrentTerm(), r.CurrentTerm)
 		r.setCurrentTerm(vote.response.GetCurrentTerm())
 		r.switchState(Follower, false, vote.response.GetCurrentTerm())
+		if err := r.persistMetadata(); err != nil {
+			r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+		}
 		return
 	}
 
 	if vote.response.GetNewLeaderDetected() {
 		r.setCurrentTerm(vote.response.GetCurrentTerm())
 		r.switchState(Follower, false, vote.response.GetCurrentTerm())
+		if err := r.persistMetadata(); err != nil {
+			r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+		}
 		return
 	}
 
@@ -210,6 +225,9 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 	if vote.response.GetRequesterStepDown() {
 		r.setCurrentTerm(vote.response.GetCurrentTerm())
 		r.switchState(Follower, false, vote.response.GetCurrentTerm())
+		if err := r.persistMetadata(); err != nil {
+			r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+		}
 		return
 	}
 

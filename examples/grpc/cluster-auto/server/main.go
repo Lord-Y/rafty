@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Lord-Y/rafty"
@@ -70,6 +72,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 func (cc *clusterConfig) startCluster() {
 	cc.cluster = cc.makeCluster()
 	for i, node := range cc.cluster {
+		node.DataDir = filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i))
 		go func() {
 			if err := node.Start(); err != nil {
 				log.Fatal().Msgf("Fail to start cluster node %d with error %s", i, err.Error())

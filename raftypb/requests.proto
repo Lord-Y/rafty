@@ -55,8 +55,15 @@ message GetLeaderResponse {
 }
 
 message LogEntry {
-  uint64 term = 1;
-  bytes command = 2;
+  // should be uint8 but doesn't exist in pb,
+  // so we take the closest type
+  uint32 fileFormat = 1;
+  // should be uint8 but doesn't exist in pb,
+  // so we take the closest type
+  uint32  tombstone  = 2;
+  uint32 timeStamp  = 3;
+  uint64 term       = 4;
+  bytes  command    = 5;
 }
 
 message AppendEntryRequest {
@@ -100,6 +107,12 @@ message ForwardCommandToLeaderRequest {
 message ForwardCommandToLeaderResponse {
   bytes data = 1;
   string error = 2;
+}
+
+message PersistMetadata {
+  string id = 1;
+  uint64 currentTerm = 2;
+  string votedFor = 3;
 }
 
 service Rafty {

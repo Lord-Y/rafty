@@ -2,6 +2,8 @@ package main
 
 import (
 	"net"
+	"os"
+	"path/filepath"
 
 	"github.com/Lord-Y/rafty"
 )
@@ -24,8 +26,10 @@ func main() {
 	}
 
 	s := rafty.NewServer(addr)
-	s.ID = "abe35d4f-787e-4262-9894-f6475ed81028"
+	id := "abe35d4f-787e-4262-9894-f6475ed81028"
+	s.ID = id
 	s.Peers = peers
+	s.DataDir = filepath.Join(os.TempDir(), "rafty", id)
 
 	err := s.Start()
 	if err != nil {

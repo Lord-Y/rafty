@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -333,6 +335,21 @@ type Rafty struct {
 
 	// MaxAppendEntries will hold how much append entries the leader will send to the follower at once
 	MaxAppendEntries uint64
+
+	// DataDir is the default data directory that will be used to store all data on the disk
+	// Defaults to os.TempDir()/rafty ex: /tmp/rafty
+	DataDir string
+
+	// PersistDataOnDisk is a boolean that allow us to persist data on disk
+	PersistDataOnDisk bool
+
+	// metadataFileDescriptor is the file descriptor that allow us to manage
+	// metadata content
+	metadataFileDescriptor *os.File
+
+	// dataFileDescriptor is the file descriptor that allow us to manage
+	// data content
+	dataFileDescriptor *os.File
 }
 
 // preVoteResponseWrapper is a struct that will be used to send response to the appropriate channel
@@ -410,8 +427,19 @@ func (r *Rafty) start() {
 		r.MaxAppendEntries = maxAppendEntries
 	}
 
+	if r.DataDir == "" {
+		datadir := filepath.Join(os.TempDir(), "rafty")
+		r.DataDir = datadir
+		r.Logger.Debug().Msgf("default data dir is %s", datadir)
+	}
+
+	r.restoreMetadata()
+
 	if r.ID == "" {
 		r.ID = uuid.NewString()
+		if err := r.persistMetadata(); err != nil {
+			r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+		}
 	}
 
 	if r.getState() == Down {
