@@ -153,7 +153,7 @@ func (r *Rafty) restoreData() {
 	r.mu.Lock()
 	for scanner.Scan() {
 		if len(scanner.Bytes()) > 0 {
-			data := r.decodePersistentData(scanner.Bytes())
+			data := r.unmarshalBinary(scanner.Bytes())
 			r.log = append(r.log, data)
 		}
 	}
@@ -202,7 +202,7 @@ func (r *Rafty) persistData(entryIndex int) error {
 		Command:    entry.Command,
 	}
 
-	data := r.encodePersistentData(logEntry)
+	data := r.marshalBinary(logEntry)
 	writer := bufio.NewWriter(r.dataFileDescriptor)
 	defer writer.Flush()
 
