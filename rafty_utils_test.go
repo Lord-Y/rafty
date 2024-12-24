@@ -3,6 +3,7 @@ package rafty
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -69,6 +70,12 @@ func (cc *clusterConfig) startCluster() {
 	cc.cluster = cc.makeCluster()
 	for i, node := range cc.cluster {
 		node.DataDir = filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i))
+		// the following random sleep is necessary trick because when starting nth nodes during unit testing
+		// a race condition will be found in timers.go
+		// at r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		sleep := 1 + r.Intn(5)
+		time.Sleep(time.Duration(sleep) * time.Second)
 		go func() {
 			if err := node.Start(); err != nil {
 				cc.t.Errorf("Fail to start cluster node %d with error %s", i, err.Error())
