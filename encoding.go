@@ -10,28 +10,23 @@ import (
 
 // encodeCommand permits to transform command receive from clients to binary language machine
 func (r *Rafty) encodeCommand(cmd command) []byte {
-	buf := bytes.NewBuffer(nil)
+	buffer := bytes.NewBuffer(nil)
 
-	err := buf.WriteByte(byte(cmd.kind))
-	if err != nil {
-		panic(err)
-	}
+	// disabling error checking because in our case
+	// it will always works
+	_ = buffer.WriteByte(byte(cmd.kind))
 
-	err = binary.Write(buf, binary.LittleEndian, uint64(len(cmd.key)))
-	if err != nil {
-		panic(err)
-	}
+	// disabling error checking because in our case
+	// it will always works
+	_ = binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.key)))
+	buffer.WriteString(cmd.key)
 
-	buf.WriteString(cmd.key)
+	// disabling error checking because in our case
+	// it will always works
+	_ = binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.value)))
+	buffer.WriteString(cmd.value)
 
-	err = binary.Write(buf, binary.LittleEndian, uint64(len(cmd.value)))
-	if err != nil {
-		panic(err)
-	}
-
-	buf.WriteString(cmd.value)
-
-	return buf.Bytes()
+	return buffer.Bytes()
 }
 
 // decodeCommand permits to transform back command from binary language machine to clients
