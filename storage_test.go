@@ -34,6 +34,7 @@ func TestMetadata(t *testing.T) {
 		node.DataDir = filepath.Join(os.TempDir(), "rafty", "storage")
 		node.Logger.Debug().Msgf("node.DataDir %s", node.DataDir)
 
+		node.PersistDataOnDisk = true
 		node.restoreMetadata() // needed after node.DataDir is set
 		err := node.persistMetadata()
 		assert.Nil(err)

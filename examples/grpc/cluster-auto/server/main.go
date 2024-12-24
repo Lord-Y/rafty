@@ -72,6 +72,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 func (cc *clusterConfig) startCluster() {
 	cc.cluster = cc.makeCluster()
 	for i, node := range cc.cluster {
+		node.PersistDataOnDisk = true
 		node.DataDir = filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i))
 		go func() {
 			if err := node.Start(); err != nil {

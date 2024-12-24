@@ -29,6 +29,7 @@ func main() {
 	id := "abe35d4f-787e-4262-9894-f6475ed81028"
 	s.ID = id
 	s.Peers = peers
+	s.PersistDataOnDisk = true
 	s.DataDir = filepath.Join(os.TempDir(), "rafty", id)
 
 	err := s.Start()
