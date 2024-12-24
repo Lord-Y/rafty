@@ -30,6 +30,9 @@ type persistMetadata struct {
 
 // restoreMetadata allow us to restore node metadata from disk
 func (r *Rafty) restoreMetadata() {
+	if !r.PersistDataOnDisk {
+		return
+	}
 	if r.DataDir == "" {
 		return
 	}
@@ -76,6 +79,9 @@ func (r *Rafty) restoreMetadata() {
 
 // persistMetadata allow us to persist node metadata on disk
 func (r *Rafty) persistMetadata() error {
+	if !r.PersistDataOnDisk {
+		return nil
+	}
 	if r.DataDir == "" {
 		return nil
 	}
