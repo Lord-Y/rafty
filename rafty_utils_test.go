@@ -74,7 +74,7 @@ func (cc *clusterConfig) startCluster() {
 		// a race condition will be found in timers.go
 		// at r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		sleep := 1 + r.Intn(5)
+		sleep := 1 + r.Intn(10)
 		time.Sleep(time.Duration(sleep) * time.Second)
 		go func() {
 			if err := node.Start(); err != nil {

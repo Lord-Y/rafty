@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -22,8 +23,8 @@ func TestStart(t *testing.T) {
 		case <-time.After(30 * time.Millisecond):
 			found, _, _ = cc.clientGetLeader()
 			if found {
-				for _, node := range cc.cluster {
-					_, err := node.SubmitCommand(command{kind: commandSet, key: "key", value: "value"})
+				for i, node := range cc.cluster {
+					_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d", i), value: fmt.Sprintf("value%d", i)})
 					assert.Nil(err)
 				}
 			}
