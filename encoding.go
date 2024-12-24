@@ -63,7 +63,8 @@ func (r *Rafty) decodeCommand(data []byte) command {
 	return cmd
 }
 
-func (r *Rafty) encodePersistentData(entry *logEntry) []byte {
+// marshalBinary permit to encode data in binary formary format
+func (r *Rafty) marshalBinary(entry *logEntry) []byte {
 	buffer := bytes.NewBuffer(nil)
 
 	err := binary.Write(buffer, binary.LittleEndian, entry.FileFormat)
@@ -104,7 +105,8 @@ func (r *Rafty) encodePersistentData(entry *logEntry) []byte {
 	return buffer.Bytes()
 }
 
-func (r *Rafty) decodePersistentData(data []byte) *raftypb.LogEntry {
+// unmarshalBinary permit to decode data in binary formary format
+func (r *Rafty) unmarshalBinary(data []byte) *raftypb.LogEntry {
 	var entry logEntry
 	buffer := bytes.NewBuffer(data)
 	if err := binary.Read(buffer, binary.LittleEndian, &entry.FileFormat); err != nil {
