@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"math/rand"
+
 	"github.com/Lord-Y/rafty"
 	"github.com/rs/zerolog/log"
 )
@@ -74,6 +76,12 @@ func (cc *clusterConfig) startCluster() {
 	for i, node := range cc.cluster {
 		node.PersistDataOnDisk = true
 		node.DataDir = filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i))
+		// the following random sleep is necessary trick because when starting nth nodes during unit testing
+		// a race condition will be found in timers.go
+		// at r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		sleep := 1 + r.Intn(len(cc.cluster))
+		time.Sleep(time.Duration(sleep) * time.Second)
 		go func() {
 			if err := node.Start(); err != nil {
 				log.Fatal().Msgf("Fail to start cluster node %d with error %s", i, err.Error())
