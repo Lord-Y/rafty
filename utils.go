@@ -5,6 +5,7 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -22,6 +23,9 @@ func (r *Rafty) parsePeers() error {
 		var addr net.TCPAddr
 		host, port, err := net.SplitHostPort(peer.Address)
 		if err != nil {
+			if !strings.Contains(err.Error(), "missing port in address") {
+				return err
+			}
 			if port == "" {
 				addr = net.TCPAddr{
 					IP:   net.ParseIP(peer.Address),
@@ -33,8 +37,6 @@ func (r *Rafty) parsePeers() error {
 						address: addr,
 					})
 				}
-			} else {
-				return err
 			}
 		} else {
 			p, err := strconv.Atoi(port)
@@ -70,7 +72,7 @@ func (r *Rafty) getPeerSliceIndex(addr string) int {
 	if index != -1 {
 		return index
 	}
-	return 0
+	return -1
 }
 
 // checkIfPeerInSliceIndex will be used to check
@@ -123,7 +125,6 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 
 	if state == Follower {
 		r.volatileStateInitialized.Store(false)
-		// r.resetQuorum()
 	}
 
 	if niceMessage {
@@ -187,6 +188,9 @@ func (r *Rafty) saveLeaderInformations(newLeader leaderMap) {
 // connectToPeer permits to connect to the specified peer
 func (r *Rafty) connectToPeer(address string) {
 	peerIndex := r.getPeerSliceIndex(address)
+	if peerIndex == -1 {
+		return
+	}
 	r.mu.Lock()
 	peer := r.Peers[peerIndex]
 	r.mu.Unlock()
