@@ -521,6 +521,10 @@ func (r *Rafty) SendGetLeaderRequest() {
 				}
 
 				peerIndex := r.getPeerSliceIndex(peer.address.String())
+				if peerIndex == -1 {
+					r.Logger.Error().Err(err).Msgf("Fail to get leader from unknown peer %s", peer.address.String())
+					return
+				}
 				r.Peers[peerIndex].id = response.GetPeerID()
 
 				if response.GetLeaderID() != "" {
