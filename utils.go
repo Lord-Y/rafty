@@ -172,10 +172,7 @@ func (r *Rafty) saveLeaderInformations(newLeader leaderMap) {
 				address: r.Address.String(),
 			}
 			r.oldLeader = &leader
-			return
 		}
-		r.oldLeader.address = r.Address.String()
-		r.oldLeader.id = r.ID
 		return
 	}
 	if r.leader == &newLeader && r.leader != nil {
