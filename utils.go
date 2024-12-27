@@ -175,7 +175,7 @@ func (r *Rafty) saveLeaderInformations(newLeader leaderMap) {
 		}
 		return
 	}
-	if r.leader == &newLeader && r.leader != nil {
+	if r.leader != nil && *r.leader == newLeader {
 		return
 	}
 	r.oldLeader = r.leader

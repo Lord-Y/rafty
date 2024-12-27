@@ -198,6 +198,7 @@ func TestSaveLeaderInformations(t *testing.T) {
 		newLeader           leaderMap
 		expectedLeader      leaderMap
 		currentTerm         uint64
+		switchState         bool
 		niceMessage         bool
 		expectedState       State
 		expectedCurrentTerm uint64
@@ -206,6 +207,7 @@ func TestSaveLeaderInformations(t *testing.T) {
 			state:               Leader,
 			newLeader:           leaderMap{address: s.Address.String(), id: s.ID},
 			currentTerm:         1,
+			switchState:         true,
 			niceMessage:         true,
 			expectedState:       Leader,
 			expectedCurrentTerm: 1,
@@ -215,27 +217,33 @@ func TestSaveLeaderInformations(t *testing.T) {
 			state:               Leader,
 			newLeader:           leaderMap{address: s.Address.String(), id: s.ID},
 			currentTerm:         1,
+			switchState:         true,
 			niceMessage:         true,
 			expectedState:       Leader,
 			expectedCurrentTerm: 1,
 		},
 		{
-			state:               Leader,
-			newLeader:           leaderMap{address: s.Peers[0].address.String(), id: s.Peers[0].id},
-			currentTerm:         1,
-			niceMessage:         true,
-			expectedState:       Leader,
-			expectedCurrentTerm: 1,
+			newLeader: leaderMap{address: s.Peers[0].address.String(), id: s.Peers[0].id},
+		},
+		{
+			newLeader: leaderMap{address: s.Address.String(), id: s.ID},
 		},
 	}
 
 	s.State = Candidate
 	for _, tc := range tests {
 		s.setCurrentTerm(tc.currentTerm)
-		s.switchState(tc.state, tc.niceMessage, tc.currentTerm)
-		assert.Equal(tc.expectedState, s.State)
-		assert.Equal(tc.expectedCurrentTerm, s.CurrentTerm)
-		s.saveLeaderInformations(tc.newLeader)
+		if tc.switchState {
+			s.switchState(tc.state, tc.niceMessage, tc.currentTerm)
+			assert.Equal(tc.expectedState, s.State)
+			assert.Equal(tc.expectedCurrentTerm, s.CurrentTerm)
+			s.saveLeaderInformations(tc.newLeader)
+		} else {
+			s.State = Candidate
+			s.leader = nil
+			s.saveLeaderInformations(tc.newLeader)
+			s.saveLeaderInformations(tc.newLeader)
+		}
 	}
 }
 
