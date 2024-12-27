@@ -87,6 +87,7 @@ func (r *Rafty) Stop() {
 	// abruptly stopping grpc server because sometimes rpc calls
 	// take to much too much time to release connections
 	r.grpcServer.Stop()
+	r.closeAllFilesDescriptor()
 	// g.server.GracefulStop()
 	r.Logger.Info().Msg("gRPC server has successful stopped")
 }
