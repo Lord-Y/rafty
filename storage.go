@@ -231,13 +231,10 @@ func createDirectoryIfNotExist(d string, perm fs.FileMode) error {
 	return nil
 }
 
-// closeFileDescriptor allow us to close r.metadataFileDescriptor or r.dataFileDescriptor
-func (r *Rafty) closeFileDescriptor(metadata bool) {
-	if metadata {
-		if r.metadataFileDescriptor != nil {
-			r.metadataFileDescriptor.Close()
-		}
-		return
+// closeAllFilesDescriptor allow us to close r.metadataFileDescriptor and r.dataFileDescriptor
+func (r *Rafty) closeAllFilesDescriptor() {
+	if r.metadataFileDescriptor != nil {
+		r.metadataFileDescriptor.Close()
 	}
 	if r.dataFileDescriptor != nil {
 		r.dataFileDescriptor.Close()
