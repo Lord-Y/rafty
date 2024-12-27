@@ -55,11 +55,11 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 	myAddress, myId := r.getMyAddress()
 	state := r.getState()
 	myNextIndex := r.getNextIndex(r.ID)
-	r.mu.Lock()
+	r.murw.Lock()
 	peers := r.Peers
 	totalPeers := len(peers)
 	totalLogs := len(r.log)
-	r.mu.Unlock()
+	r.murw.Unlock()
 	var (
 		majority                   atomic.Uint64
 		leaderVolatileStateUpdated atomic.Bool
