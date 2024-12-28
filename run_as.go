@@ -193,8 +193,12 @@ func (r *Rafty) runAsLeader() {
 	}
 }
 
+// checkLeaderLastContactDate permits to check leader last contacted date
+// and then start now election campain when no leader heartbeat has been receive
+// after a certain amount of time
 func (r *Rafty) checkLeaderLastContactDate() {
-	hearbeatTimer := time.NewTimer(r.randomElectionTimeout(true))
+	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
+	hearbeatTimer := time.NewTimer(timeout)
 
 	for r.getState() == Follower {
 		select {
@@ -203,7 +207,10 @@ func (r *Rafty) checkLeaderLastContactDate() {
 			return
 
 		case <-hearbeatTimer.C:
-			timeout := r.randomElectionTimeout(true)
+			if r.getState() == Down {
+				hearbeatTimer.Stop()
+				return
+			}
 			hearbeatTimer = time.NewTimer(timeout)
 			r.mu.Lock()
 			leaderLastContactDate := r.LeaderLastContactDate
