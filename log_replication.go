@@ -185,8 +185,8 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			responseChan := make(chan appendEntriesResponse, 1)
 			r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}
 			select {
-			case <-r.quit:
-				r.switchState(Down, false, r.getCurrentTerm())
+			case <-r.quitCtx.Done():
+				r.switchState(Down, true, r.getCurrentTerm())
 				return nil, fmt.Errorf("ServerShuttingDown")
 
 			// answer back to the client

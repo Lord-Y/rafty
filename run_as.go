@@ -11,8 +11,8 @@ func (r *Rafty) runAsFollower() {
 
 	for r.getState() == Follower {
 		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 
 		// start pre vote request
@@ -63,8 +63,8 @@ func (r *Rafty) runAsCandidate() {
 
 	for r.getState() == Candidate {
 		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 
 		// receive and answer pre vote requests from other nodes
@@ -132,8 +132,8 @@ func (r *Rafty) runAsLeader() {
 
 	for r.getState() == Leader {
 		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 
 		// receive and answer pre vote requests from other nodes
@@ -198,8 +198,8 @@ func (r *Rafty) checkLeaderLastContactDate() {
 
 	for r.getState() == Follower {
 		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 
 		case <-hearbeatTimer.C:
