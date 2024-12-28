@@ -51,6 +51,7 @@ func (r *Rafty) Start() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	r.quitCtx = ctx
 
 	r.wg.Add(1)
 	go func() {
@@ -69,7 +70,6 @@ func (r *Rafty) Start() error {
 		defer r.wg.Done()
 		// stop go routine when os signal is receive or ctrl+c
 		<-ctx.Done()
-		close(r.quit)
 		r.Stop()
 	}()
 	r.wg.Wait()

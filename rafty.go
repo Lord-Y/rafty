@@ -69,7 +69,7 @@ const (
 	electionTimeoutMax int = 300
 
 	// leaderHeartBeatTimeout is the maximum time a leader will send heartbeats
-	// after this amount of time, the leader will be considered down
+	// after this amount of time, the leader will be considered lost
 	// and a new leader election campain will be started
 	leaderHeartBeatTimeout int = 75
 
@@ -285,8 +285,8 @@ type Rafty struct {
 	// pre vote quorum as been reached
 	startElectionCampain atomic.Bool
 
-	// quit will be used to stop all go routines
-	quit chan struct{}
+	// quitCtx will be used to stop all go routines
+	quitCtx context.Context
 
 	// TimeMultiplier is a scaling factor that will be used during election timeout
 	// by electionTimeoutMin/electionTimeoutMax/leaderHeartBeatTimeout in order to avoid cluster instability
@@ -387,7 +387,6 @@ func NewRafty() *Rafty {
 
 	return &Rafty{
 		Logger:                                      &logger,
-		quit:                                        make(chan struct{}),
 		preVoteResponseChan:                         make(chan preVoteResponseWrapper),
 		preVoteResponseErrorChan:                    make(chan voteResponseErrorWrapper),
 		voteResponseChan:                            make(chan voteResponseWrapper),
@@ -475,8 +474,8 @@ func (r *Rafty) startClusterWithMinimumSize() {
 
 		select {
 		// stop go routine when os signal is receive or ctrl+c
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 
 		case <-time.After(5 * time.Second):

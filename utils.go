@@ -97,8 +97,8 @@ func (r *Rafty) loopingOverNodeState() {
 	for r.getState() != Down {
 		select {
 		// stop go routine when os signal is receive or ctrl+c
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 		default:
 		}
