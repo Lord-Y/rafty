@@ -127,6 +127,12 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 		r.volatileStateInitialized.Store(false)
 	}
 
+	if state == Down {
+		r.mu.Lock()
+		r.leader = nil
+		r.mu.Unlock()
+	}
+
 	if niceMessage {
 		myAddress, myId := r.getMyAddress()
 		switch state {
@@ -137,6 +143,8 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 		case Leader:
 			r.stopElectionTimer(true, true)
 			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
+		case Down:
+			r.Logger.Info().Msgf("Me %s / %s is shutting down with term %d", myAddress, myId, currentTerm)
 		}
 	}
 }
