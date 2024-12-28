@@ -102,10 +102,11 @@ func (r *Rafty) persistMetadata() error {
 
 	result, err := json.Marshal(data)
 	if err != nil {
-		r.Logger.Error().Err(err).Msgf("json.Marshal")
 		return err
 	}
 
+	_, _ = r.metadataFileDescriptor.Seek(0, 0)
+	_ = r.metadataFileDescriptor.Truncate(0)
 	_, err = r.metadataFileDescriptor.Write(result)
 	if err != nil {
 		return err
