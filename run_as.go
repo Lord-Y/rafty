@@ -7,6 +7,9 @@ import (
 )
 
 func (r *Rafty) runAsFollower() {
+	if !r.minimumClusterSizeReach.Load() {
+		return
+	}
 	r.logState(r.getState(), true, r.getCurrentTerm())
 	r.mu.Lock()
 	r.preVoteElectionTimerEnabled.Store(true)

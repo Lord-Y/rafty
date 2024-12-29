@@ -298,6 +298,10 @@ type Rafty struct {
 	// all members of the cluster will be contacted before any other tasks
 	MinimumClusterSize uint64
 
+	// minimumClusterSizeReach is an atomic bool flag to set
+	// and start follower requirements
+	minimumClusterSizeReach atomic.Bool
+
 	// clusterSizeCounter is used to check how many nodes has been reached
 	// before acknoledging the start prevote election
 	clusterSizeCounter uint64
@@ -457,9 +461,7 @@ func (r *Rafty) start() {
 	}
 
 	r.startClusterWithMinimumSize()
-	r.startElectionTimer(true, true)
 	go r.loopingOverNodeState()
-	go r.checkLeaderLastContactDate()
 }
 
 // startClusterWithMinimumSize allow us to reach minimum cluster size
@@ -469,6 +471,7 @@ func (r *Rafty) startClusterWithMinimumSize() {
 	for {
 		if r.MinimumClusterSize == r.clusterSizeCounter+1 {
 			r.Logger.Info().Msgf("Minimum cluster size has been reached for me %s / %s, %d out of %d", myAddress, myId, r.clusterSizeCounter+1, r.MinimumClusterSize)
+			r.minimumClusterSizeReach.Store(true)
 			break
 		}
 
