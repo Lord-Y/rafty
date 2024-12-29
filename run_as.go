@@ -8,12 +8,46 @@ import (
 
 func (r *Rafty) runAsFollower() {
 	r.logState(r.getState(), true, r.getCurrentTerm())
+	r.mu.Lock()
+	r.preVoteElectionTimerEnabled.Store(true)
+	r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
+	r.mu.Unlock()
+
+	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
+	hearbeatTimer := time.NewTimer(timeout)
 
 	for r.getState() == Follower {
 		select {
 		case <-r.quitCtx.Done():
 			r.switchState(Down, true, r.getCurrentTerm())
 			return
+
+		case <-hearbeatTimer.C:
+			if r.getState() == Down {
+				hearbeatTimer.Stop()
+				return
+			}
+			hearbeatTimer = time.NewTimer(timeout)
+			r.mu.Lock()
+			leaderLastContactDate := r.LeaderLastContactDate
+			leaderLost := false
+			if leaderLastContactDate != nil && time.Since(*leaderLastContactDate) > timeout {
+				r.leaderLost.Store(true)
+				leaderLost = true
+				if r.leader != nil {
+					r.oldLeader = r.leader
+					r.Logger.Info().Msgf("Leader %s / %s has been lost for term %d", r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
+				}
+				r.leader = nil
+				r.votedFor = ""
+			}
+			r.mu.Unlock()
+
+			if leaderLost && r.getState() != Down {
+				if !r.preVoteElectionTimerEnabled.Load() {
+					r.resetElectionTimer(true, false)
+				}
+			}
 
 		// start pre vote request
 		case <-r.preVoteElectionTimer.C:
@@ -60,6 +94,10 @@ func (r *Rafty) runAsFollower() {
 
 func (r *Rafty) runAsCandidate() {
 	r.logState(r.getState(), true, r.getCurrentTerm())
+	r.mu.Lock()
+	r.electionTimerEnabled.Store(true)
+	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
+	r.mu.Unlock()
 
 	for r.getState() == Candidate {
 		select {
@@ -189,49 +227,6 @@ func (r *Rafty) runAsLeader() {
 			entryIndex := len(r.log) - 1
 			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true, entryIndex)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
-		}
-	}
-}
-
-// checkLeaderLastContactDate permits to check leader last contacted date
-// and then start now election campain when no leader heartbeat has been receive
-// after a certain amount of time
-func (r *Rafty) checkLeaderLastContactDate() {
-	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
-	hearbeatTimer := time.NewTimer(timeout)
-
-	for r.getState() == Follower {
-		select {
-		case <-r.quitCtx.Done():
-			r.switchState(Down, true, r.getCurrentTerm())
-			return
-
-		case <-hearbeatTimer.C:
-			if r.getState() == Down {
-				hearbeatTimer.Stop()
-				return
-			}
-			hearbeatTimer = time.NewTimer(timeout)
-			r.mu.Lock()
-			leaderLastContactDate := r.LeaderLastContactDate
-			leaderLost := false
-			if leaderLastContactDate != nil && time.Since(*leaderLastContactDate) > timeout {
-				r.leaderLost.Store(true)
-				leaderLost = true
-				if r.leader != nil {
-					r.oldLeader = r.leader
-					r.Logger.Info().Msgf("Leader %s / %s has been lost for term %d", r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
-				}
-				r.leader = nil
-				r.votedFor = ""
-			}
-			r.mu.Unlock()
-
-			if leaderLost && r.getState() != Down {
-				if !r.preVoteElectionTimerEnabled.Load() {
-					r.resetElectionTimer(true, false)
-				}
-			}
 		}
 	}
 }
