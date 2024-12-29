@@ -51,16 +51,22 @@ func (r *Rafty) Start() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	r.mu.Lock()
 	r.quitCtx = ctx
+	r.mu.Unlock()
 
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		go r.start()
 		err := r.grpcServer.Serve(r.listener)
 		if err != nil {
 			r.Logger.Fatal().Err(err).Msg("Fail to start grpc server")
 		}
+	}()
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		r.start()
 	}()
 
 	r.Logger.Info().Msgf("gRPC server at %s has successfully started", r.Address.String())
@@ -78,16 +84,12 @@ func (r *Rafty) Start() error {
 
 // Stop permits to stop the gRPC server and Rafty with the provided configuration
 func (r *Rafty) Stop() {
+	// this is just a safe guard when invoking Stop function directly
+	r.switchState(Down, true, r.getCurrentTerm())
+	r.grpcServer.GracefulStop()
 	r.mu.Lock()
-	if r.grpcServer == nil {
-		r.mu.Unlock()
-		return
-	}
+	r.grpcServer = nil
 	r.mu.Unlock()
-	// abruptly stopping grpc server because sometimes rpc calls
-	// take to much too much time to release connections
-	r.grpcServer.Stop()
+	r.disconnectToPeers()
 	r.closeAllFilesDescriptor()
-	// g.server.GracefulStop()
-	r.Logger.Info().Msg("gRPC server has successful stopped")
 }
