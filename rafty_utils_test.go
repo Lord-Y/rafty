@@ -75,8 +75,8 @@ func (cc *clusterConfig) startCluster() {
 		// at r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		sleep := 1 + r.Intn(10)
-		time.Sleep(time.Duration(sleep) * time.Second)
 		go func() {
+			time.Sleep(time.Duration(sleep) * time.Second)
 			if err := node.Start(); err != nil {
 				cc.t.Errorf("Fail to start cluster node %d with error %s", i, err.Error())
 				return
