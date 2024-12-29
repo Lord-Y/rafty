@@ -16,20 +16,6 @@ func (r *Rafty) randomElectionTimeout(preVote bool) time.Duration {
 	return time.Duration(electionTimeoutMin+rd.Intn(electionTimeoutMax-electionTimeoutMin)) * time.Millisecond * time.Duration(r.TimeMultiplier)
 }
 
-// startElectionTimer permit during election campain to start electionTimer
-func (r *Rafty) startElectionTimer(preVote, electionCampain bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if preVote {
-		r.preVoteElectionTimerEnabled.Store(true)
-		r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
-	}
-	if electionCampain {
-		r.electionTimerEnabled.Store(true)
-		r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
-	}
-}
-
 // resetElectionTimer permit during election campain to reset electionTimer
 func (r *Rafty) resetElectionTimer(preVote, electionCampain bool) {
 	r.mu.Lock()
