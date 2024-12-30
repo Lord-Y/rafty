@@ -31,6 +31,7 @@ func (r *Rafty) runAsFollower() {
 				return
 			}
 			hearbeatTimer = time.NewTimer(timeout)
+			myAddress, myId := r.getMyAddress()
 			r.mu.Lock()
 			leaderLastContactDate := r.LeaderLastContactDate
 			leaderLost := false
@@ -39,7 +40,7 @@ func (r *Rafty) runAsFollower() {
 				leaderLost = true
 				if r.leader != nil {
 					r.oldLeader = r.leader
-					r.Logger.Info().Msgf("Leader %s / %s has been lost for term %d", r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
+					r.Logger.Info().Msgf("Me %s / %s reports that Leader %s / %s has been lost for term %d", myAddress, myId, r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
 				}
 				r.leader = nil
 				r.votedFor = ""
