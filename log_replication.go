@@ -213,7 +213,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to get forward command to leader leader %s / %s", peer.address.String(), peer.id)
+					r.Logger.Error().Err(err).Msgf("Fail to forward command to leader leader %s / %s", peer.address.String(), peer.id)
 					return nil, err
 				}
 				if response.Error == "" {
