@@ -49,11 +49,9 @@ func (r *Rafty) Start() error {
 
 	r.Logger.Info().Msgf("gRPC server at %s is starting", r.Address.String())
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	var stop context.CancelFunc
+	r.quitCtx, stop = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	r.mu.Lock()
-	r.quitCtx = ctx
-	r.mu.Unlock()
 
 	r.wg.Add(1)
 	go func() {
@@ -75,7 +73,7 @@ func (r *Rafty) Start() error {
 	go func() {
 		defer r.wg.Done()
 		// stop go routine when os signal is receive or ctrl+c
-		<-ctx.Done()
+		<-r.quitCtx.Done()
 		r.Stop()
 	}()
 	r.wg.Wait()
