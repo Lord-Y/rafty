@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/pkg/errors"
@@ -84,7 +85,15 @@ func (r *Rafty) Start() error {
 func (r *Rafty) Stop() {
 	// this is just a safe guard when invoking Stop function directly
 	r.switchState(Down, true, r.getCurrentTerm())
-	r.grpcServer.GracefulStop()
+	stopped := make(chan struct{})
+	go func() {
+		r.grpcServer.GracefulStop()
+		close(stopped)
+	}()
+	t := time.NewTimer(30 * time.Second)
+	<-t.C
+	t.Stop()
+
 	r.mu.Lock()
 	r.grpcServer = nil
 	r.mu.Unlock()
