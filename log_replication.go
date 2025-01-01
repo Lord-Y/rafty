@@ -126,7 +126,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 					if response.GetSuccess() {
 						majority.Add(1)
 						if int(majority.Load()) >= totalMajority {
-							r.Logger.Trace().Msgf("Majority replication reached %t totalLogs %d heartbeat %t", int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
+							r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d  reports that majority replication reached %t totalLogs %d heartbeat %t", myAddress, myId, state.String(), currentTerm, int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
 							if totalLogs > 0 && !heartbeat {
 								r.setNextAndMatchIndex(peer.id, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
 
@@ -213,7 +213,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to forward command to leader leader %s / %s", peer.address.String(), peer.id)
+					r.Logger.Error().Err(err).Msgf("Fail to forward command to leader %s / %s", peer.address.String(), peer.id)
 					return nil, err
 				}
 				if response.Error == "" {
