@@ -196,12 +196,12 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 		} else {
 			leader := r.getLeader()
 			if leader == nil {
-				return nil, fmt.Errorf("NoLeader")
+				return nil, errNoLeader
 			}
 			peer := r.getPeerClient(leader.id)
 			if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) {
 				if !r.healthyPeer(peer) {
-					return nil, fmt.Errorf("NoLeader")
+					return nil, errNoLeader
 				}
 
 				response, err := peer.rclient.ForwardCommandToLeader(
