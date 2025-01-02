@@ -58,6 +58,7 @@ func (r *Rafty) runAsFollower() {
 
 			if leaderLost && r.getState() != Down {
 				if !r.preVoteElectionTimerEnabled.Load() {
+					r.startElectionCampain.Store(false)
 					r.resetElectionTimer(true, false)
 				}
 			}
