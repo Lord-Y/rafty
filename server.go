@@ -93,10 +93,6 @@ func (r *Rafty) Stop() {
 	t := time.NewTimer(30 * time.Second)
 	<-t.C
 	t.Stop()
-
-	r.mu.Lock()
-	r.grpcServer = nil
-	r.mu.Unlock()
 	r.disconnectToPeers()
 	r.closeAllFilesDescriptor()
 }
