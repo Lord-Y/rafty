@@ -13,11 +13,16 @@ func (r *Rafty) runAsFollower() {
 	r.logState(r.getState(), true, r.getCurrentTerm())
 	r.mu.Lock()
 	r.preVoteElectionTimerEnabled.Store(true)
-	r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
+	preVoteTimeout := r.randomElectionTimeout(true)
+	r.preVoteElectionTimer = time.NewTimer(preVoteTimeout)
+	// the following is necessary to prevent nil pointer exception when we are follower state
+	// and a leader is sending appendEntries
+	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
 	r.mu.Unlock()
 
 	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
 	hearbeatTimer := time.NewTimer(timeout)
+	myAddress, myId := r.getMyAddress()
 
 	for r.getState() == Follower {
 		select {
@@ -30,6 +35,7 @@ func (r *Rafty) runAsFollower() {
 				hearbeatTimer.Stop()
 				return
 			}
+			r.Logger.Trace().Msgf("Me %s / %s with reports timeout %s leaderHeartBeatTimeout %d multiplier %d", myAddress, myId, timeout, leaderHeartBeatTimeout, r.TimeMultiplier)
 			hearbeatTimer = time.NewTimer(timeout)
 			myAddress, myId := r.getMyAddress()
 			r.mu.Lock()
@@ -58,6 +64,7 @@ func (r *Rafty) runAsFollower() {
 			if !r.preVoteElectionTimerEnabled.Load() {
 				return
 			}
+			r.Logger.Trace().Msgf("Me %s / %s reports heartbeat preVoteTimeout %s", myAddress, myId, preVoteTimeout)
 			r.preVoteRequest()
 
 		// receive and answer pre vote requests from other nodes
