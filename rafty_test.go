@@ -27,7 +27,6 @@ func TestStart(t *testing.T) {
 				found, _, _ = cc.clientGetLeader(nodeId)
 				if found {
 					for i, node := range cc.cluster {
-						// node.Logger.Level(zerolog.TraceLevel)
 						_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
 						if err != nil {
 							if strings.Contains(err.Error(), "the client connection is closing") {
