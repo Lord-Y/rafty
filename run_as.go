@@ -66,6 +66,9 @@ func (r *Rafty) runAsFollower() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
+			if r.getLeader() != nil {
+				return
+			}
 			r.handlePreVoteResponse(preVote)
 
 		// handle pre vote response error from other nodes
@@ -115,6 +118,9 @@ func (r *Rafty) runAsCandidate() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
+			if r.getLeader() != nil {
+				return
+			}
 			r.handlePreVoteResponse(preVote)
 
 		// handle pre vote response error from other nodes
@@ -184,6 +190,9 @@ func (r *Rafty) runAsLeader() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
+			if r.getLeader() != nil {
+				return
+			}
 			r.handlePreVoteResponse(preVote)
 
 		// handle pre vote response error from other nodes
