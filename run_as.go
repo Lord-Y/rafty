@@ -35,6 +35,9 @@ func (r *Rafty) runAsFollower() {
 				hearbeatTimer.Stop()
 				return
 			}
+			if !r.startElectionCampain.Load() {
+				return
+			}
 			r.Logger.Trace().Msgf("Me %s / %s with reports timeout %s leaderHeartBeatTimeout %d multiplier %d", myAddress, myId, timeout, leaderHeartBeatTimeout, r.TimeMultiplier)
 			hearbeatTimer = time.NewTimer(timeout)
 			myAddress, myId := r.getMyAddress()
