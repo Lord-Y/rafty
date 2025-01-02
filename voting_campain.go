@@ -23,7 +23,7 @@ func (r *Rafty) preVoteRequest() {
 	r.mu.Unlock()
 
 	for _, peer := range peers {
-		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) {
+		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down {
 			if !r.healthyPeer(peer) {
 				return
 			}
