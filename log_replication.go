@@ -126,7 +126,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 					if response.GetSuccess() {
 						majority.Add(1)
 						if int(majority.Load()) >= totalMajority {
-							r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d  reports that majority replication reached %t totalLogs %d heartbeat %t", myAddress, myId, state.String(), currentTerm, int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
+							r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d reports that majority replication reached %t totalLogs %d heartbeat %t", myAddress, myId, state.String(), currentTerm, int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
 							if totalLogs > 0 && !heartbeat {
 								r.setNextAndMatchIndex(peer.id, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
 
