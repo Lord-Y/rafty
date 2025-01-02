@@ -117,7 +117,7 @@ func (cc *clusterConfig) startOrStopSpecificicNode(index int, action string) err
 	}
 }
 
-func (cc *clusterConfig) clientGetLeader() (bool, string, string) {
+func (cc *clusterConfig) clientGetLeader(nodeId int) (bool, string, string) {
 	assert := assert.New(cc.t)
 	nodeAddr := cc.cluster[0].Address.String()
 	conn, err := grpc.NewClient(
@@ -125,7 +125,7 @@ func (cc *clusterConfig) clientGetLeader() (bool, string, string) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		assert.Errorf(err, "Fail to connect to grpc server %s", nodeAddr)
+		assert.Errorf(err, "Node %d reports fail to connect to grpc server %s", nodeId, nodeAddr)
 	}
 	defer conn.Close()
 	client := raftypb.NewRaftyClient(conn)
@@ -134,12 +134,12 @@ func (cc *clusterConfig) clientGetLeader() (bool, string, string) {
 	defer cancel()
 	response, err := client.ClientGetLeader(ctx, &raftypb.ClientGetLeaderRequest{Message: "Who is the leader?"})
 	if err != nil {
-		assert.Errorf(err, "Fail to ask %s who is the leader", nodeAddr)
+		assert.Errorf(err, "Node %d reports fail to ask %s who is the leader", nodeId, nodeAddr)
 	}
 	if response.GetLeaderAddress() == "" && response.GetLeaderID() == "" {
-		cc.cluster[0].Logger.Info().Msgf("No leader found")
+		cc.cluster[nodeId].Logger.Info().Msgf("Node %d reports no leader found", nodeId)
 		return false, response.GetLeaderAddress(), response.GetLeaderID()
 	}
-	cc.cluster[0].Logger.Info().Msgf("%s / %s is the leader", response.GetLeaderAddress(), response.GetLeaderID())
+	cc.cluster[nodeId].Logger.Info().Msgf("Node %d reports that %s / %s is the leader", nodeId, response.GetLeaderAddress(), response.GetLeaderID())
 	return true, "", ""
 }
