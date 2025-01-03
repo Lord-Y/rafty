@@ -1,16 +1,26 @@
 package main
 
 import (
+	"flag"
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Lord-Y/rafty"
 )
 
+var ipAddress = flag.String("ip-address", "127.0.0.3", "ip address")
+var maxUptime = flag.Bool("max-uptime", false, "stop node")
+var maxUptimeAfterN = flag.Uint("max-uptime-after-n", 6, "max uptime in minutes before stopping node")
+var restartNode = flag.Bool("restart-node", false, "restart node")
+var restartNodeAfterN = flag.Uint("restart-node-after-n", 4, "max uptime in minutes before restarting node")
+
 func main() {
+	flag.Parse()
+
 	addr := net.TCPAddr{
-		IP:   net.ParseIP("127.0.0.3"),
+		IP:   net.ParseIP(*ipAddress),
 		Port: 50053,
 	}
 	peers := []rafty.Peer{
@@ -32,8 +42,33 @@ func main() {
 	s.PersistDataOnDisk = true
 	s.DataDir = filepath.Join(os.TempDir(), "rafty", id)
 
-	err := s.Start()
-	if err != nil {
-		s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+	if *restartNodeAfterN >= *maxUptimeAfterN {
+		*restartNodeAfterN = 3
 	}
+
+	if *maxUptime {
+		defer func() {
+			time.Sleep(time.Duration(*maxUptimeAfterN) * time.Minute)
+			s.Stop()
+		}()
+	}
+
+	if *restartNode {
+		defer func() {
+			go func() {
+				time.Sleep(time.Duration(*restartNodeAfterN) * time.Minute)
+				s.Stop()
+				time.Sleep(30 * time.Second)
+				if err := s.Start(); err != nil {
+					s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+				}
+			}()
+		}()
+	}
+
+	go func() {
+		if err := s.Start(); err != nil {
+			s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+		}
+	}()
 }
