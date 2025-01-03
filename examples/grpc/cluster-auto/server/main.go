@@ -151,5 +151,5 @@ func main() {
 		}()
 	}
 
-	cc.startCluster()
+	go cc.startCluster()
 }
