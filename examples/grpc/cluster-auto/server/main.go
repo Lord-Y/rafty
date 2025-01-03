@@ -16,16 +16,18 @@ import (
 
 var ipAddress = flag.String("ip-address", "127.0.0.5", "ip address")
 var clusterSize = flag.Uint("cluster-size", 3, "cluster size")
+var autoSetMinimumClusterSize = flag.Bool("auto-set-minimum-cluster-size", false, "auto set minimum cluster size")
 var maxUptime = flag.Uint("max-uptime", 3, "max uptime in minutes")
 var restartNode = flag.Bool("restart-node", false, "restart first node")
 
 type clusterConfig struct {
-	ipAddress      string
-	maxUptime      uint
-	clusterSize    uint
-	restartNode    bool
-	cluster        []*rafty.Rafty
-	TimeMultiplier uint
+	ipAddress                 string
+	maxUptime                 uint
+	clusterSize               uint
+	autoSetMinimumClusterSize bool
+	restartNode               bool
+	cluster                   []*rafty.Rafty
+	TimeMultiplier            uint
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
@@ -117,23 +119,29 @@ func (cc *clusterConfig) startOrStopSpecificicNode(index int, action string) err
 		}()
 		return nil
 	default:
+		if cc.autoSetMinimumClusterSize {
+			node.MinimumClusterSize = uint64(cc.clusterSize)
+		}
 		return node.Start()
 	}
 }
 
 func main() {
+	now := time.Now()
 	flag.Parse()
 
 	cc := clusterConfig{
-		ipAddress:   *ipAddress,
-		maxUptime:   *maxUptime,
-		clusterSize: *clusterSize,
-		restartNode: *restartNode,
+		ipAddress:                 *ipAddress,
+		maxUptime:                 *maxUptime,
+		clusterSize:               *clusterSize,
+		autoSetMinimumClusterSize: *autoSetMinimumClusterSize,
+		restartNode:               *restartNode,
 	}
 
 	defer func() {
 		time.Sleep(time.Duration(cc.maxUptime) * time.Minute)
 		cc.stopCluster()
+		cc.cluster[0].Logger.Info().Msgf("cluster has been running for %f minutes", time.Since(now).Minutes())
 	}()
 
 	if cc.restartNode {
