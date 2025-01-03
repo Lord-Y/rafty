@@ -69,7 +69,7 @@ const (
 	electionTimeoutMax int = 300
 
 	// leaderHeartBeatTimeout is the maximum time a leader will send heartbeats
-	// after this amount of time, the leader will be considered down
+	// after this amount of time, the leader will be considered lost
 	// and a new leader election campain will be started
 	leaderHeartBeatTimeout int = 75
 
@@ -80,6 +80,7 @@ const (
 var (
 	errAppendEntriesToLeader = errors.New("Cannot append entries from leader")
 	errTermTooOld            = errors.New("Requester term older than mine")
+	errNoLeader              = errors.New("NoLeader")
 )
 
 // String return a human readable state of the raft server
@@ -285,8 +286,8 @@ type Rafty struct {
 	// pre vote quorum as been reached
 	startElectionCampain atomic.Bool
 
-	// quit will be used to stop all go routines
-	quit chan struct{}
+	// quitCtx will be used to stop all go routines
+	quitCtx context.Context
 
 	// TimeMultiplier is a scaling factor that will be used during election timeout
 	// by electionTimeoutMin/electionTimeoutMax/leaderHeartBeatTimeout in order to avoid cluster instability
@@ -297,6 +298,10 @@ type Rafty struct {
 	// default is 3
 	// all members of the cluster will be contacted before any other tasks
 	MinimumClusterSize uint64
+
+	// minimumClusterSizeReach is an atomic bool flag to set
+	// and start follower requirements
+	minimumClusterSizeReach atomic.Bool
 
 	// clusterSizeCounter is used to check how many nodes has been reached
 	// before acknoledging the start prevote election
@@ -387,7 +392,6 @@ func NewRafty() *Rafty {
 
 	return &Rafty{
 		Logger:                                      &logger,
-		quit:                                        make(chan struct{}),
 		preVoteResponseChan:                         make(chan preVoteResponseWrapper),
 		preVoteResponseErrorChan:                    make(chan voteResponseErrorWrapper),
 		voteResponseChan:                            make(chan voteResponseWrapper),
@@ -458,9 +462,7 @@ func (r *Rafty) start() {
 	}
 
 	r.startClusterWithMinimumSize()
-	r.startElectionTimer(true, true)
 	go r.loopingOverNodeState()
-	go r.checkLeaderLastContactDate()
 }
 
 // startClusterWithMinimumSize allow us to reach minimum cluster size
@@ -470,13 +472,14 @@ func (r *Rafty) startClusterWithMinimumSize() {
 	for {
 		if r.MinimumClusterSize == r.clusterSizeCounter+1 {
 			r.Logger.Info().Msgf("Minimum cluster size has been reached for me %s / %s, %d out of %d", myAddress, myId, r.clusterSizeCounter+1, r.MinimumClusterSize)
+			r.minimumClusterSizeReach.Store(true)
 			break
 		}
 
 		select {
 		// stop go routine when os signal is receive or ctrl+c
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 
 		case <-time.After(5 * time.Second):
@@ -521,6 +524,10 @@ func (r *Rafty) SendGetLeaderRequest() {
 				}
 
 				peerIndex := r.getPeerSliceIndex(peer.address.String())
+				if peerIndex == -1 {
+					r.Logger.Error().Err(err).Msgf("Fail to get leader from unknown peer %s", peer.address.String())
+					return
+				}
 				r.Peers[peerIndex].id = response.GetPeerID()
 
 				if response.GetLeaderID() != "" {

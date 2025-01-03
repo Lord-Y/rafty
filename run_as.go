@@ -7,19 +7,68 @@ import (
 )
 
 func (r *Rafty) runAsFollower() {
+	if !r.minimumClusterSizeReach.Load() {
+		return
+	}
 	r.logState(r.getState(), true, r.getCurrentTerm())
+	r.mu.Lock()
+	r.preVoteElectionTimerEnabled.Store(true)
+	preVoteTimeout := r.randomElectionTimeout(true)
+	r.preVoteElectionTimer = time.NewTimer(preVoteTimeout)
+	// the following is necessary to prevent nil pointer exception when we are follower state
+	// and a leader is sending appendEntries
+	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
+	r.mu.Unlock()
+
+	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
+	hearbeatTimer := time.NewTimer(timeout)
+	myAddress, myId := r.getMyAddress()
 
 	for r.getState() == Follower {
 		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
+
+		case <-hearbeatTimer.C:
+			if r.getState() == Down {
+				hearbeatTimer.Stop()
+				return
+			}
+			if !r.startElectionCampain.Load() {
+				return
+			}
+			r.Logger.Trace().Msgf("Me %s / %s with reports timeout %s leaderHeartBeatTimeout %d multiplier %d", myAddress, myId, timeout, leaderHeartBeatTimeout, r.TimeMultiplier)
+			hearbeatTimer = time.NewTimer(timeout)
+			myAddress, myId := r.getMyAddress()
+			r.mu.Lock()
+			leaderLastContactDate := r.LeaderLastContactDate
+			leaderLost := false
+			if leaderLastContactDate != nil && time.Since(*leaderLastContactDate) > timeout {
+				r.leaderLost.Store(true)
+				leaderLost = true
+				if r.leader != nil {
+					r.oldLeader = r.leader
+					r.Logger.Info().Msgf("Me %s / %s reports that Leader %s / %s has been lost for term %d", myAddress, myId, r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
+				}
+				r.leader = nil
+				r.votedFor = ""
+			}
+			r.mu.Unlock()
+
+			if leaderLost && r.getState() != Down {
+				if !r.preVoteElectionTimerEnabled.Load() {
+					r.startElectionCampain.Store(false)
+					r.resetElectionTimer(true, false)
+				}
+			}
 
 		// start pre vote request
 		case <-r.preVoteElectionTimer.C:
 			if !r.preVoteElectionTimerEnabled.Load() {
 				return
 			}
+			r.Logger.Trace().Msgf("Me %s / %s reports heartbeat preVoteTimeout %s", myAddress, myId, preVoteTimeout)
 			r.preVoteRequest()
 
 		// receive and answer pre vote requests from other nodes
@@ -28,6 +77,9 @@ func (r *Rafty) runAsFollower() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
+			if r.getLeader() != nil {
+				return
+			}
 			r.handlePreVoteResponse(preVote)
 
 		// handle pre vote response error from other nodes
@@ -60,11 +112,15 @@ func (r *Rafty) runAsFollower() {
 
 func (r *Rafty) runAsCandidate() {
 	r.logState(r.getState(), true, r.getCurrentTerm())
+	r.mu.Lock()
+	r.electionTimerEnabled.Store(true)
+	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
+	r.mu.Unlock()
 
 	for r.getState() == Candidate {
 		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 
 		// receive and answer pre vote requests from other nodes
@@ -73,6 +129,9 @@ func (r *Rafty) runAsCandidate() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
+			if r.getLeader() != nil {
+				return
+			}
 			r.handlePreVoteResponse(preVote)
 
 		// handle pre vote response error from other nodes
@@ -132,8 +191,8 @@ func (r *Rafty) runAsLeader() {
 
 	for r.getState() == Leader {
 		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
+		case <-r.quitCtx.Done():
+			r.switchState(Down, true, r.getCurrentTerm())
 			return
 
 		// receive and answer pre vote requests from other nodes
@@ -142,6 +201,9 @@ func (r *Rafty) runAsLeader() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
+			if r.getLeader() != nil {
+				return
+			}
 			r.handlePreVoteResponse(preVote)
 
 		// handle pre vote response error from other nodes
@@ -189,42 +251,6 @@ func (r *Rafty) runAsLeader() {
 			entryIndex := len(r.log) - 1
 			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true, entryIndex)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
-		}
-	}
-}
-
-func (r *Rafty) checkLeaderLastContactDate() {
-	hearbeatTimer := time.NewTimer(r.randomElectionTimeout(true))
-
-	for r.getState() == Follower {
-		select {
-		case <-r.quit:
-			r.switchState(Down, false, r.getCurrentTerm())
-			return
-
-		case <-hearbeatTimer.C:
-			timeout := r.randomElectionTimeout(true)
-			hearbeatTimer = time.NewTimer(timeout)
-			r.mu.Lock()
-			leaderLastContactDate := r.LeaderLastContactDate
-			leaderLost := false
-			if leaderLastContactDate != nil && time.Since(*leaderLastContactDate) > timeout {
-				r.leaderLost.Store(true)
-				leaderLost = true
-				if r.leader != nil {
-					r.oldLeader = r.leader
-					r.Logger.Info().Msgf("Leader %s / %s has been lost for term %d", r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
-				}
-				r.leader = nil
-				r.votedFor = ""
-			}
-			r.mu.Unlock()
-
-			if leaderLost && r.getState() != Down {
-				if !r.preVoteElectionTimerEnabled.Load() {
-					r.resetElectionTimer(true, false)
-				}
-			}
 		}
 	}
 }

@@ -50,5 +50,5 @@ jobs:
     - name: Run unit testing
       run: |
         GITHUB_REPO=$(head -1 go.mod | sed 's#module ##g')
-        go test -v -race -coverprofile=coverage.out $(go list ./... | grep -vE "${GITHUB_REPO}/examples|${GITHUB_REPO}/raftypb")
+        go test -v -race -coverprofile=coverage.out -covermode=atomic $(go list ./... | grep -vE "${GITHUB_REPO}/examples|${GITHUB_REPO}/raftypb")
         go tool cover -func=coverage.out

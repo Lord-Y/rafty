@@ -55,11 +55,11 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 	myAddress, myId := r.getMyAddress()
 	state := r.getState()
 	myNextIndex := r.getNextIndex(r.ID)
-	r.mu.Lock()
+	r.murw.Lock()
 	peers := r.Peers
 	totalPeers := len(peers)
 	totalLogs := len(r.log)
-	r.mu.Unlock()
+	r.murw.Unlock()
 	var (
 		majority                   atomic.Uint64
 		leaderVolatileStateUpdated atomic.Bool
@@ -126,7 +126,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 					if response.GetSuccess() {
 						majority.Add(1)
 						if int(majority.Load()) >= totalMajority {
-							r.Logger.Trace().Msgf("Majority replication reached %t totalLogs %d heartbeat %t", int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
+							r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d reports that majority replication reached %t totalLogs %d heartbeat %t", myAddress, myId, state.String(), currentTerm, int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
 							if totalLogs > 0 && !heartbeat {
 								r.setNextAndMatchIndex(peer.id, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
 
@@ -185,8 +185,8 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			responseChan := make(chan appendEntriesResponse, 1)
 			r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}
 			select {
-			case <-r.quit:
-				r.switchState(Down, false, r.getCurrentTerm())
+			case <-r.quitCtx.Done():
+				r.switchState(Down, true, r.getCurrentTerm())
 				return nil, fmt.Errorf("ServerShuttingDown")
 
 			// answer back to the client
@@ -194,14 +194,14 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 				return response.Data, response.Error
 			}
 		} else {
-			leader := r.getLeader().id
-			if leader == "" {
-				return nil, fmt.Errorf("NoLeader")
+			leader := r.getLeader()
+			if leader == nil {
+				return nil, errNoLeader
 			}
-			peer := r.getPeerClient(leader)
+			peer := r.getPeerClient(leader.id)
 			if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) {
 				if !r.healthyPeer(peer) {
-					return nil, fmt.Errorf("NoLeader")
+					return nil, errNoLeader
 				}
 
 				response, err := peer.rclient.ForwardCommandToLeader(
@@ -213,7 +213,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to get forward command to leader leader %s / %s", peer.address.String(), peer.id)
+					r.Logger.Error().Err(err).Msgf("Fail to forward command to leader %s / %s", peer.address.String(), peer.id)
 					return nil, err
 				}
 				if response.Error == "" {

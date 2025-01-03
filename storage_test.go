@@ -34,6 +34,7 @@ func TestMetadata(t *testing.T) {
 		node.DataDir = filepath.Join(os.TempDir(), "rafty", "storage")
 		node.Logger.Debug().Msgf("node.DataDir %s", node.DataDir)
 
+		node.PersistDataOnDisk = true
 		node.restoreMetadata() // needed after node.DataDir is set
 		err := node.persistMetadata()
 		assert.Nil(err)
@@ -55,9 +56,7 @@ func TestMetadata(t *testing.T) {
 		assert.Equal(1, len(node.log))
 		assert.Equal(now, node.log[0].TimeStamp)
 
-		node.closeFileDescriptor(true)
-		node.closeFileDescriptor(false)
-
+		node.closeAllFilesDescriptor()
 		err = os.RemoveAll(node.DataDir)
 		assert.Nil(err)
 	}

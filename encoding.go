@@ -10,28 +10,23 @@ import (
 
 // encodeCommand permits to transform command receive from clients to binary language machine
 func (r *Rafty) encodeCommand(cmd command) []byte {
-	buf := bytes.NewBuffer(nil)
+	buffer := bytes.NewBuffer(nil)
 
-	err := buf.WriteByte(byte(cmd.kind))
-	if err != nil {
-		panic(err)
-	}
+	// disabling error checking because in our case
+	// it will always works
+	_ = buffer.WriteByte(byte(cmd.kind))
 
-	err = binary.Write(buf, binary.LittleEndian, uint64(len(cmd.key)))
-	if err != nil {
-		panic(err)
-	}
+	// disabling error checking because in our case
+	// it will always works
+	_ = binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.key)))
+	buffer.WriteString(cmd.key)
 
-	buf.WriteString(cmd.key)
+	// disabling error checking because in our case
+	// it will always works
+	_ = binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.value)))
+	buffer.WriteString(cmd.value)
 
-	err = binary.Write(buf, binary.LittleEndian, uint64(len(cmd.value)))
-	if err != nil {
-		panic(err)
-	}
-
-	buf.WriteString(cmd.value)
-
-	return buf.Bytes()
+	return buffer.Bytes()
 }
 
 // decodeCommand permits to transform back command from binary language machine to clients
@@ -63,7 +58,8 @@ func (r *Rafty) decodeCommand(data []byte) command {
 	return cmd
 }
 
-func (r *Rafty) encodePersistentData(entry *logEntry) []byte {
+// marshalBinary permit to encode data in binary formary format
+func (r *Rafty) marshalBinary(entry *logEntry) []byte {
 	buffer := bytes.NewBuffer(nil)
 
 	err := binary.Write(buffer, binary.LittleEndian, entry.FileFormat)
@@ -104,7 +100,8 @@ func (r *Rafty) encodePersistentData(entry *logEntry) []byte {
 	return buffer.Bytes()
 }
 
-func (r *Rafty) decodePersistentData(data []byte) *raftypb.LogEntry {
+// unmarshalBinary permit to decode data in binary formary format
+func (r *Rafty) unmarshalBinary(data []byte) *raftypb.LogEntry {
 	var entry logEntry
 	buffer := bytes.NewBuffer(data)
 	if err := binary.Read(buffer, binary.LittleEndian, &entry.FileFormat); err != nil {

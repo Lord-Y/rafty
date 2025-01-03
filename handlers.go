@@ -56,7 +56,7 @@ func (r *Rafty) handlePreVoteResponseError(vote voteResponseErrorWrapper) {
 func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 	currentTerm := r.getCurrentTerm()
 	if vote.response.GetCurrentTerm() > currentTerm {
-		r.Logger.Info().Msgf("Peer %s / %s has a higher term than me %d > %d during pre vote", vote.peer.address.String(), vote.response.GetPeerID(), vote.response.GetCurrentTerm(), currentTerm)
+		r.Logger.Info().Msgf("Me %s / %s reports that peer %s / %s has a higher term than me %d > %d during pre vote", r.Address.String(), r.ID, vote.peer.address.String(), vote.response.GetPeerID(), vote.response.GetCurrentTerm(), currentTerm)
 		r.setCurrentTerm(vote.response.GetCurrentTerm())
 		r.switchState(Follower, false, vote.response.GetCurrentTerm())
 		return
@@ -65,26 +65,26 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 	if vote.response.GetCurrentTerm() <= currentTerm {
 		if !r.checkIfPeerInSliceIndex(true, vote.peer.address.String()) {
 			r.appendPrecandidate(vote.peer)
-			r.Logger.Info().Msgf("Peer %s / %s will be part of the election campain", vote.peer.address.String(), vote.response.GetPeerID())
+			r.Logger.Info().Msgf("Me %s / %s reports that peer %s / %s will be part of the election campain", r.Address.String(), r.ID, vote.peer.address.String(), vote.response.GetPeerID())
 		}
 
 		var majority bool
 		minimumClusterSize := r.getMinimumClusterSize()
 		if r.leaderLost.Load() {
 			if len(r.getPrecandidate())+1 == int(minimumClusterSize)-1 {
-				r.Logger.Trace().Msgf("PreCandidatePeers majority length when leader is lost %d", r.MinimumClusterSize-1)
+				r.Logger.Trace().Msgf("Me %s / %s reports PreCandidatePeers majority length when leader is lost %d", r.Address.String(), r.ID, r.MinimumClusterSize-1)
 				majority = true
 			}
 		} else {
 			// TODO: review this part when more than 3 nodes are involved
 			if len(r.getPrecandidate())+1 == int(minimumClusterSize) {
-				r.Logger.Trace().Msgf("PreCandidatePeers majority length %d", minimumClusterSize)
+				r.Logger.Trace().Msgf("Me %s / %s reports peer PreCandidatePeers majority length %d", r.Address.String(), r.ID, minimumClusterSize)
 				majority = true
 			}
 		}
 
 		if majority {
-			r.Logger.Trace().Msg("Pre vote quorum as been reach")
+			r.Logger.Trace().Msgf("Me %s / %s reports that pre vote quorum as been reach", r.Address.String(), r.ID)
 			r.startElectionCampain.Store(true)
 			r.switchState(Candidate, false, currentTerm)
 			r.stopElectionTimer(true, false)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/pkg/errors"
@@ -49,17 +50,22 @@ func (r *Rafty) Start() error {
 
 	r.Logger.Info().Msgf("gRPC server at %s is starting", r.Address.String())
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	var stop context.CancelFunc
+	r.quitCtx, stop = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
-		go r.start()
 		err := r.grpcServer.Serve(r.listener)
 		if err != nil {
 			r.Logger.Fatal().Err(err).Msg("Fail to start grpc server")
 		}
+	}()
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		r.start()
 	}()
 
 	r.Logger.Info().Msgf("gRPC server at %s has successfully started", r.Address.String())
@@ -68,8 +74,7 @@ func (r *Rafty) Start() error {
 	go func() {
 		defer r.wg.Done()
 		// stop go routine when os signal is receive or ctrl+c
-		<-ctx.Done()
-		close(r.quit)
+		<-r.quitCtx.Done()
 		r.Stop()
 	}()
 	r.wg.Wait()
@@ -78,15 +83,16 @@ func (r *Rafty) Start() error {
 
 // Stop permits to stop the gRPC server and Rafty with the provided configuration
 func (r *Rafty) Stop() {
-	r.mu.Lock()
-	if r.grpcServer == nil {
-		r.mu.Unlock()
-		return
-	}
-	r.mu.Unlock()
-	// abruptly stopping grpc server because sometimes rpc calls
-	// take to much too much time to release connections
-	r.grpcServer.Stop()
-	// g.server.GracefulStop()
-	r.Logger.Info().Msg("gRPC server has successful stopped")
+	// this is just a safe guard when invoking Stop function directly
+	r.switchState(Down, true, r.getCurrentTerm())
+	stopped := make(chan struct{})
+	go func() {
+		r.grpcServer.GracefulStop()
+		close(stopped)
+	}()
+	t := time.NewTimer(30 * time.Second)
+	<-t.C
+	t.Stop()
+	r.disconnectToPeers()
+	r.closeAllFilesDescriptor()
 }

@@ -83,7 +83,7 @@ func (r *Rafty) getLastLogIndex() uint64 {
 	return atomic.LoadUint64(addr)
 }
 
-// getNextIndex permits to safely retrieve node next index
+// getLastLogTerm permits to safely retrieve node last log term
 func (r *Rafty) getLastLogTerm(x uint64) uint64 {
 	addr := (*uint64)(&x)
 	return atomic.LoadUint64(addr)

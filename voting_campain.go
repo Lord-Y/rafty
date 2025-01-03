@@ -23,7 +23,7 @@ func (r *Rafty) preVoteRequest() {
 	r.mu.Unlock()
 
 	for _, peer := range peers {
-		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) {
+		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down {
 			if !r.healthyPeer(peer) {
 				return
 			}
@@ -76,7 +76,7 @@ func (r *Rafty) startElection() {
 		lastLogTerm = r.getX(r.log[lastLogIndex].Term)
 	}
 
-	r.Logger.Debug().Msgf("Starting election campain with term %d and peers %+v", currentTerm, preCandidatePeers)
+	r.Logger.Trace().Msgf("Me %s / %s starting election campain with term %d and peers %+v", myAddress, myId, currentTerm, preCandidatePeers)
 	for _, peer := range preCandidatePeers {
 		if peer.id == "" {
 			r.Logger.Info().Msgf("Peer %s has no id so we cannot start the election", peer.address.String())

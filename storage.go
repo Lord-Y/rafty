@@ -30,6 +30,9 @@ type persistMetadata struct {
 
 // restoreMetadata allow us to restore node metadata from disk
 func (r *Rafty) restoreMetadata() {
+	if !r.PersistDataOnDisk {
+		return
+	}
 	if r.DataDir == "" {
 		return
 	}
@@ -76,6 +79,9 @@ func (r *Rafty) restoreMetadata() {
 
 // persistMetadata allow us to persist node metadata on disk
 func (r *Rafty) persistMetadata() error {
+	if !r.PersistDataOnDisk {
+		return nil
+	}
 	if r.DataDir == "" {
 		return nil
 	}
@@ -96,10 +102,11 @@ func (r *Rafty) persistMetadata() error {
 
 	result, err := json.Marshal(data)
 	if err != nil {
-		r.Logger.Error().Err(err).Msgf("json.Marshal")
 		return err
 	}
 
+	_, _ = r.metadataFileDescriptor.Seek(0, 0)
+	_ = r.metadataFileDescriptor.Truncate(0)
 	_, err = r.metadataFileDescriptor.Write(result)
 	if err != nil {
 		return err
@@ -147,7 +154,7 @@ func (r *Rafty) restoreData() {
 	r.mu.Lock()
 	for scanner.Scan() {
 		if len(scanner.Bytes()) > 0 {
-			data := r.decodePersistentData(scanner.Bytes())
+			data := r.unmarshalBinary(scanner.Bytes())
 			r.log = append(r.log, data)
 		}
 	}
@@ -196,7 +203,7 @@ func (r *Rafty) persistData(entryIndex int) error {
 		Command:    entry.Command,
 	}
 
-	data := r.encodePersistentData(logEntry)
+	data := r.marshalBinary(logEntry)
 	writer := bufio.NewWriter(r.dataFileDescriptor)
 	defer writer.Flush()
 
@@ -225,13 +232,10 @@ func createDirectoryIfNotExist(d string, perm fs.FileMode) error {
 	return nil
 }
 
-// closeFileDescriptor allow us to close r.metadataFileDescriptor or r.dataFileDescriptor
-func (r *Rafty) closeFileDescriptor(metadata bool) {
-	if metadata {
-		if r.metadataFileDescriptor != nil {
-			r.metadataFileDescriptor.Close()
-		}
-		return
+// closeAllFilesDescriptor allow us to close r.metadataFileDescriptor and r.dataFileDescriptor
+func (r *Rafty) closeAllFilesDescriptor() {
+	if r.metadataFileDescriptor != nil {
+		r.metadataFileDescriptor.Close()
 	}
 	if r.dataFileDescriptor != nil {
 		r.dataFileDescriptor.Close()
