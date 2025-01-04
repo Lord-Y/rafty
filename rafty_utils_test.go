@@ -69,19 +69,21 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 func (cc *clusterConfig) startCluster() {
 	cc.cluster = cc.makeCluster()
 	for i, node := range cc.cluster {
-		node.DataDir = filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i))
-		// the following random sleep is necessary trick because when starting nth nodes during unit testing
-		// a race condition will be found in timers.go
-		// at r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		sleep := 1 + r.Intn(10)
-		go func() {
-			time.Sleep(time.Duration(sleep) * time.Second)
-			if err := node.Start(); err != nil {
-				cc.t.Errorf("Fail to start cluster node %d with error %s", i, err.Error())
-				return
-			}
-		}()
+		cc.t.Run(fmt.Sprintf("cluster_%d", i), func(t *testing.T) {
+			node.DataDir = filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i))
+			// the following random sleep is necessary trick because when starting nth nodes during unit testing
+			// a race condition will be found in timers.go
+			// at r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			sleep := 1 + r.Intn(10)
+			go func() {
+				time.Sleep(time.Duration(sleep) * time.Second)
+				if err := node.Start(); err != nil {
+					t.Errorf("Fail to start cluster node %d with error %s", i, err.Error())
+					return
+				}
+			}()
+		})
 	}
 }
 
