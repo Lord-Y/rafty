@@ -31,7 +31,7 @@ func TestMetadata(t *testing.T) {
 		node.ID = id
 		node.CurrentTerm = currentTerm
 		node.votedFor = votedFor
-		node.DataDir = filepath.Join(os.TempDir(), "rafty", "storage")
+		node.DataDir = filepath.Join(os.TempDir(), "rafty", "TestMetadata")
 		node.Logger.Debug().Msgf("node.DataDir %s", node.DataDir)
 
 		node.PersistDataOnDisk = true
