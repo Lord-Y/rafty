@@ -27,16 +27,18 @@ func TestStart(t *testing.T) {
 				found, _, _ = cc.clientGetLeader(nodeId)
 				if found {
 					for i, node := range cc.cluster {
-						_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
-						if err != nil {
-							if strings.Contains(err.Error(), "the client connection is closing") {
-								assert.Contains(err.Error(), "the client connection is closing")
+						cc.t.Run(fmt.Sprintf("submitCommandToNode_%d_%d", nodeId, i), func(t *testing.T) {
+							_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
+							if err != nil {
+								if strings.Contains(err.Error(), "the client connection is closing") {
+									assert.Contains(err.Error(), "the client connection is closing")
+								} else {
+									assert.Equal(fmt.Errorf("NoLeader"), err)
+								}
 							} else {
-								assert.Equal(fmt.Errorf("NoLeader"), err)
+								assert.Nil(err)
 							}
-						} else {
-							assert.Nil(err)
-						}
+						})
 					}
 				}
 			}
@@ -48,14 +50,15 @@ func TestStart(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	startAndRestart := func(node int) {
-		err := cc.startOrStopSpecificicNode(node, "start")
-		cc.cluster[node].Logger.Info().Msgf("error %s", err.Error())
-		assert.Error(err)
+		cc.t.Run(fmt.Sprintf("startAndRestart_%d", node), func(t *testing.T) {
+			err := cc.startOrStopSpecificicNode(node, "start")
+			cc.cluster[node].Logger.Info().Msgf("error %s", err.Error())
+			assert.Error(err)
 
-		time.Sleep(5 * time.Second)
-		err = cc.startOrStopSpecificicNode(node, "restart")
-		assert.Nil(err)
-
+			time.Sleep(5 * time.Second)
+			err = cc.startOrStopSpecificicNode(node, "restart")
+			assert.Nil(err)
+		})
 		time.Sleep(10 * time.Second)
 		submitCommandToNode(node)
 	}
@@ -72,9 +75,11 @@ func TestStart(t *testing.T) {
 	node = 2
 	go startAndRestart(node)
 
-	time.Sleep(120 * time.Second)
+	time.Sleep(150 * time.Second)
 	os.Unsetenv("RAFTY_LOG_LEVEL")
 	cc.stopCluster()
+	err := os.RemoveAll(cc.cluster[node].DataDir)
+	assert.Nil(err)
 }
 
 func TestString(t *testing.T) {
