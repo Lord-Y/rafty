@@ -224,12 +224,6 @@ type Rafty struct {
 	// rpcGetLeaderChanWritter will be use to answer rpc call
 	rpcGetLeaderChanWritter chan *raftypb.GetLeaderResponse
 
-	// rpcSetLeaderChanReader will be use to handle rpc call
-	rpcSetLeaderChanReader chan *raftypb.SetLeaderRequest
-
-	// rpcSetLeaderChanWritter will be use to answer rpc call
-	rpcSetLeaderChanWritter chan *raftypb.SetLeaderResponse
-
 	// rpcSendAppendEntriesRequestChanReader will be use to handle rpc call
 	rpcSendAppendEntriesRequestChanReader chan *raftypb.AppendEntryRequest
 

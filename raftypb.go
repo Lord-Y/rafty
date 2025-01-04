@@ -6,12 +6,6 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
-func (rpc *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest) (*raftypb.GetLeaderResponse, error) {
-	rpc.rafty.rpcGetLeaderChanReader <- in
-	response := <-rpc.rafty.rpcGetLeaderChanWritter
-	return response, nil
-}
-
 func (rpc *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVoteRequest) (*raftypb.PreVoteResponse, error) {
 	var s struct{}
 	rpc.rafty.rpcPreVoteRequestChanReader <- s
@@ -25,11 +19,11 @@ func (rpc *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteRequ
 	return response, nil
 }
 
-func (rpc *rpcManager) SetLeader(ctx context.Context, in *raftypb.SetLeaderRequest) (*raftypb.SetLeaderResponse, error) {
-	rpc.rafty.rpcSetLeaderChanReader <- in
-	response := <-rpc.rafty.rpcSetLeaderChanWritter
-	return response, nil
-}
+// func (rpc *rpcManager) SetLeader(ctx context.Context, in *raftypb.SetLeaderRequest) (*raftypb.SetLeaderResponse, error) {
+// 	rpc.rafty.rpcSetLeaderChanReader <- in
+// 	response := <-rpc.rafty.rpcSetLeaderChanWritter
+// 	return response, nil
+// }
 
 func (rpc *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest) (*raftypb.AskNodeIDResponse, error) {
 	return &raftypb.AskNodeIDResponse{PeerID: rpc.rafty.ID}, nil
