@@ -22,7 +22,6 @@ const (
 	Rafty_SendPreVoteRequest_FullMethodName       = "/raftypb.Rafty/SendPreVoteRequest"
 	Rafty_SendVoteRequest_FullMethodName          = "/raftypb.Rafty/SendVoteRequest"
 	Rafty_SetLeader_FullMethodName                = "/raftypb.Rafty/SetLeader"
-	Rafty_GetLeader_FullMethodName                = "/raftypb.Rafty/GetLeader"
 	Rafty_ClientGetLeader_FullMethodName          = "/raftypb.Rafty/ClientGetLeader"
 	Rafty_SendAppendEntriesRequest_FullMethodName = "/raftypb.Rafty/SendAppendEntriesRequest"
 	Rafty_AskNodeID_FullMethodName                = "/raftypb.Rafty/AskNodeID"
@@ -36,7 +35,6 @@ type RaftyClient interface {
 	SendPreVoteRequest(ctx context.Context, in *PreVoteRequest, opts ...grpc.CallOption) (*PreVoteResponse, error)
 	SendVoteRequest(ctx context.Context, in *VoteRequest, opts ...grpc.CallOption) (*VoteResponse, error)
 	SetLeader(ctx context.Context, in *SetLeaderRequest, opts ...grpc.CallOption) (*SetLeaderResponse, error)
-	GetLeader(ctx context.Context, in *GetLeaderRequest, opts ...grpc.CallOption) (*GetLeaderResponse, error)
 	ClientGetLeader(ctx context.Context, in *ClientGetLeaderRequest, opts ...grpc.CallOption) (*ClientGetLeaderResponse, error)
 	SendAppendEntriesRequest(ctx context.Context, in *AppendEntryRequest, opts ...grpc.CallOption) (*AppendEntryResponse, error)
 	AskNodeID(ctx context.Context, in *AskNodeIDRequest, opts ...grpc.CallOption) (*AskNodeIDResponse, error)
@@ -75,16 +73,6 @@ func (c *raftyClient) SetLeader(ctx context.Context, in *SetLeaderRequest, opts 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetLeaderResponse)
 	err := c.cc.Invoke(ctx, Rafty_SetLeader_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *raftyClient) GetLeader(ctx context.Context, in *GetLeaderRequest, opts ...grpc.CallOption) (*GetLeaderResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetLeaderResponse)
-	err := c.cc.Invoke(ctx, Rafty_GetLeader_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +126,6 @@ type RaftyServer interface {
 	SendPreVoteRequest(context.Context, *PreVoteRequest) (*PreVoteResponse, error)
 	SendVoteRequest(context.Context, *VoteRequest) (*VoteResponse, error)
 	SetLeader(context.Context, *SetLeaderRequest) (*SetLeaderResponse, error)
-	GetLeader(context.Context, *GetLeaderRequest) (*GetLeaderResponse, error)
 	ClientGetLeader(context.Context, *ClientGetLeaderRequest) (*ClientGetLeaderResponse, error)
 	SendAppendEntriesRequest(context.Context, *AppendEntryRequest) (*AppendEntryResponse, error)
 	AskNodeID(context.Context, *AskNodeIDRequest) (*AskNodeIDResponse, error)
@@ -158,9 +145,6 @@ func (UnimplementedRaftyServer) SendVoteRequest(context.Context, *VoteRequest) (
 }
 func (UnimplementedRaftyServer) SetLeader(context.Context, *SetLeaderRequest) (*SetLeaderResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetLeader not implemented")
-}
-func (UnimplementedRaftyServer) GetLeader(context.Context, *GetLeaderRequest) (*GetLeaderResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetLeader not implemented")
 }
 func (UnimplementedRaftyServer) ClientGetLeader(context.Context, *ClientGetLeaderRequest) (*ClientGetLeaderResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ClientGetLeader not implemented")
@@ -237,24 +221,6 @@ func _Rafty_SetLeader_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RaftyServer).SetLeader(ctx, req.(*SetLeaderRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Rafty_GetLeader_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetLeaderRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(RaftyServer).GetLeader(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Rafty_GetLeader_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RaftyServer).GetLeader(ctx, req.(*GetLeaderRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -349,10 +315,6 @@ var Rafty_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetLeader",
 			Handler:    _Rafty_SetLeader_Handler,
-		},
-		{
-			MethodName: "GetLeader",
-			Handler:    _Rafty_GetLeader_Handler,
 		},
 		{
 			MethodName: "ClientGetLeader",

@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,8 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/encoding/gzip"
 )
 
 const (
@@ -218,12 +215,6 @@ type Rafty struct {
 	// rpcSendVoteRequestChanWritter will be use to answer rpc call
 	rpcSendVoteRequestChanWritter chan *raftypb.VoteResponse
 
-	// rpcGetLeaderChanReader will be use to handle rpc call
-	rpcGetLeaderChanReader chan *raftypb.GetLeaderRequest
-
-	// rpcGetLeaderChanWritter will be use to answer rpc call
-	rpcGetLeaderChanWritter chan *raftypb.GetLeaderResponse
-
 	// rpcSendAppendEntriesRequestChanReader will be use to handle rpc call
 	rpcSendAppendEntriesRequestChanReader chan *raftypb.AppendEntryRequest
 
@@ -395,8 +386,6 @@ func NewRafty() *Rafty {
 		rpcPreVoteRequestChanWritter:                make(chan *raftypb.PreVoteResponse),
 		rpcSendVoteRequestChanReader:                make(chan *raftypb.VoteRequest),
 		rpcSendVoteRequestChanWritter:               make(chan *raftypb.VoteResponse),
-		rpcGetLeaderChanReader:                      make(chan *raftypb.GetLeaderRequest),
-		rpcGetLeaderChanWritter:                     make(chan *raftypb.GetLeaderResponse),
 		rpcSendAppendEntriesRequestChanReader:       make(chan *raftypb.AppendEntryRequest),
 		rpcSendAppendEntriesRequestChanWritter:      make(chan *raftypb.AppendEntryResponse),
 		rpcForwardCommandToLeaderRequestChanReader:  make(chan *raftypb.ForwardCommandToLeaderRequest),
@@ -463,73 +452,13 @@ func (r *Rafty) start() {
 // before doing anything else
 func (r *Rafty) startClusterWithMinimumSize() {
 	myAddress, myId := r.getMyAddress()
-	for {
+	for r.getState() != Down {
 		if r.MinimumClusterSize == r.clusterSizeCounter+1 {
 			r.Logger.Info().Msgf("Minimum cluster size has been reached for me %s / %s, %d out of %d", myAddress, myId, r.clusterSizeCounter+1, r.MinimumClusterSize)
 			r.minimumClusterSizeReach.Store(true)
 			break
-		}
-
-		select {
-		// stop go routine when os signal is receive or ctrl+c
-		case <-r.quitCtx.Done():
-			r.switchState(Down, true, r.getCurrentTerm())
-			return
-
-		case <-time.After(5 * time.Second):
-			r.Logger.Info().Msgf("Minimum cluster size has not been reached for me %s / %s, %d out of %d", r.Address.String(), r.ID, r.clusterSizeCounter+1, r.MinimumClusterSize)
-			r.SendGetLeaderRequest()
-
-		// handle get leader requests from other nodes
-		case reader := <-r.rpcGetLeaderChanReader:
-			r.handleGetLeaderReader(reader)
-		}
-	}
-}
-
-// SendGetLeaderRequest allow the current node
-// ask to other nodes who is the actual leader
-// it also permit to get id of other nodes
-func (r *Rafty) SendGetLeaderRequest() {
-	currentTerm := r.getCurrentTerm()
-	myAddress, myId := r.getMyAddress()
-	state := r.getState()
-
-	for _, peer := range r.Peers {
-		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.leader == nil {
-			if !r.healthyPeer(peer) {
-				return
-			}
-			go func() {
-				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d to ask who is the leader", myAddress, myId, state.String(), peer.address.String(), currentTerm)
-
-				response, err := peer.rclient.GetLeader(
-					context.Background(),
-					&raftypb.GetLeaderRequest{
-						PeerID:      r.ID,
-						PeerAddress: r.Address.String(),
-					},
-					grpc.WaitForReady(true),
-					grpc.UseCompressor(gzip.Name),
-				)
-				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to get leader from peer %s", peer.address.String())
-					return
-				}
-
-				peerIndex := r.getPeerSliceIndex(peer.address.String())
-				if peerIndex == -1 {
-					r.Logger.Error().Err(err).Msgf("Fail to get leader from unknown peer %s", peer.address.String())
-					return
-				}
-				r.Peers[peerIndex].id = response.GetPeerID()
-
-				if response.GetLeaderID() != "" {
-					r.Logger.Info().Msgf("Peer with %s / %s is the leader", response.GetLeaderAddress(), response.GetLeaderID())
-					r.switchState(Follower, false, currentTerm)
-					return
-				}
-			}()
+		} else {
+			time.Sleep(5 * time.Second)
 		}
 	}
 }
