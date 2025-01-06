@@ -167,11 +167,6 @@ type Rafty struct {
 	// LeaderLastContactDate is the last date we heard from the leader
 	LeaderLastContactDate *time.Time
 
-	// preVoteElectionTimer is used during the preVote campain
-	// but also to detect if the Follower server
-	// need to step up as a Candidate server
-	preVoteElectionTimer *time.Timer
-
 	// preVoteElectionTimerEnabled is a boolean that allow us in some cases
 	// to now if preVoteElectionTimer has been started or resetted.
 	// preVoteElectionTimer can never be nil once initialiazed so see this variable as an helper
