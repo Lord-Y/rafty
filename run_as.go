@@ -14,7 +14,7 @@ func (r *Rafty) runAsFollower() {
 	r.mu.Lock()
 	r.preVoteElectionTimerEnabled.Store(true)
 	preVoteTimeout := r.randomElectionTimeout(true)
-	r.preVoteElectionTimer = time.NewTimer(preVoteTimeout)
+	preVoteElectionTimer := time.NewTimer(preVoteTimeout)
 	// the following is necessary to prevent nil pointer exception when we are follower state
 	// and a leader is sending appendEntries
 	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
@@ -64,7 +64,7 @@ func (r *Rafty) runAsFollower() {
 			}
 
 		// start pre vote request
-		case <-r.preVoteElectionTimer.C:
+		case <-preVoteElectionTimer.C:
 			if !r.preVoteElectionTimerEnabled.Load() {
 				return
 			}
@@ -74,6 +74,7 @@ func (r *Rafty) runAsFollower() {
 		// receive and answer pre vote requests from other nodes
 		case <-r.rpcPreVoteRequestChanReader:
 			r.handleSendPreVoteRequestReader()
+			preVoteElectionTimer.Reset(preVoteTimeout)
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:

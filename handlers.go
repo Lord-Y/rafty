@@ -15,7 +15,6 @@ func (r *Rafty) handleSendPreVoteRequestReader() {
 		State:       state.String(),
 		CurrentTerm: currentTerm,
 	}
-	r.resetElectionTimer(true, false)
 }
 
 func (r *Rafty) handlePreVoteResponseError(vote voteResponseErrorWrapper) {

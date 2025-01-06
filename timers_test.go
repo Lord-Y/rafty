@@ -19,11 +19,8 @@ func TestResetAndStopElectionTimer(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	assert.Nil(s.preVoteElectionTimer)
 	assert.Nil(s.electionTimer)
-	s.preVoteElectionTimer = time.NewTimer(s.randomElectionTimeout(true))
 	s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
-	assert.NotNil(s.preVoteElectionTimer)
 	assert.NotNil(s.electionTimer)
 	s.resetElectionTimer(true, true)
 	s.stopElectionTimer(true, true)
