@@ -33,16 +33,6 @@ message VoteResponse {
   bool requesterStepDown = 5;
 }
 
-message SetLeaderRequest {
-  string id = 1;
-  string address = 2;
-  uint64 currentTerm = 3;
-}
-
-message SetLeaderResponse {
-  string message = 1;
-}
-
 message LogEntry {
   // should be uint8 but doesn't exist in pb,
   // so we take the closest type
@@ -107,7 +97,6 @@ message PersistMetadata {
 service Rafty {
   rpc SendPreVoteRequest(PreVoteRequest) returns (PreVoteResponse) {}
   rpc SendVoteRequest(VoteRequest) returns (VoteResponse) {}
-  rpc SetLeader(SetLeaderRequest) returns (SetLeaderResponse) {}
   rpc ClientGetLeader(ClientGetLeaderRequest) returns (ClientGetLeaderResponse) {}
   rpc SendAppendEntriesRequest(AppendEntryRequest) returns (AppendEntryResponse) {}
   rpc AskNodeID(AskNodeIDRequest) returns (AskNodeIDResponse) {}
