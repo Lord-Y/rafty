@@ -217,9 +217,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 					return nil, err
 				}
 				if response.Error == "" {
-					err = nil
-				} else {
-					err = fmt.Errorf("%s", response.Error)
+					return response.Data, nil
 				}
 				return response.Data, err
 			}
