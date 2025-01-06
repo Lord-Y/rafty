@@ -1,86 +1,75 @@
 package rafty
 
 import (
-	"fmt"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStart(t *testing.T) {
-	assert := assert.New(t)
+func TestStart3Nodes(t *testing.T) {
 	cc := clusterConfig{
-		t:           t,
-		clusterSize: 3,
+		t:                 t,
+		testName:          "3_nodes",
+		clusterSize:       3,
+		runTestInParallel: true,
 	}
-
-	submitCommandToNode := func(nodeId int) {
-		time.Sleep(20 * time.Second)
-		var found bool
-		for !found {
-			//nolint gosimple
-			select {
-			case <-time.After(30 * time.Millisecond):
-				found, _, _ = cc.clientGetLeader(nodeId)
-				if found {
-					for i, node := range cc.cluster {
-						cc.t.Run(fmt.Sprintf("submitCommandToNode_%d_%d", nodeId, i), func(t *testing.T) {
-							_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
-							if err != nil {
-								if strings.Contains(err.Error(), "the client connection is closing") {
-									assert.Contains(err.Error(), "the client connection is closing")
-								} else {
-									assert.Equal(fmt.Errorf("NoLeader"), err)
-								}
-							} else {
-								assert.Nil(err)
-							}
-						})
-					}
-				}
-			}
-		}
-	}
-
-	os.Setenv("RAFTY_LOG_LEVEL", "trace")
-	cc.startCluster()
-	time.Sleep(2 * time.Second)
-
-	startAndRestart := func(node int) {
-		cc.t.Run(fmt.Sprintf("startAndRestart_%d", node), func(t *testing.T) {
-			err := cc.startOrStopSpecificicNode(node, "start")
-			cc.cluster[node].Logger.Info().Msgf("error %s", err.Error())
-			assert.Error(err)
-
-			time.Sleep(5 * time.Second)
-			err = cc.startOrStopSpecificicNode(node, "restart")
-			assert.Nil(err)
-		})
-		time.Sleep(10 * time.Second)
-		submitCommandToNode(node)
-	}
-
-	time.Sleep(30 * time.Second)
-	node := 0
-	go startAndRestart(node)
-
-	time.Sleep(90 * time.Second)
-	node = 1
-	go startAndRestart(node)
-
-	time.Sleep(90 * time.Second)
-	node = 2
-	go startAndRestart(node)
-
-	time.Sleep(150 * time.Second)
-	os.Unsetenv("RAFTY_LOG_LEVEL")
-	cc.stopCluster()
-	err := os.RemoveAll(cc.cluster[node].DataDir)
-	assert.Nil(err)
+	cc.testClustering(t)
 }
+
+func TestStart5Nodes(t *testing.T) {
+	cc := clusterConfig{
+		t:                         t,
+		testName:                  "5_nodes",
+		clusterSize:               5,
+		delayLastNode:             true,
+		delayLastNodeTimeDuration: time.Duration(60) * time.Second,
+		autoSetMinimumClusterSize: true,
+		portStartRange:            32000,
+		runTestInParallel:         true,
+	}
+	cc.testClustering(t)
+}
+
+func TestStartNoDataDir(t *testing.T) {
+	cc := clusterConfig{
+		t:                 t,
+		testName:          "3_nodes_noDataDir",
+		clusterSize:       3,
+		runTestInParallel: true,
+		noDataDir:         true,
+		portStartRange:    33000,
+	}
+	cc.testClustering(t)
+}
+
+func TestStartNoNodeID(t *testing.T) {
+	cc := clusterConfig{
+		t:                 t,
+		testName:          "3_nodes_noNodeID",
+		clusterSize:       3,
+		runTestInParallel: true,
+		noNodeID:          true,
+		portStartRange:    34000,
+	}
+	cc.testClustering(t)
+}
+
+func TestStartTimeMultiplier(t *testing.T) {
+	cc := clusterConfig{
+		t:                 t,
+		testName:          "3_nodes_timeMultiplier",
+		clusterSize:       3,
+		runTestInParallel: true,
+		portStartRange:    35000,
+		timeMultiplier:    11,
+		maxAppendEntries:  1,
+	}
+	cc.testClustering(t)
+}
+
+// must not be run in parallel otherwise
+// it will collide with previous tests
 
 func TestString(t *testing.T) {
 	assert := assert.New(t)
