@@ -51,7 +51,9 @@ func (r *Rafty) Start() error {
 	r.Logger.Info().Msgf("gRPC server at %s is starting", r.Address.String())
 
 	var stop context.CancelFunc
+	r.mu.Lock()
 	r.quitCtx, stop = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	r.mu.Unlock()
 	defer stop()
 
 	r.wg.Add(1)
