@@ -134,14 +134,21 @@ func (cc *clusterConfig) startOrStopSpecificicNode(index int, action string) err
 		node.Logger.Info().Msgf("Stopping node %d", index)
 		node.Stop()
 		node.Logger.Info().Msgf("Stopped node %d", index)
-		time.Sleep(3 * time.Second)
-		go func() {
-			node.Logger.Info().Msgf("Restart node %d", index)
-			if err := node.Start(); err != nil {
-				node.Logger.Info().Msgf("Error while starting node %d with error %s", index, err.Error())
-				cc.t.Errorf("Fail to start cluster node %d with error %s", index, err.Error())
+		for i := 0; i < 100; i++ {
+			time.Sleep(3 * time.Second)
+			if node.getState() == Down {
+				time.Sleep(3 * time.Second)
+				go func() {
+					node.Logger.Info().Msgf("Restart node %d", index)
+					if err := node.Start(); err != nil {
+						node.Logger.Info().Msgf("Error while starting node %d with error %s", index, err.Error())
+						cc.t.Errorf("Fail to start cluster node %d with error %s", index, err.Error())
+					}
+				}()
+				break
 			}
-		}()
+			i++
+		}
 		return nil
 	default:
 		node.Logger.Info().Msgf("Start node %d", index)
@@ -196,7 +203,6 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 						cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d_%d", cc.testName, nodeId, i), func(t *testing.T) {
 							_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
 							if err != nil {
-								node.Logger.Info().Msgf("LLLLLL %s", err.Error())
 								if strings.Contains(err.Error(), "the client connection is closing") {
 									assert.Contains(err.Error(), "the client connection is closing")
 								} else {
@@ -219,13 +225,13 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	startAndRestart := func(node int) {
 		cc.t.Run(fmt.Sprintf("startAndRestart_%d", node), func(t *testing.T) {
 			err := cc.startOrStopSpecificicNode(node, "start")
-			cc.cluster[node].Logger.Info().Msgf("MMMM %s", err.Error())
+			cc.cluster[node].Logger.Info().Msgf("err startOrStopSpecificicNode start %s", err.Error())
 			assert.Error(err)
 
 			time.Sleep(5 * time.Second)
 			err = cc.startOrStopSpecificicNode(node, "restart")
 			if err != nil {
-				cc.cluster[node].Logger.Info().Msgf("NNNN %s", err.Error())
+				cc.cluster[node].Logger.Info().Msgf("err startOrStopSpecificicNode restart %s", err.Error())
 			}
 			assert.Nil(err)
 		})
