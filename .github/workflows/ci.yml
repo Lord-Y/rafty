@@ -51,4 +51,7 @@ jobs:
       run: |
         GITHUB_REPO=$(head -1 go.mod | sed 's#module ##g')
         go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout 1h $(go list ./... | grep -vE "${GITHUB_REPO}/examples|${GITHUB_REPO}/raftypb")
+
+    - name: Print coverage status
+      run: |
         go tool cover -func=coverage.out
