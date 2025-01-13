@@ -43,9 +43,7 @@ func (r *Rafty) restoreMetadata() {
 	}
 
 	dataFile := filepath.Join(r.DataDir, metadataFile)
-	fileDescriptorExist := true
 	if r.metadataFileDescriptor == nil {
-		fileDescriptorExist = false
 		var err error
 		r.metadataFileDescriptor, err = os.OpenFile(dataFile, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
@@ -53,10 +51,7 @@ func (r *Rafty) restoreMetadata() {
 		}
 	}
 
-	if !fileDescriptorExist {
-		return
-	}
-
+	_, _ = r.metadataFileDescriptor.Seek(0, 0)
 	result, err := io.ReadAll(r.metadataFileDescriptor)
 	if err != nil {
 		r.Logger.Fatal().Err(err).Msgf("Fail to read metadata file %s", dataFile)
@@ -105,6 +100,15 @@ func (r *Rafty) persistMetadata() error {
 		return err
 	}
 
+	dataFile := filepath.Join(r.DataDir, metadataFile)
+	if r.metadataFileDescriptor == nil {
+		var err error
+		r.metadataFileDescriptor, err = os.OpenFile(dataFile, os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			r.Logger.Fatal().Err(err).Msgf("Fail to create file %s", dataFile)
+		}
+	}
+
 	_, _ = r.metadataFileDescriptor.Seek(0, 0)
 	_ = r.metadataFileDescriptor.Truncate(0)
 	_, err = r.metadataFileDescriptor.Write(result)
@@ -121,29 +125,26 @@ func (r *Rafty) persistMetadata() error {
 
 // restoreData allow us to restore node data from disk
 func (r *Rafty) restoreData() {
-	datadir := filepath.Join(r.DataDir, dataStateDir)
+	if !r.PersistDataOnDisk {
+		return
+	}
 	if r.DataDir == "" {
 		return
 	}
 
+	datadir := filepath.Join(r.DataDir, dataStateDir)
 	err := createDirectoryIfNotExist(datadir, 0750)
 	if err != nil {
 		r.Logger.Fatal().Err(err).Msgf("Fail to create directory %s", datadir)
 	}
 
 	dataFile := filepath.Join(datadir, dataStateFile)
-	fileDescriptorExist := true
 	if r.dataFileDescriptor == nil {
-		fileDescriptorExist = false
 		var err error
 		r.dataFileDescriptor, err = os.OpenFile(dataFile, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			r.Logger.Fatal().Err(err).Msgf("Fail to create file %s", dataFile)
 		}
-	}
-
-	if !fileDescriptorExist {
-		return
 	}
 
 	_, err = r.dataFileDescriptor.Seek(0, 0)
@@ -171,11 +172,14 @@ type logEntry struct {
 
 // persistData allow us to persist node data on disk
 func (r *Rafty) persistData(entryIndex int) error {
-	datadir := filepath.Join(r.DataDir, dataStateDir)
+	if !r.PersistDataOnDisk {
+		return nil
+	}
 	if r.DataDir == "" {
 		return nil
 	}
 
+	datadir := filepath.Join(r.DataDir, dataStateDir)
 	err := createDirectoryIfNotExist(datadir, 0750)
 	if err != nil {
 		r.Logger.Fatal().Err(err).Msgf("Fail to create directory %s", datadir)
@@ -209,7 +213,6 @@ func (r *Rafty) persistData(entryIndex int) error {
 
 	_, err = writer.Write(data)
 	if err != nil {
-		r.Logger.Error().Err(err).Msgf("Fail to dataFileDescriptor.Write")
 		return err
 	}
 	_, err = writer.WriteString("\n")
