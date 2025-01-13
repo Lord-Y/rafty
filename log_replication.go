@@ -140,17 +140,16 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 								leaderNextIndex, leaderMatchIndex := r.getNextAndMatchIndex(r.ID)
 								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d nextIndex: %d / matchIndex: %d leaderVolatileStateUpdated %t", myAddress, myId, state.String(), currentTerm, leaderNextIndex, leaderMatchIndex, leaderVolatileStateUpdated.Load())
 
+								if r.PersistDataOnDisk {
+									if err := r.persistData(entryIndex); err != nil {
+										r.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
+									}
+								}
 								if replyToClient {
 									clientChan <- appendEntriesResponse{}
 								}
 								if replyToClientGRPC {
 									r.rpcForwardCommandToLeaderRequestChanWritter <- &raftypb.ForwardCommandToLeaderResponse{}
-								}
-								if r.PersistDataOnDisk {
-									err = r.persistData(entryIndex)
-									if err != nil {
-										r.Logger.Fatal().Err(err).Msg("Fail to persist data on storage")
-									}
 								}
 								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
 							}
