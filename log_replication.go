@@ -111,7 +111,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to append entries to peers %s / %s", peer.address.String(), peer.id)
+					r.Logger.Error().Err(err).Msgf("Fail to send append entries to peers %s / %s", peer.address.String(), peer.id)
 					return
 				}
 
