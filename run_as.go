@@ -13,12 +13,9 @@ func (r *Rafty) runAsFollower() {
 	r.logState(r.getState(), true, r.getCurrentTerm())
 	r.mu.Lock()
 	r.preVoteElectionTimerEnabled.Store(true)
-	preVoteTimeout := r.randomElectionTimeout(true)
-	preVoteElectionTimer := time.NewTimer(preVoteTimeout)
 	// the following is necessary to prevent nil pointer exception when we are follower state
 	// and a leader is sending appendEntries
 	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
-	r.leaderLost.Store(true)
 	r.mu.Unlock()
 
 	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
@@ -36,12 +33,13 @@ func (r *Rafty) runAsFollower() {
 				hearbeatTimer.Stop()
 				return
 			}
-			if !r.startElectionCampain.Load() {
+			hearbeatTimer.Reset(timeout)
+
+			if r.preVoteElectionTimerEnabled.Load() || r.leaderLost.Load() {
+				r.preVoteRequest()
 				return
 			}
-			r.Logger.Trace().Msgf("Me %s / %s with state %s reports timeout %s leaderHeartBeatTimeout %d multiplier %d", myAddress, myId, r.getState().String(), timeout, leaderHeartBeatTimeout, r.TimeMultiplier)
-			hearbeatTimer = time.NewTimer(timeout)
-			myAddress, myId := r.getMyAddress()
+
 			r.mu.Lock()
 			leaderLastContactDate := r.LeaderLastContactDate
 			leaderLost := false
@@ -60,22 +58,14 @@ func (r *Rafty) runAsFollower() {
 			if leaderLost && r.getState() != Down {
 				if !r.preVoteElectionTimerEnabled.Load() {
 					r.startElectionCampain.Store(false)
-					r.resetElectionTimer(true, false)
+					hearbeatTimer.Reset(timeout)
 				}
 			}
-
-		// start pre vote request
-		case <-preVoteElectionTimer.C:
-			if !r.preVoteElectionTimerEnabled.Load() {
-				return
-			}
-			r.Logger.Trace().Msgf("Me %s / %s with state %s reports heartbeat preVoteTimeout %s", myAddress, myId, r.getState().String(), preVoteTimeout)
-			r.preVoteRequest()
 
 		// receive and answer pre vote requests from other nodes
 		case <-r.rpcPreVoteRequestChanReader:
 			r.handleSendPreVoteRequestReader()
-			preVoteElectionTimer.Reset(preVoteTimeout)
+			hearbeatTimer.Reset(timeout)
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
