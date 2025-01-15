@@ -38,7 +38,7 @@ func (r *Rafty) runAsFollower() {
 			if !r.startElectionCampain.Load() {
 				return
 			}
-			r.Logger.Trace().Msgf("Me %s / %s with reports timeout %s leaderHeartBeatTimeout %d multiplier %d", myAddress, myId, timeout, leaderHeartBeatTimeout, r.TimeMultiplier)
+			r.Logger.Trace().Msgf("Me %s / %s with state %s reports timeout %s leaderHeartBeatTimeout %d multiplier %d", myAddress, myId, r.getState().String(), timeout, leaderHeartBeatTimeout, r.TimeMultiplier)
 			hearbeatTimer = time.NewTimer(timeout)
 			myAddress, myId := r.getMyAddress()
 			r.mu.Lock()
@@ -49,7 +49,7 @@ func (r *Rafty) runAsFollower() {
 				leaderLost = true
 				if r.leader != nil {
 					r.oldLeader = r.leader
-					r.Logger.Info().Msgf("Me %s / %s reports that Leader %s / %s has been lost for term %d", myAddress, myId, r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
+					r.Logger.Info().Msgf("Me %s / %s with state %s reports that Leader %s / %s has been lost for term %d", myAddress, myId, r.getState().String(), r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
 				}
 				r.leader = nil
 				r.votedFor = ""
@@ -68,7 +68,7 @@ func (r *Rafty) runAsFollower() {
 			if !r.preVoteElectionTimerEnabled.Load() {
 				return
 			}
-			r.Logger.Trace().Msgf("Me %s / %s reports heartbeat preVoteTimeout %s", myAddress, myId, preVoteTimeout)
+			r.Logger.Trace().Msgf("Me %s / %s with state %s reports heartbeat preVoteTimeout %s", myAddress, myId, r.getState().String(), preVoteTimeout)
 			r.preVoteRequest()
 
 		// receive and answer pre vote requests from other nodes
