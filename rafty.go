@@ -417,6 +417,7 @@ func (r *Rafty) start() {
 	r.mu.Unlock()
 
 	r.restoreMetadata()
+	r.restoreData()
 
 	if r.ID == "" {
 		r.ID = uuid.NewString()
