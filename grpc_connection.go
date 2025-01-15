@@ -15,69 +15,71 @@ import (
 
 // connectToPeer permits to connect to the specified peer
 func (r *Rafty) connectToPeer(address string) {
-	peerIndex := r.getPeerSliceIndex(address)
-	if peerIndex == -1 {
-		return
-	}
-	r.mu.Lock()
-	peer := r.Peers[peerIndex]
-	r.mu.Unlock()
-	if peer.client == nil {
-		opts := []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		//nolint staticcheck
-		conn, err := grpc.DialContext(
-			ctx,
-			address,
-			opts...,
-		)
-
-		if err != nil {
-			r.Logger.Err(err).Msgf("Fail to connect to peer %s", address)
-			r.mu.Lock()
-			if r.clusterSizeCounter > 0 {
-				r.clusterSizeCounter--
-			}
-			r.mu.Unlock()
+	if r.getState() != Down {
+		peerIndex := r.getPeerSliceIndex(address)
+		if peerIndex == -1 {
 			return
 		}
 		r.mu.Lock()
-		if r.clusterSizeCounter+1 < r.MinimumClusterSize {
-			r.clusterSizeCounter++
-		}
-		r.Peers[peerIndex].client = conn
-		r.Peers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
+		peer := r.Peers[peerIndex]
 		r.mu.Unlock()
-
-		if r.Peers[peerIndex].id == "" {
-			r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.Peers[peerIndex].address.String())
-			ctx := context.Background()
-			response, err := r.Peers[peerIndex].rclient.AskNodeID(ctx, &raftypb.AskNodeIDRequest{
-				Id:      r.ID,
-				Address: r.Address.String(),
-			},
-				grpc.WaitForReady(true),
-				grpc.UseCompressor(gzip.Name),
+		if peer.client == nil {
+			opts := []grpc.DialOption{
+				grpc.WithTransportCredentials(insecure.NewCredentials()),
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			//nolint staticcheck
+			conn, err := grpc.DialContext(
+				ctx,
+				address,
+				opts...,
 			)
+
 			if err != nil {
-				r.Logger.Error().Err(err).Msgf("Fail to fetch peer %s id", r.Peers[peerIndex].address.String())
+				r.Logger.Err(err).Msgf("Fail to connect to peer %s", address)
+				r.mu.Lock()
+				if r.clusterSizeCounter > 0 {
+					r.clusterSizeCounter--
+				}
+				r.mu.Unlock()
 				return
 			}
-
 			r.mu.Lock()
-			r.Peers[peerIndex].id = response.GetPeerID()
+			if r.clusterSizeCounter+1 < r.MinimumClusterSize {
+				r.clusterSizeCounter++
+			}
+			r.Peers[peerIndex].client = conn
+			r.Peers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
 			r.mu.Unlock()
+
+			if r.Peers[peerIndex].id == "" {
+				r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.Peers[peerIndex].address.String())
+				ctx := context.Background()
+				response, err := r.Peers[peerIndex].rclient.AskNodeID(ctx, &raftypb.AskNodeIDRequest{
+					Id:      r.ID,
+					Address: r.Address.String(),
+				},
+					grpc.WaitForReady(true),
+					grpc.UseCompressor(gzip.Name),
+				)
+				if err != nil {
+					r.Logger.Error().Err(err).Msgf("Fail to fetch peer %s id", r.Peers[peerIndex].address.String())
+					return
+				}
+
+				r.mu.Lock()
+				r.Peers[peerIndex].id = response.GetPeerID()
+				r.mu.Unlock()
+			}
+			return
 		}
-		return
 	}
 }
 
 // healthyPeer permits to check if peer is health to make rpc calls
 func (r *Rafty) healthyPeer(peer Peer) bool {
-	if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) {
+	if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down {
 		healthClient := healthgrpc.NewHealthClient(peer.client)
 		healthCheckRequest := &healthgrpc.HealthCheckRequest{}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
