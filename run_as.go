@@ -18,6 +18,7 @@ func (r *Rafty) runAsFollower() {
 	// the following is necessary to prevent nil pointer exception when we are follower state
 	// and a leader is sending appendEntries
 	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
+	r.leaderLost.Store(true)
 	r.mu.Unlock()
 
 	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
@@ -78,7 +79,7 @@ func (r *Rafty) runAsFollower() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
-			if r.getLeader() != nil {
+			if !r.leaderLost.Load() {
 				return
 			}
 			r.handlePreVoteResponse(preVote)
@@ -130,7 +131,7 @@ func (r *Rafty) runAsCandidate() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
-			if r.getLeader() != nil {
+			if !r.leaderLost.Load() {
 				return
 			}
 			r.handlePreVoteResponse(preVote)
@@ -202,7 +203,7 @@ func (r *Rafty) runAsLeader() {
 
 		// handle pre vote response from other nodes
 		case preVote := <-r.preVoteResponseChan:
-			if r.getLeader() != nil {
+			if !r.leaderLost.Load() {
 				return
 			}
 			r.handlePreVoteResponse(preVote)
