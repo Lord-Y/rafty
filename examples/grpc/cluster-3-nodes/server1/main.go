@@ -15,6 +15,7 @@ var maxUptime = flag.Bool("max-uptime", false, "stop node")
 var maxUptimeAfterN = flag.Uint("max-uptime-after-n", 6, "max uptime in minutes before stopping node")
 var restartNode = flag.Bool("restart-node", false, "restart node")
 var restartNodeAfterN = flag.Uint("restart-node-after-n", 2, "max uptime in minutes before restarting node")
+var normalMode = flag.Bool("normal-mode", false, "run prgram normally without stopping/restarting")
 
 func main() {
 	flag.Parse()
@@ -41,6 +42,13 @@ func main() {
 	s.Peers = peers
 	s.PersistDataOnDisk = true
 	s.DataDir = filepath.Join(os.TempDir(), "rafty", id)
+
+	if *normalMode {
+		if err := s.Start(); err != nil {
+			s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+		}
+		return
+	}
 
 	if *restartNodeAfterN >= *maxUptimeAfterN {
 		*restartNodeAfterN = 3
