@@ -414,6 +414,7 @@ func (r *Rafty) start() {
 		r.DataDir = datadir
 		r.Logger.Debug().Msgf("default data dir is %s", datadir)
 	}
+	r.mu.Unlock()
 
 	r.restoreMetadata()
 
@@ -428,7 +429,6 @@ func (r *Rafty) start() {
 		r.switchState(Follower, false, r.getCurrentTerm())
 		r.Logger.Info().Msgf("Me %s / %s is starting as %s", r.Address.String(), r.ID, r.State.String())
 	}
-	r.mu.Unlock()
 
 	err := r.parsePeers()
 	if err != nil {
