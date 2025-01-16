@@ -461,12 +461,11 @@ func (r *Rafty) start() {
 func (r *Rafty) startClusterWithMinimumSize() {
 	myAddress, myId := r.getMyAddress()
 	for r.getState() != Down {
+		time.Sleep(time.Second)
 		if r.MinimumClusterSize == r.clusterSizeCounter+1 {
 			r.Logger.Info().Msgf("Minimum cluster size has been reached for me %s / %s, %d out of %d", myAddress, myId, r.clusterSizeCounter+1, r.MinimumClusterSize)
 			r.minimumClusterSizeReach.Store(true)
 			break
-		} else {
-			time.Sleep(5 * time.Second)
 		}
 	}
 }
