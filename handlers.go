@@ -219,6 +219,36 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 	}
 }
 
+func (r *Rafty) handleGetLeaderReader(reader *raftypb.GetLeaderRequest) {
+	r.Logger.Trace().Msgf("Peer %s / %s is looking for the leader", reader.GetPeerAddress(), reader.GetPeerID())
+
+	if r.getState() == Leader {
+		r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
+			LeaderID:      r.ID,
+			LeaderAddress: r.Address.String(),
+			PeerID:        r.ID,
+		}
+		go r.connectToPeer(reader.GetPeerAddress())
+		return
+	}
+
+	leader := r.getLeader()
+	if leader == nil {
+		r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
+			LeaderID:      "",
+			LeaderAddress: "",
+			PeerID:        r.ID,
+		}
+		return
+	}
+
+	r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
+		LeaderID:      leader.id,
+		LeaderAddress: leader.address,
+		PeerID:        r.ID,
+	}
+}
+
 func (r *Rafty) handleClientGetLeaderReader() {
 	if r.getState() == Leader {
 		r.rpcClientGetLeaderChanWritter <- &raftypb.ClientGetLeaderResponse{

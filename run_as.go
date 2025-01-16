@@ -98,6 +98,10 @@ func (r *Rafty) runAsFollower() {
 		// handle client get leader
 		case <-r.rpcClientGetLeaderChanReader:
 			r.handleClientGetLeaderReader()
+
+		// handle server get leader
+		case reader := <-r.rpcGetLeaderChanReader:
+			r.handleGetLeaderReader(reader)
 		}
 	}
 }
@@ -157,6 +161,10 @@ func (r *Rafty) runAsCandidate() {
 		// handle client get leader
 		case <-r.rpcClientGetLeaderChanReader:
 			r.handleClientGetLeaderReader()
+
+		// handle server get leader
+		case reader := <-r.rpcGetLeaderChanReader:
+			r.handleGetLeaderReader(reader)
 		}
 	}
 }
@@ -222,6 +230,10 @@ func (r *Rafty) runAsLeader() {
 		// handle client get leader
 		case <-r.rpcClientGetLeaderChanReader:
 			r.handleClientGetLeaderReader()
+
+		// handle server get leader
+		case reader := <-r.rpcGetLeaderChanReader:
+			r.handleGetLeaderReader(reader)
 
 		// send heartbeats to other nodes when ticker time out
 		case <-heartbeatTicker.C:

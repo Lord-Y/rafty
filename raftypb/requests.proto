@@ -79,6 +79,17 @@ message ClientGetLeaderResponse {
   string leaderAddress = 2;
 }
 
+message GetLeaderRequest {
+  string peerID = 1;
+  string peerAddress = 2;
+}
+
+message GetLeaderResponse {
+  string leaderID = 1;
+  string leaderAddress = 2;
+  string peerID = 3;
+}
+
 message ForwardCommandToLeaderRequest {
   bytes command = 1;
 }
@@ -98,6 +109,7 @@ service Rafty {
   rpc SendPreVoteRequest(PreVoteRequest) returns (PreVoteResponse) {}
   rpc SendVoteRequest(VoteRequest) returns (VoteResponse) {}
   rpc ClientGetLeader(ClientGetLeaderRequest) returns (ClientGetLeaderResponse) {}
+  rpc GetLeader(GetLeaderRequest) returns (GetLeaderResponse) {}
   rpc SendAppendEntriesRequest(AppendEntryRequest) returns (AppendEntryResponse) {}
   rpc AskNodeID(AskNodeIDRequest) returns (AskNodeIDResponse) {}
   rpc ForwardCommandToLeader(ForwardCommandToLeaderRequest) returns (ForwardCommandToLeaderResponse) {}

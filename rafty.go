@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/encoding/gzip"
 )
 
 const (
@@ -210,6 +213,12 @@ type Rafty struct {
 	// rpcSendVoteRequestChanWritter will be use to answer rpc call
 	rpcSendVoteRequestChanWritter chan *raftypb.VoteResponse
 
+	// rpcGetLeaderChanReader will be use to handle rpc call
+	rpcGetLeaderChanReader chan *raftypb.GetLeaderRequest
+
+	// rpcGetLeaderChanWritter will be use to answer rpc call
+	rpcGetLeaderChanWritter chan *raftypb.GetLeaderResponse
+
 	// rpcSendAppendEntriesRequestChanReader will be use to handle rpc call
 	rpcSendAppendEntriesRequestChanReader chan *raftypb.AppendEntryRequest
 
@@ -385,6 +394,8 @@ func NewRafty() *Rafty {
 		rpcSendAppendEntriesRequestChanWritter:      make(chan *raftypb.AppendEntryResponse),
 		rpcForwardCommandToLeaderRequestChanReader:  make(chan *raftypb.ForwardCommandToLeaderRequest),
 		rpcForwardCommandToLeaderRequestChanWritter: make(chan *raftypb.ForwardCommandToLeaderResponse),
+		rpcGetLeaderChanReader:                      make(chan *raftypb.GetLeaderRequest),
+		rpcGetLeaderChanWritter:                     make(chan *raftypb.GetLeaderResponse),
 
 		// client rpc
 		rpcClientGetLeaderChanReader:  make(chan *raftypb.ClientGetLeaderRequest),
@@ -441,6 +452,7 @@ func (r *Rafty) start() {
 	}
 
 	r.startClusterWithMinimumSize()
+	r.sendGetLeaderRequest()
 	go r.loopingOverNodeState()
 }
 
@@ -456,5 +468,60 @@ func (r *Rafty) startClusterWithMinimumSize() {
 		} else {
 			time.Sleep(5 * time.Second)
 		}
+	}
+}
+
+// sendGetLeaderRequest allow the current node
+// ask to other nodes who is the actual leader
+// and prevent starting election campain
+func (r *Rafty) sendGetLeaderRequest() {
+	currentTerm := r.getCurrentTerm()
+	myAddress, myId := r.getMyAddress()
+	state := r.getState()
+	leaderFound := false
+
+	for _, peer := range r.Peers {
+		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && !r.leaderLost.Load() && r.getState() != Down {
+			if !r.healthyPeer(peer) {
+				return
+			}
+			go func() {
+				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d to ask who is the leader", myAddress, myId, state.String(), peer.address.String(), currentTerm)
+
+				response, err := peer.rclient.GetLeader(
+					context.Background(),
+					&raftypb.GetLeaderRequest{
+						PeerID:      r.ID,
+						PeerAddress: r.Address.String(),
+					},
+					grpc.WaitForReady(true),
+					grpc.UseCompressor(gzip.Name),
+				)
+				if err != nil {
+					r.Logger.Error().Err(err).Msgf("Fail to get leader from peer %s", peer.address.String())
+					return
+				}
+
+				if response.GetLeaderID() != "" {
+					leader := r.getLeader()
+					r.mu.Lock()
+					if leader == nil {
+						r.leader = &leaderMap{
+							address: response.GetLeaderAddress(),
+							id:      response.GetLeaderID(),
+						}
+						r.leaderLost.Store(false)
+						leaderFound = true
+						r.Logger.Info().Msgf("Me %s / %s with state %s reports that peer %s / %s is the leader", myAddress, myId, state, response.GetLeaderAddress(), response.GetLeaderID())
+					}
+					r.mu.Unlock()
+					return
+				}
+			}()
+		}
+	}
+	if !leaderFound {
+		r.Logger.Info().Msgf("Me %s / %s with state %s reports that there is no leader", myAddress, myId, state)
+		r.leaderLost.Store(true)
 	}
 }
