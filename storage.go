@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var (
@@ -51,7 +52,6 @@ func (r *Rafty) restoreMetadata() {
 		}
 	}
 
-	_, _ = r.metadataFileDescriptor.Seek(0, 0)
 	result, err := io.ReadAll(r.metadataFileDescriptor)
 	if err != nil {
 		r.Logger.Fatal().Err(err).Msgf("Fail to read metadata file %s", dataFile)
@@ -60,7 +60,8 @@ func (r *Rafty) restoreMetadata() {
 	if len(result) > 0 {
 		var data persistMetadata
 		err = json.Unmarshal(result, &data)
-		if err != nil {
+		// bypass invalid character '\\x00' looking for beginning of value as the file is in binary format
+		if err != nil && !strings.Contains(err.Error(), "looking for beginning of value") {
 			r.Logger.Fatal().Err(err).Msgf("Fail to unmarshall metadata file")
 		}
 
@@ -109,7 +110,6 @@ func (r *Rafty) persistMetadata() error {
 		}
 	}
 
-	_, _ = r.metadataFileDescriptor.Seek(0, 0)
 	_ = r.metadataFileDescriptor.Truncate(0)
 	_, err = r.metadataFileDescriptor.Write(result)
 	if err != nil {
