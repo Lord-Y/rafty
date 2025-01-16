@@ -68,9 +68,6 @@ func TestStartTimeMultiplier(t *testing.T) {
 	cc.testClustering(t)
 }
 
-// must not be run in parallel otherwise
-// it will collide with previous tests
-
 func TestString(t *testing.T) {
 	assert := assert.New(t)
 
