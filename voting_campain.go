@@ -78,13 +78,6 @@ func (r *Rafty) startElection() {
 
 	r.Logger.Trace().Msgf("Me %s / %s starting election campain with term %d and peers %+v", myAddress, myId, currentTerm, preCandidatePeers)
 	for _, peer := range preCandidatePeers {
-		if peer.id == "" {
-			r.Logger.Info().Msgf("Peer %s has no id so we cannot start the election", peer.address.String())
-			r.switchState(Follower, true, currentTerm)
-			r.resetElectionTimer(false, true)
-			return
-		}
-
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() == Candidate && r.leaderLost.Load() {
 			if !r.healthyPeer(peer) {
 				return
