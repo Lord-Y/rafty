@@ -41,7 +41,7 @@ func main() {
 	s.ID = id
 	s.Peers = peers
 	s.PersistDataOnDisk = true
-	s.DataDir = filepath.Join(os.TempDir(), "rafty", id)
+	s.DataDir = filepath.Join(os.TempDir(), "rafty_"+id)
 
 	if *normalMode {
 		if err := s.Start(); err != nil {
