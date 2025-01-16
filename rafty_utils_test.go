@@ -51,9 +51,8 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		}
 
 		for j := range cc.clusterSize {
-			var (
-				peerAddr string
-			)
+			var peerAddr string
+
 			if i == j {
 				peerAddr = fmt.Sprintf("127.0.0.5:%d", cc.portStartRange+51+j)
 			} else {
@@ -76,7 +75,16 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 					server.ID = fmt.Sprintf("%d", i)
 				}
 				server.Peers = peers
-				server.TimeMultiplier = cc.timeMultiplier
+			}
+
+			server.TimeMultiplier = cc.timeMultiplier
+			if cc.autoSetMinimumClusterSize {
+				server.MinimumClusterSize = uint64(cc.clusterSize)
+			}
+			server.MaxAppendEntries = cc.maxAppendEntries
+			if cc.noDataDir && i != 0 || !cc.noDataDir {
+				server.PersistDataOnDisk = true
+				server.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
 			}
 		}
 		cluster = append(cluster, server)
@@ -87,20 +95,10 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 func (cc *clusterConfig) startCluster() {
 	cc.cluster = cc.makeCluster()
 	for i, node := range cc.cluster {
-		if cc.autoSetMinimumClusterSize {
-			node.MinimumClusterSize = uint64(cc.clusterSize)
-		}
 		if cc.delayLastNode && i == 0 {
 			time.Sleep(cc.delayLastNodeTimeDuration)
 		}
-		node.MaxAppendEntries = cc.maxAppendEntries
 		cc.t.Run(fmt.Sprintf("cluster_%s_%d", cc.testName, i), func(t *testing.T) {
-			if cc.noDataDir && i != 0 {
-				node.DataDir = filepath.Join(os.TempDir(), "test_rafty", cc.testName, fmt.Sprintf("node%d", i))
-			}
-			if !cc.noDataDir {
-				node.DataDir = filepath.Join(os.TempDir(), "test_rafty", cc.testName, fmt.Sprintf("node%d", i))
-			}
 			// the following random sleep is necessary trick because when starting nth nodes during unit testing
 			// a race condition will be found in timers.go
 			// at r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
@@ -123,35 +121,38 @@ func (cc *clusterConfig) stopCluster() {
 	}
 }
 
-func (cc *clusterConfig) startOrStopSpecificicNode(index int, action string) error {
-	node := cc.cluster[index]
+func (cc *clusterConfig) startOrStopSpecificicNode(nodeId int, action string) error {
+	node := cc.cluster[nodeId]
 	switch action {
 	case "stop":
-		node.Logger.Info().Msgf("Stopping node %d", index)
+		node.Logger.Info().Msgf("Stopping node %d", nodeId)
 		node.Stop()
 		return nil
 	case "restart":
-		node.Logger.Info().Msgf("Stopping node %d", index)
+		node.Logger.Info().Msgf("Stopping node %d", nodeId)
 		node.Stop()
-		node.Logger.Info().Msgf("Stopped node %d", index)
+		node.Logger.Info().Msgf("Stopped node %d", nodeId)
 		for i := 0; i < 100; i++ {
-			time.Sleep(3 * time.Second)
+			time.Sleep(5 * time.Second)
+			node.Logger.Info().Msgf("Sleeping number %d waiting for node to be completely stopped", i)
 			if node.getState() == Down {
 				time.Sleep(3 * time.Second)
+				node = nil
+				redoCluster := cc.makeCluster()
+				node = redoCluster[nodeId]
 				go func() {
-					node.Logger.Info().Msgf("Restart node %d", index)
+					node.Logger.Info().Msgf("Restart node %d", nodeId)
 					if err := node.Start(); err != nil {
-						node.Logger.Info().Msgf("Error while starting node %d with error %s", index, err.Error())
-						cc.t.Errorf("Fail to start cluster node %d with error %s", index, err.Error())
+						node.Logger.Info().Msgf("Error while starting node %d with error %s", nodeId, err.Error())
+						cc.t.Errorf("Fail to start cluster node %d with error %s", nodeId, err.Error())
 					}
 				}()
 				break
 			}
-			i++
 		}
 		return nil
 	default:
-		node.Logger.Info().Msgf("Start node %d", index)
+		node.Logger.Info().Msgf("Start node %d", nodeId)
 		return node.Start()
 	}
 }
@@ -196,7 +197,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 		for !found {
 			//nolint gosimple
 			select {
-			case <-time.After(30 * time.Millisecond):
+			case <-time.After(time.Second):
 				found, _, _ = cc.clientGetLeader(nodeId)
 				if found {
 					for i, node := range cc.cluster {
