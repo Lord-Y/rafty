@@ -24,10 +24,6 @@ func (r *Rafty) runAsFollower() {
 
 	for r.getState() == Follower {
 		select {
-		case <-r.quitCtx.Done():
-			r.switchState(Down, true, r.getCurrentTerm())
-			return
-
 		case <-hearbeatTimer.C:
 			if r.getState() == Down {
 				hearbeatTimer.Stop()
@@ -115,10 +111,6 @@ func (r *Rafty) runAsCandidate() {
 
 	for r.getState() == Candidate {
 		select {
-		case <-r.quitCtx.Done():
-			r.switchState(Down, true, r.getCurrentTerm())
-			return
-
 		// receive and answer pre vote requests from other nodes
 		case <-r.rpcPreVoteRequestChanReader:
 			r.handleSendPreVoteRequestReader()
@@ -191,10 +183,6 @@ func (r *Rafty) runAsLeader() {
 
 	for r.getState() == Leader {
 		select {
-		case <-r.quitCtx.Done():
-			r.switchState(Down, true, r.getCurrentTerm())
-			return
-
 		// receive and answer pre vote requests from other nodes
 		case <-r.rpcPreVoteRequestChanReader:
 			r.handleSendPreVoteRequestReader()

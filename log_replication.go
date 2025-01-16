@@ -183,15 +183,10 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 		if r.getState() == Leader {
 			responseChan := make(chan appendEntriesResponse, 1)
 			r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}
-			select {
-			case <-r.quitCtx.Done():
-				r.switchState(Down, true, r.getCurrentTerm())
-				return nil, fmt.Errorf("ServerShuttingDown")
 
 			// answer back to the client
-			case response := <-responseChan:
-				return response.Data, response.Error
-			}
+			response := <-responseChan
+			return response.Data, response.Error
 		} else {
 			leader := r.getLeader()
 			if leader == nil {
