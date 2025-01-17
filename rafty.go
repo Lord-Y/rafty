@@ -365,10 +365,13 @@ type voteResponseErrorWrapper struct {
 	err error
 }
 
-var LogSource = ""
+// logSource is only use during unit testing in order to
+// better debug logs
+// var logSource = ""
 
 func NewRafty() *Rafty {
-	logger := logger.NewLogger().With().Str("logProvider", "rafty").Str("logSource", LogSource).Logger()
+	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
+	// logger := logger.NewLogger().With().Str("logProvider", "rafty").Str("logSource", logSource).Logger()
 
 	return &Rafty{
 		Logger:                                      &logger,

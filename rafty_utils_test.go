@@ -182,7 +182,7 @@ func (cc *clusterConfig) clientGetLeader(nodeId int) (bool, string, string) {
 }
 
 func (cc *clusterConfig) testClustering(t *testing.T) {
-	LogSource = cc.testName
+	// logSource = cc.testName
 	if cc.runTestInParallel {
 		t.Parallel()
 	}
