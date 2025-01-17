@@ -12,7 +12,7 @@ func TestStart3Nodes(t *testing.T) {
 		t:                 t,
 		testName:          "3_nodes",
 		clusterSize:       3,
-		runTestInParallel: true,
+		runTestInParallel: false,
 	}
 	cc.testClustering(t)
 }
@@ -36,7 +36,7 @@ func TestStartNoDataDir(t *testing.T) {
 		t:                 t,
 		testName:          "3_nodes_noDataDir",
 		clusterSize:       3,
-		runTestInParallel: true,
+		runTestInParallel: false,
 		noDataDir:         true,
 		portStartRange:    33000,
 	}
@@ -48,7 +48,7 @@ func TestStartNoNodeID(t *testing.T) {
 		t:                 t,
 		testName:          "3_nodes_noNodeID",
 		clusterSize:       3,
-		runTestInParallel: true,
+		runTestInParallel: false,
 		noNodeID:          true,
 		portStartRange:    34000,
 	}
@@ -60,7 +60,7 @@ func TestStartTimeMultiplier(t *testing.T) {
 		t:                 t,
 		testName:          "3_nodes_timeMultiplier",
 		clusterSize:       3,
-		runTestInParallel: true,
+		runTestInParallel: false,
 		portStartRange:    35000,
 		timeMultiplier:    11,
 		maxAppendEntries:  1,
