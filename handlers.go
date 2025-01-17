@@ -57,7 +57,7 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 			r.Logger.Trace().Msgf("Me %s / %s reports that pre vote quorum as been reach", r.Address.String(), r.ID)
 			r.startElectionCampain.Store(true)
 			r.switchState(Candidate, false, currentTerm)
-			r.stopElectionTimer(true, false)
+			r.stopElectionTimer()
 		}
 	}
 }
@@ -223,12 +223,12 @@ func (r *Rafty) handleGetLeaderReader(reader *raftypb.GetLeaderRequest) {
 	r.Logger.Trace().Msgf("Peer %s / %s is looking for the leader", reader.GetPeerAddress(), reader.GetPeerID())
 
 	if r.getState() == Leader {
+		go r.connectToPeer(reader.GetPeerAddress())
 		r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
 			LeaderID:      r.ID,
 			LeaderAddress: r.Address.String(),
 			PeerID:        r.ID,
 		}
-		go r.connectToPeer(reader.GetPeerAddress())
 		return
 	}
 
@@ -300,8 +300,8 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntry
 		return
 	}
 
-	r.resetElectionTimer(false, true)
-	r.stopElectionTimer(true, false)
+	r.resetElectionTimer()
+	r.stopElectionTimer()
 
 	totalLogs := uint64(len(r.log))
 	if totalLogs > 0 && !reader.GetHeartbeat() {

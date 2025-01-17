@@ -12,10 +12,9 @@ func (r *Rafty) runAsFollower() {
 	}
 	r.logState(r.getState(), true, r.getCurrentTerm())
 	r.mu.Lock()
-	r.preVoteElectionTimerEnabled.Store(true)
 	// the following is necessary to prevent nil pointer exception when we are follower state
 	// and a leader is sending appendEntries
-	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
+	r.electionTimer = time.NewTimer(r.randomElectionTimeout())
 	r.mu.Unlock()
 
 	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
@@ -31,7 +30,7 @@ func (r *Rafty) runAsFollower() {
 			}
 			hearbeatTimer.Reset(timeout)
 
-			if r.preVoteElectionTimerEnabled.Load() || r.leaderLost.Load() {
+			if r.leaderLost.Load() {
 				r.preVoteRequest()
 				return
 			}
@@ -52,10 +51,8 @@ func (r *Rafty) runAsFollower() {
 			r.mu.Unlock()
 
 			if leaderLost && r.getState() != Down {
-				if !r.preVoteElectionTimerEnabled.Load() {
-					r.startElectionCampain.Store(false)
-					hearbeatTimer.Reset(timeout)
-				}
+				r.startElectionCampain.Store(false)
+				hearbeatTimer.Reset(timeout)
 			}
 
 		// receive and answer pre vote requests from other nodes
@@ -106,7 +103,7 @@ func (r *Rafty) runAsCandidate() {
 	r.logState(r.getState(), true, r.getCurrentTerm())
 	r.mu.Lock()
 	r.electionTimerEnabled.Store(true)
-	r.electionTimer = time.NewTimer(r.randomElectionTimeout(false))
+	r.electionTimer = time.NewTimer(r.randomElectionTimeout())
 	r.mu.Unlock()
 
 	for r.getState() == Candidate {

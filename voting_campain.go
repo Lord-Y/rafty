@@ -59,7 +59,7 @@ func (r *Rafty) preVoteRequest() {
 // startElection permit to send vote request
 // to other nodes in order to elect a leader
 func (r *Rafty) startElection() {
-	r.resetElectionTimer(false, true)
+	r.resetElectionTimer()
 	myAddress, myId := r.getMyAddress()
 	currentTerm := r.incrementCurrentTerm()
 	state := r.getState()

@@ -429,7 +429,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 2
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
 			LeaderAddress: s.Peers[id].address.String(),
@@ -448,7 +448,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 1
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
 			LeaderAddress: s.Peers[id].address.String(),
@@ -467,7 +467,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 2
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
 			LeaderAddress: s.Peers[id].address.String(),
@@ -486,7 +486,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 2
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
 			LeaderAddress: s.Peers[id].address.String(),
@@ -505,7 +505,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 1
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1})
 		s.leader = &leaderMap{
 			address: s.Peers[id].address.String(),
@@ -530,7 +530,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 1
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:          idx,
@@ -559,7 +559,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 2
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:          idx,
@@ -588,7 +588,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 1
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 1})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:          idx,
@@ -622,7 +622,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.CurrentTerm = 1
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout(false))
+		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:          idx,
