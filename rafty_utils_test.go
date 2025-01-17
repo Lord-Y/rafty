@@ -99,9 +99,6 @@ func (cc *clusterConfig) startCluster() {
 			time.Sleep(cc.delayLastNodeTimeDuration)
 		}
 		cc.t.Run(fmt.Sprintf("cluster_%s_%d", cc.testName, i), func(t *testing.T) {
-			// the following random sleep is necessary trick because when starting nth nodes during unit testing
-			// a race condition will be found in timers.go
-			// at r.preVoteElectionTimer = time.NewTimer(r.randomElectionTimeout(true))
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 			sleep := 1 + r.Intn(10)
 			go func() {
@@ -185,7 +182,7 @@ func (cc *clusterConfig) clientGetLeader(nodeId int) (bool, string, string) {
 }
 
 func (cc *clusterConfig) testClustering(t *testing.T) {
-	// LogSource = cc.testName
+	LogSource = cc.testName
 	if cc.runTestInParallel {
 		t.Parallel()
 	}

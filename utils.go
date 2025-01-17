@@ -132,7 +132,7 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 		case Candidate:
 			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
 		case Leader:
-			r.stopElectionTimer(true, true)
+			r.stopElectionTimer()
 			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
 		case Down:
 			r.Logger.Info().Msgf("Me %s / %s is shutting down with term %d", myAddress, myId, currentTerm)

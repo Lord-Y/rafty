@@ -56,12 +56,6 @@ const (
 	// Writes requests can only be done on the leader
 	Leader
 
-	// preVoteElectionTimeoutMin is the minimum preVote election timeout that will be used during preRequestVotes process
-	preVoteElectionTimeoutMin int = 70
-
-	// preVoteElectionTimeoutMax is the maximum preVote election timeout that will be used during preRequestVotes process
-	preVoteElectionTimeoutMax int = 150
-
 	// electionTimeoutMin is the minimum election timeout that will be used to elect a new leader
 	electionTimeoutMin int = 150
 
@@ -169,11 +163,6 @@ type Rafty struct {
 
 	// LeaderLastContactDate is the last date we heard from the leader
 	LeaderLastContactDate *time.Time
-
-	// preVoteElectionTimerEnabled is a boolean that allow us in some cases
-	// to now if preVoteElectionTimer has been started or resetted.
-	// preVoteElectionTimer can never be nil once initialiazed so see this variable as an helper
-	preVoteElectionTimerEnabled atomic.Bool
 
 	// electionTimer is used during the election campain
 	// but also to detect if a Follower
@@ -376,8 +365,10 @@ type voteResponseErrorWrapper struct {
 	err error
 }
 
+var LogSource = ""
+
 func NewRafty() *Rafty {
-	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
+	logger := logger.NewLogger().With().Str("logProvider", "rafty").Str("logSource", LogSource).Logger()
 
 	return &Rafty{
 		Logger:                                      &logger,
