@@ -472,8 +472,11 @@ func (r *Rafty) sendGetLeaderRequest() {
 	myAddress, myId := r.getMyAddress()
 	state := r.getState()
 	leaderFound := false
+	peers := r.Peers
+	totalPeers := len(peers)
+	count := 0
 
-	for _, peer := range r.Peers {
+	for _, peer := range peers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && !r.leaderLost.Load() && r.getState() != Down {
 			if !r.healthyPeer(peer) {
 				return
@@ -492,29 +495,29 @@ func (r *Rafty) sendGetLeaderRequest() {
 				)
 				if err != nil {
 					r.Logger.Error().Err(err).Msgf("Fail to get leader from peer %s", peer.address.String())
-					return
+				} else {
+					if response.GetLeaderID() != "" {
+						leader := r.getLeader()
+						r.mu.Lock()
+						if leader == nil {
+							r.leader = &leaderMap{
+								address: response.GetLeaderAddress(),
+								id:      response.GetLeaderID(),
+							}
+							r.leaderLost.Store(false)
+							leaderFound = true
+							r.Logger.Info().Msgf("Me %s / %s with state %s reports that peer %s / %s is the leader", myAddress, myId, state, response.GetLeaderAddress(), response.GetLeaderID())
+						}
+						r.mu.Unlock()
+					}
 				}
 
-				if response.GetLeaderID() != "" {
-					leader := r.getLeader()
-					r.mu.Lock()
-					if leader == nil {
-						r.leader = &leaderMap{
-							address: response.GetLeaderAddress(),
-							id:      response.GetLeaderID(),
-						}
-						r.leaderLost.Store(false)
-						leaderFound = true
-						r.Logger.Info().Msgf("Me %s / %s with state %s reports that peer %s / %s is the leader", myAddress, myId, state, response.GetLeaderAddress(), response.GetLeaderID())
-					}
-					r.mu.Unlock()
-					return
+				count++
+				if !leaderFound && count == totalPeers {
+					r.Logger.Info().Msgf("Me %s / %s with state %s reports that there is no leader", myAddress, myId, state)
+					r.leaderLost.Store(true)
 				}
 			}()
 		}
-	}
-	if !leaderFound {
-		r.Logger.Info().Msgf("Me %s / %s with state %s reports that there is no leader", myAddress, myId, state)
-		r.leaderLost.Store(true)
 	}
 }
