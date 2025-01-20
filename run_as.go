@@ -227,8 +227,10 @@ func (r *Rafty) runAsLeader() {
 		// this chan is used by clients to apply commands on the leader
 		case data := <-r.triggerAppendEntriesChan:
 			heartbeatTicker.Stop()
+			r.mu.Lock()
 			r.log = append(r.log, &raftypb.LogEntry{TimeStamp: uint32(time.Now().Unix()), Term: r.getCurrentTerm(), Command: data.command})
 			entryIndex := len(r.log) - 1
+			r.mu.Unlock()
 			r.appendEntries(false, data.responseChan, true, false, entryIndex)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 
@@ -236,8 +238,10 @@ func (r *Rafty) runAsLeader() {
 		// to later apply commands
 		case command := <-r.rpcForwardCommandToLeaderRequestChanReader:
 			heartbeatTicker.Stop()
+			r.mu.Lock()
 			r.log = append(r.log, &raftypb.LogEntry{TimeStamp: uint32(time.Now().Unix()), Term: r.getCurrentTerm(), Command: command.GetCommand()})
 			entryIndex := len(r.log) - 1
+			r.mu.Unlock()
 			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true, entryIndex)
 			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
 		}
