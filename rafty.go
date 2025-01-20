@@ -474,13 +474,9 @@ func (r *Rafty) sendGetLeaderRequest() {
 	leaderFound := false
 	peers := r.Peers
 	totalPeers := len(peers)
-	count := 0
 
-	for _, peer := range peers {
+	for i, peer := range peers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && !r.leaderLost.Load() && r.getState() != Down {
-			if !r.healthyPeer(peer) {
-				return
-			}
 			go func() {
 				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d to ask who is the leader", myAddress, myId, state.String(), peer.address.String(), currentTerm)
 
@@ -493,6 +489,7 @@ func (r *Rafty) sendGetLeaderRequest() {
 					grpc.WaitForReady(true),
 					grpc.UseCompressor(gzip.Name),
 				)
+
 				if err != nil {
 					r.Logger.Error().Err(err).Msgf("Fail to get leader from peer %s", peer.address.String())
 				} else {
@@ -512,8 +509,7 @@ func (r *Rafty) sendGetLeaderRequest() {
 					}
 				}
 
-				count++
-				if !leaderFound && count == totalPeers {
+				if !leaderFound && i+1 == totalPeers {
 					r.Logger.Info().Msgf("Me %s / %s with state %s reports that there is no leader", myAddress, myId, state)
 					r.leaderLost.Store(true)
 				}
