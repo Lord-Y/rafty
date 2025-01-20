@@ -24,9 +24,6 @@ func (r *Rafty) preVoteRequest() {
 
 	for _, peer := range peers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down && r.leaderLost.Load() {
-			if !r.healthyPeer(peer) {
-				return
-			}
 			go func() {
 				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d for pre vote request", myAddress, myId, state.String(), peer.address.String(), currentTerm)
 
@@ -79,10 +76,6 @@ func (r *Rafty) startElection() {
 	r.Logger.Trace().Msgf("Me %s / %s starting election campain with term %d and peers %+v", myAddress, myId, currentTerm, preCandidatePeers)
 	for _, peer := range preCandidatePeers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() == Candidate && r.leaderLost.Load() {
-			if !r.healthyPeer(peer) {
-				return
-			}
-
 			go func() {
 				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s / %s with term %d for election campain", myAddress, myId, state.String(), peer.address.String(), peer.id, currentTerm)
 
