@@ -85,9 +85,6 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 		}
 		totalEntries := len(entries)
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() == Leader {
-			if !r.healthyPeer(peer) {
-				return
-			}
 			go func() {
 				if totalEntries == 0 {
 					r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d send append entries heartbeats to %s / %s", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id)
@@ -194,10 +191,6 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			}
 			peer := r.getPeerClient(leader.id)
 			if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) {
-				if !r.healthyPeer(peer) {
-					return nil, errNoLeader
-				}
-
 				response, err := peer.rclient.ForwardCommandToLeader(
 					context.Background(),
 					&raftypb.ForwardCommandToLeaderRequest{

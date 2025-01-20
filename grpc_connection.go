@@ -2,7 +2,6 @@ package rafty
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -10,7 +9,6 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/encoding/gzip"
-	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 // connectToPeer permits to connect to the specified peer
@@ -36,17 +34,18 @@ func (r *Rafty) connectToPeer(address string) {
 				opts...,
 			)
 
+			go r.reconnect(conn, peerIndex, address)
 			if err != nil {
 				r.Logger.Err(err).Msgf("Fail to connect to peer %s", address)
 				r.mu.Lock()
-				if r.clusterSizeCounter > 0 {
+				if r.clusterSizeCounter > 0 && !r.minimumClusterSizeReach.Load() {
 					r.clusterSizeCounter--
 				}
 				r.mu.Unlock()
 				return
 			}
 			r.mu.Lock()
-			if r.clusterSizeCounter+1 < r.MinimumClusterSize {
+			if r.clusterSizeCounter+1 < r.MinimumClusterSize && !r.minimumClusterSizeReach.Load() {
 				r.clusterSizeCounter++
 			}
 			r.Peers[peerIndex].client = conn
@@ -77,26 +76,28 @@ func (r *Rafty) connectToPeer(address string) {
 	}
 }
 
-// healthyPeer permits to check if peer is health to make rpc calls
-func (r *Rafty) healthyPeer(peer Peer) bool {
-	if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down {
-		healthClient := healthgrpc.NewHealthClient(peer.client)
-		healthCheckRequest := &healthgrpc.HealthCheckRequest{}
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
-		defer cancel()
-		response, err := healthClient.Check(ctx, healthCheckRequest)
-		if err != nil {
-			r.Logger.Error().Err(err).Msgf("Peer %s / %s is unhealthy", peer.address.String(), peer.id)
-			return false
+func (r *Rafty) reconnect(conn *grpc.ClientConn, peerIndex int, address string) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	ready := false
+	myAddress, myId := r.getMyAddress()
+	for r.getState() != Down {
+		<-ticker.C
+		if conn.GetState() != connectivity.Ready {
+			ready = false
+			conn.Connect()
 		}
-
-		if response.Status != healthgrpc.HealthCheckResponse_SERVING {
-			r.Logger.Error().Err(err).Msgf("Peer %s / %s cannot receive rpc calls", peer.address.String(), peer.id)
-			return false
+		time.Sleep(500 * time.Millisecond)
+		if conn.GetState() == connectivity.Ready && !ready {
+			r.mu.Lock()
+			if r.Peers[peerIndex].client == nil || r.Peers[peerIndex].rclient == nil {
+				r.Peers[peerIndex].client = conn
+				r.Peers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
+			}
+			r.mu.Unlock()
+			ready = true
+			r.Logger.Trace().Msgf("Me %s / %s with state %s is reconnected to peer %s ", myAddress, myId, r.getState().String(), address)
 		}
-		return true
 	}
-	return false
 }
 
 // disconnectToPeers permits to disconnect to all grpc servers
