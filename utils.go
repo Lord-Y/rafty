@@ -86,14 +86,6 @@ func (r *Rafty) checkIfPeerInSliceIndex(preVote bool, addr string) bool {
 
 func (r *Rafty) loopingOverNodeState() {
 	for r.getState() != Down {
-		select {
-		// stop go routine when os signal is receive or ctrl+c
-		case <-r.quitCtx.Done():
-			r.switchState(Down, true, r.getCurrentTerm())
-			return
-		default:
-		}
-
 		switch r.getState() {
 		case Follower:
 			r.runAsFollower()
