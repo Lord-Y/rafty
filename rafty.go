@@ -75,6 +75,7 @@ var (
 	errAppendEntriesToLeader = errors.New("Cannot append entries from leader")
 	errTermTooOld            = errors.New("Requester term older than mine")
 	errNoLeader              = errors.New("NoLeader")
+	errCommandNotFound       = errors.New("CommandNotFound")
 )
 
 // String return a human readable state of the raft server
