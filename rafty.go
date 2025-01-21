@@ -474,10 +474,13 @@ func (r *Rafty) sendGetLeaderRequest() {
 	leaderFound := false
 	peers := r.Peers
 	totalPeers := len(peers)
+	var wg sync.WaitGroup
 
 	for i, peer := range peers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && !r.leaderLost.Load() && r.getState() != Down {
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d to ask who is the leader", myAddress, myId, state.String(), peer.address.String(), currentTerm)
 
 				response, err := peer.rclient.GetLeader(
@@ -514,6 +517,7 @@ func (r *Rafty) sendGetLeaderRequest() {
 					r.leaderLost.Store(true)
 				}
 			}()
+			wg.Wait()
 		}
 	}
 }
