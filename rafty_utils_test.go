@@ -201,9 +201,14 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 						cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d_%d", cc.testName, nodeId, i), func(t *testing.T) {
 							_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
 							if err != nil {
-								if strings.Contains(err.Error(), "the client connection is closing") {
+								switch {
+								case strings.Contains(err.Error(), "the client connection is closing"):
 									assert.Contains(err.Error(), "the client connection is closing")
-								} else {
+								case strings.Contains(err.Error(), "CommandNotFound"):
+									assert.Equal(errCommandNotFound, err)
+								case strings.Contains(err.Error(), "NoLeader"):
+									assert.Equal(errNoLeader, err)
+								default:
 									assert.Equal(fmt.Errorf("NoLeader"), err)
 								}
 							} else {
