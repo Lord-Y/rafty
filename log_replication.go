@@ -215,5 +215,5 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			}
 		}
 	}
-	return nil, fmt.Errorf("CommandNotFound")
+	return nil, errCommandNotFound
 }
