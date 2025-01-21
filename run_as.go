@@ -75,15 +75,6 @@ func (r *Rafty) runAsFollower() {
 		case reader := <-r.rpcSendVoteRequestChanReader:
 			r.handleSendVoteRequestReader(reader)
 
-		// handle vote response from other nodes
-		// and become a leader if conditions are met
-		case vote := <-r.voteResponseChan:
-			r.handleVoteResponse(vote)
-
-		// handle vote response error from other nodes
-		case voteError := <-r.voteResponseErrorChan:
-			r.handleVoteResponseError(voteError)
-
 		// handle append entries from the leader
 		case entries := <-r.rpcSendAppendEntriesRequestChanReader:
 			r.handleSendAppendEntriesRequestReader(entries)
@@ -198,15 +189,6 @@ func (r *Rafty) runAsLeader() {
 		// receive and answer request vote from other nodes
 		case reader := <-r.rpcSendVoteRequestChanReader:
 			r.handleSendVoteRequestReader(reader)
-
-		// handle vote response from other nodes
-		// and become a leader if conditions are met
-		case vote := <-r.voteResponseChan:
-			r.handleVoteResponse(vote)
-
-		// handle vote response error from other nodes
-		case voteError := <-r.voteResponseErrorChan:
-			r.handleVoteResponseError(voteError)
 
 		// handle append entries from the leader
 		case entries := <-r.rpcSendAppendEntriesRequestChanReader:
