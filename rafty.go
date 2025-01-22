@@ -472,16 +472,15 @@ func (r *Rafty) sendGetLeaderRequest() {
 	currentTerm := r.getCurrentTerm()
 	myAddress, myId := r.getMyAddress()
 	state := r.getState()
-	leaderFound := false
+	var leaderFound atomic.Bool
+	r.mu.Lock()
 	peers := r.Peers
 	totalPeers := len(peers)
-	var wg sync.WaitGroup
+	r.mu.Unlock()
 
 	for i, peer := range peers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && !r.leaderLost.Load() && r.getState() != Down {
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
 				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d to ask who is the leader", myAddress, myId, state.String(), peer.address.String(), currentTerm)
 
 				response, err := peer.rclient.GetLeader(
@@ -506,19 +505,18 @@ func (r *Rafty) sendGetLeaderRequest() {
 								id:      response.GetLeaderID(),
 							}
 							r.leaderLost.Store(false)
-							leaderFound = true
+							leaderFound.Store(true)
 							r.Logger.Info().Msgf("Me %s / %s with state %s reports that peer %s / %s is the leader", myAddress, myId, state, response.GetLeaderAddress(), response.GetLeaderID())
 						}
 						r.mu.Unlock()
 					}
 				}
 
-				if !leaderFound && i+1 == totalPeers {
+				if !leaderFound.Load() && i+1 == totalPeers {
 					r.Logger.Info().Msgf("Me %s / %s with state %s reports that there is no leader", myAddress, myId, state)
 					r.leaderLost.Store(true)
 				}
 			}()
-			wg.Wait()
 		}
 	}
 }

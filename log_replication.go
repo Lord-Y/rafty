@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"sync"
 	"sync/atomic"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -66,7 +65,6 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 		leaderVolatileStateUpdated atomic.Bool
 	)
 	totalMajority := (totalPeers / 2) + 1
-	var wg sync.WaitGroup
 
 	for _, peer := range peers {
 		var (
@@ -87,9 +85,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 		}
 		totalEntries := len(entries)
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() == Leader {
-			wg.Add(1)
 			go func() {
-				defer wg.Done()
 				if totalEntries == 0 {
 					r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d send append entries heartbeats to %s / %s", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id)
 				} else {
@@ -166,7 +162,6 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 					}
 				}
 			}()
-			wg.Wait()
 		}
 	}
 }
