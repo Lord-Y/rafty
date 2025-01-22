@@ -131,7 +131,7 @@ func (cc *clusterConfig) startOrStopSpecificicNode(nodeId int, action string) er
 		node.Logger.Info().Msgf("Stopped node %d", nodeId)
 		for i := 0; i < 100; i++ {
 			time.Sleep(5 * time.Second)
-			node.Logger.Info().Msgf("Sleeping number %d waiting for node to be completely stopped", i)
+			node.Logger.Info().Msgf("Sleeping number %d waiting for node %d to be completely stopped", i, nodeId)
 			if node.getState() == Down {
 				time.Sleep(3 * time.Second)
 				node = nil
