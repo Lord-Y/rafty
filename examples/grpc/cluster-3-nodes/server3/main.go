@@ -15,7 +15,7 @@ var maxUptime = flag.Bool("max-uptime", false, "stop node")
 var maxUptimeAfterN = flag.Uint("max-uptime-after-n", 6, "max uptime in minutes before stopping node")
 var restartNode = flag.Bool("restart-node", false, "restart node")
 var restartNodeAfterN = flag.Uint("restart-node-after-n", 4, "max uptime in minutes before restarting node")
-var normalMode = flag.Bool("normal-mode", false, "run prgram normally without stopping/restarting")
+var disableNormalMode = flag.Bool("disable-normal-mode", false, "by default the program will run without stopping/restarting so it's needed when using other modes")
 
 func main() {
 	flag.Parse()
@@ -43,40 +43,40 @@ func main() {
 	s.PersistDataOnDisk = true
 	s.DataDir = filepath.Join(os.TempDir(), "rafty_"+id)
 
-	if *normalMode {
-		if err := s.Start(); err != nil {
-			s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+	if *disableNormalMode {
+		if *restartNodeAfterN >= *maxUptimeAfterN {
+			*restartNodeAfterN = 3
 		}
+
+		if *maxUptime {
+			defer func() {
+				time.Sleep(time.Duration(*maxUptimeAfterN) * time.Minute)
+				s.Stop()
+			}()
+		}
+
+		if *restartNode {
+			defer func() {
+				go func() {
+					time.Sleep(time.Duration(*restartNodeAfterN) * time.Minute)
+					s.Stop()
+					time.Sleep(30 * time.Second)
+					if err := s.Start(); err != nil {
+						s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+					}
+				}()
+			}()
+		}
+
+		go func() {
+			if err := s.Start(); err != nil {
+				s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+			}
+		}()
 		return
 	}
 
-	if *restartNodeAfterN >= *maxUptimeAfterN {
-		*restartNodeAfterN = 3
+	if err := s.Start(); err != nil {
+		s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
 	}
-
-	if *maxUptime {
-		defer func() {
-			time.Sleep(time.Duration(*maxUptimeAfterN) * time.Minute)
-			s.Stop()
-		}()
-	}
-
-	if *restartNode {
-		defer func() {
-			go func() {
-				time.Sleep(time.Duration(*restartNodeAfterN) * time.Minute)
-				s.Stop()
-				time.Sleep(30 * time.Second)
-				if err := s.Start(); err != nil {
-					s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
-				}
-			}()
-		}()
-	}
-
-	go func() {
-		if err := s.Start(); err != nil {
-			s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
-		}
-	}()
 }
