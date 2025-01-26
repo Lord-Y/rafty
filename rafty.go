@@ -303,12 +303,12 @@ type Rafty struct {
 	// nextIndex is for each server, index of the next log entry
 	// to send to that server
 	// initialized to leader last log index + 1
-	nextIndex map[string]uint64
+	nextIndex sync.Map
 
 	// matchIndex is for each server, index of the highest log entry
 	// known to be replicated on server
 	// initialized to 0, increases monotically
-	matchIndex map[string]uint64
+	matchIndex sync.Map
 
 	// volatileStateInitialized is an helper to initialized
 	// nextIndex and matchIndex for each peers according to raft paper

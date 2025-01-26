@@ -155,10 +155,6 @@ func (r *Rafty) runAsLeader() {
 	// According to raft paper, we need to reset nextIndex and matchIndex
 	// when becoming a leader
 	if !r.volatileStateInitialized.Load() {
-		if r.nextIndex == nil {
-			r.nextIndex = make(map[string]uint64)
-			r.matchIndex = make(map[string]uint64)
-		}
 		r.setNextAndMatchIndex(r.ID, 0, 0)
 		for _, peer := range r.Peers {
 			r.setNextAndMatchIndex(peer.id, 0, 0)

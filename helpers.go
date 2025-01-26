@@ -49,32 +49,36 @@ func (r *Rafty) getMyAddress() (addr, id string) {
 }
 
 // getNextIndex permits to safely retrieve node next index
-func (r *Rafty) getNextIndex(peerId string) uint64 {
-	r.murw.RLock()
-	defer r.murw.RUnlock()
-	return r.nextIndex[peerId]
+func (r *Rafty) getNextIndex(peerId string) (x uint64) {
+	xx, ok := r.nextIndex.Load(peerId)
+	if ok {
+		return xx.(uint64)
+	}
+	return
 }
 
 // setNextIndex permits to safely set node next index
 func (r *Rafty) setNextIndex(peerId string, v uint64) {
-	r.murw.RLock()
-	defer r.murw.RUnlock()
-	r.nextIndex[peerId] = v
+	r.nextIndex.Store(peerId, v)
 }
 
 // setNextAndMatchIndex permits to retrieve node next index and match index
-func (r *Rafty) getNextAndMatchIndex(peerId string) (uint64, uint64) {
-	r.murw.RLock()
-	defer r.murw.RUnlock()
-	return r.nextIndex[peerId], r.matchIndex[peerId]
+func (r *Rafty) getNextAndMatchIndex(peerId string) (x uint64, y uint64) {
+	xx, ok := r.nextIndex.Load(peerId)
+	if ok {
+		x = xx.(uint64)
+	}
+	yy, _ := r.matchIndex.Load(peerId)
+	if ok {
+		y = yy.(uint64)
+	}
+	return
 }
 
 // setNextAndMatchIndex permits to set node next index and match index
 func (r *Rafty) setNextAndMatchIndex(peerId string, nextIndex, matchIndex uint64) {
-	r.murw.Lock()
-	defer r.murw.Unlock()
-	r.nextIndex[peerId] = nextIndex
-	r.matchIndex[peerId] = matchIndex
+	r.nextIndex.Store(peerId, nextIndex)
+	r.matchIndex.Store(peerId, matchIndex)
 }
 
 // getCommitIndex permits to safely retrieve node last log index
