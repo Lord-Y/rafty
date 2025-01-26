@@ -366,16 +366,20 @@ type voteResponseErrorWrapper struct {
 	err error
 }
 
-// logSource is only use during unit testing in order to
+// logSource is only use during unit testing running in parallel in order to
 // better debug logs
-// var logSource = ""
+var logSource = ""
 
 func NewRafty() *Rafty {
-	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
-	// logger := logger.NewLogger().With().Str("logProvider", "rafty").Str("logSource", logSource).Logger()
+	var zlogger zerolog.Logger
+	if logSource == "" {
+		zlogger = logger.NewLogger().With().Str("logProvider", "rafty").Logger()
+	} else {
+		zlogger = logger.NewLogger().With().Str("logProvider", "rafty").Str("logSource", logSource).Logger()
+	}
 
 	return &Rafty{
-		Logger:                                      &logger,
+		Logger:                                      &zlogger,
 		preVoteResponseChan:                         make(chan preVoteResponseWrapper),
 		preVoteResponseErrorChan:                    make(chan voteResponseErrorWrapper),
 		voteResponseChan:                            make(chan voteResponseWrapper),
