@@ -68,6 +68,7 @@ message AskNodeIDRequest {
 
 message AskNodeIDResponse {
   string peerID = 1;
+  bool   readOnlyNode = 2;
 }
 
 message ClientGetLeaderRequest {

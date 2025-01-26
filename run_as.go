@@ -6,6 +6,26 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
+func (r *Rafty) runAsReadOnly() {
+	r.logState(r.getState(), true, r.getCurrentTerm())
+
+	for r.getState() == ReadOnly {
+		select {
+		// handle append entries from the leader
+		case entries := <-r.rpcSendAppendEntriesRequestChanReader:
+			r.handleSendAppendEntriesRequestReader(entries)
+
+		// handle client get leader
+		case <-r.rpcClientGetLeaderChanReader:
+			r.handleClientGetLeaderReader()
+
+		// handle server get leader
+		case reader := <-r.rpcGetLeaderChanReader:
+			r.handleGetLeaderReader(reader)
+		}
+	}
+}
+
 func (r *Rafty) runAsFollower() {
 	if !r.minimumClusterSizeReach.Load() {
 		return

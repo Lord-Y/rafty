@@ -87,6 +87,8 @@ func (r *Rafty) checkIfPeerInSliceIndex(preVote bool, addr string) bool {
 func (r *Rafty) loopingOverNodeState() {
 	for r.getState() != Down {
 		switch r.getState() {
+		case ReadOnly:
+			r.runAsReadOnly()
 		case Follower:
 			r.runAsFollower()
 		case Candidate:
@@ -126,6 +128,8 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 	if niceMessage {
 		myAddress, myId := r.getMyAddress()
 		switch state {
+		case ReadOnly:
+			r.Logger.Info().Msgf("Me %s / %s stepping as %s for term %d", myAddress, myId, state, currentTerm)
 		case Follower:
 			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", myAddress, myId, state, currentTerm)
 		case Candidate:
@@ -153,9 +157,12 @@ func (r *Rafty) logState(state State, niceMessage bool, currentTerm uint64) {
 			r.Logger.Info().Msgf("Me %s / %s stepping as %s for term %d", myAddress, myId, state, currentTerm)
 		case Follower:
 			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", myAddress, myId, state, currentTerm)
+			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", myAddress, myId, state, currentTerm)
 		case Candidate:
 			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
+			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
 		case Leader:
+			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
 			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
 		}
 	}

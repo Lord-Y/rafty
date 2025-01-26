@@ -23,7 +23,7 @@ func (r *Rafty) preVoteRequest() {
 	r.mu.Unlock()
 
 	for _, peer := range peers {
-		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down && r.leaderLost.Load() {
+		if peer.client != nil && !peer.readOnlyNode && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down && r.leaderLost.Load() {
 			go func() {
 				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d for pre vote request", myAddress, myId, state.String(), peer.address.String(), currentTerm)
 

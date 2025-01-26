@@ -116,6 +116,10 @@ type Peer struct {
 
 	// rclient hold gprc rafty client
 	rclient raftypb.RaftyClient
+
+	// readOnlyNode allow to statuate if this peer is a read only node
+	// This kind of node won't participate into any election campain
+	readOnlyNode bool
 }
 
 type leaderMap struct {
@@ -334,6 +338,10 @@ type Rafty struct {
 	// dataFileDescriptor is the file descriptor that allow us to manage
 	// data content
 	dataFileDescriptor *os.File
+
+	// ReadOnlyNode allow to statuate if the current node is a read only node
+	// This kind of node won't participate into any election campain
+	ReadOnlyNode bool
 }
 
 // preVoteResponseWrapper is a struct that will be used to send response to the appropriate channel
@@ -437,7 +445,12 @@ func (r *Rafty) start() {
 	}
 
 	if r.getState() == Down {
-		r.switchState(Follower, false, r.getCurrentTerm())
+		r.Logger.Info().Msgf("YYY r.ReadOnlyNode %t", r.ReadOnlyNode)
+		if r.ReadOnlyNode {
+			r.switchState(ReadOnly, false, r.getCurrentTerm())
+		} else {
+			r.switchState(Follower, false, r.getCurrentTerm())
+		}
 		r.Logger.Info().Msgf("Me %s / %s is starting as %s", r.Address.String(), r.ID, r.State.String())
 	}
 

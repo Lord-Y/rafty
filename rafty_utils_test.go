@@ -31,6 +31,7 @@ type clusterConfig struct {
 	noDataDir                 bool
 	noNodeID                  bool
 	maxAppendEntries          uint64
+	readOnlyNodeCount         uint64
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
@@ -40,6 +41,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 	} else {
 		defaultPort = int(cc.portStartRange) + 51
 	}
+	readOnlyNodeCount := 0
 	for i := range cc.clusterSize {
 		var addr net.TCPAddr
 
@@ -76,16 +78,19 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 				}
 				server.Peers = peers
 			}
-
-			server.TimeMultiplier = cc.timeMultiplier
-			if cc.autoSetMinimumClusterSize {
-				server.MinimumClusterSize = uint64(cc.clusterSize)
-			}
-			server.MaxAppendEntries = cc.maxAppendEntries
-			if cc.noDataDir && i != 0 || !cc.noDataDir {
-				server.PersistDataOnDisk = true
-				server.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
-			}
+		}
+		server.TimeMultiplier = cc.timeMultiplier
+		if cc.autoSetMinimumClusterSize {
+			server.MinimumClusterSize = uint64(cc.clusterSize) - cc.readOnlyNodeCount
+		}
+		server.MaxAppendEntries = cc.maxAppendEntries
+		if cc.noDataDir && i != 0 || !cc.noDataDir {
+			server.PersistDataOnDisk = true
+			server.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
+		}
+		if cc.readOnlyNodeCount > 0 && int(cc.readOnlyNodeCount) > readOnlyNodeCount {
+			server.ReadOnlyNode = true
+			readOnlyNodeCount++
 		}
 		cluster = append(cluster, server)
 	}
