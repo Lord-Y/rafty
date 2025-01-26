@@ -68,6 +68,18 @@ func TestStartTimeMultiplier(t *testing.T) {
 	cc.testClustering(t)
 }
 
+func TestStart7NodesWithReadOnly(t *testing.T) {
+	cc := clusterConfig{
+		t:                 t,
+		testName:          "7_nodes_with_read_only_nodes",
+		clusterSize:       7,
+		runTestInParallel: true,
+		portStartRange:    36000,
+		readOnlyNodeCount: 2,
+	}
+	cc.testClustering(t)
+}
+
 func TestString(t *testing.T) {
 	assert := assert.New(t)
 

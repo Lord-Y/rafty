@@ -276,32 +276,35 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntry
 	// if our local term is greater than leader term
 	// reply false §5.1
 	state := r.getState()
-	currentTerm := r.getCurrentTerm()
 	myAddress, myId := r.getMyAddress()
-	if currentTerm > reader.GetTerm() {
-		r.Logger.Error().Err(errTermTooOld).Msgf("Me %s / %s with state %s has higher term %d > %d than leader %s / %s for append entries", myAddress, myId, state.String(), currentTerm, reader.GetTerm(), reader.GetLeaderAddress(), reader.GetLeaderID())
-		r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{
-			Term: currentTerm,
-		}
-		return
-	}
 
-	switch state {
-	case Follower:
-		r.setCurrentTerm(reader.GetTerm())
-	case Candidate:
-		r.setCurrentTerm(reader.GetTerm())
-		r.switchState(Follower, false, reader.GetTerm())
-	case Leader:
-		r.Logger.Error().Err(errAppendEntriesToLeader).Msgf("Me %s / %s with state %s cannot receive append entries from %s / %s for term %d", myAddress, myId, state.String(), reader.GetLeaderAddress(), reader.GetLeaderID(), currentTerm)
-		r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{
-			Term: currentTerm,
+	if !r.ReadOnlyNode {
+		currentTerm := r.getCurrentTerm()
+		if currentTerm > reader.GetTerm() {
+			r.Logger.Error().Err(errTermTooOld).Msgf("Me %s / %s with state %s has higher term %d > %d than leader %s / %s for append entries", myAddress, myId, state.String(), currentTerm, reader.GetTerm(), reader.GetLeaderAddress(), reader.GetLeaderID())
+			r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{
+				Term: currentTerm,
+			}
+			return
 		}
-		return
-	}
 
-	r.resetElectionTimer()
-	r.stopElectionTimer()
+		switch state {
+		case Follower:
+			r.setCurrentTerm(reader.GetTerm())
+		case Candidate:
+			r.setCurrentTerm(reader.GetTerm())
+			r.switchState(Follower, false, reader.GetTerm())
+		case Leader:
+			r.Logger.Error().Err(errAppendEntriesToLeader).Msgf("Me %s / %s with state %s cannot receive append entries from %s / %s for term %d", myAddress, myId, state.String(), reader.GetLeaderAddress(), reader.GetLeaderID(), currentTerm)
+			r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{
+				Term: currentTerm,
+			}
+			return
+		}
+
+		r.resetElectionTimer()
+		r.stopElectionTimer()
+	}
 
 	totalLogs := uint64(len(r.log))
 	if totalLogs > 0 && !reader.GetHeartbeat() {

@@ -37,21 +37,14 @@ func (r *Rafty) connectToPeer(address string) {
 			go r.reconnect(conn, peerIndex, address)
 			if err != nil {
 				r.Logger.Err(err).Msgf("Fail to connect to peer %s", address)
-				r.mu.Lock()
-				if r.clusterSizeCounter > 0 && !r.minimumClusterSizeReach.Load() {
-					r.clusterSizeCounter--
-				}
-				r.mu.Unlock()
 				return
 			}
 			r.mu.Lock()
-			if r.clusterSizeCounter+1 < r.MinimumClusterSize && !r.minimumClusterSizeReach.Load() {
-				r.clusterSizeCounter++
-			}
 			r.Peers[peerIndex].client = conn
 			r.Peers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
 			r.mu.Unlock()
 
+			readOnlyNode := false
 			if r.Peers[peerIndex].id == "" {
 				r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.Peers[peerIndex].address.String())
 				ctx := context.Background()
@@ -69,7 +62,13 @@ func (r *Rafty) connectToPeer(address string) {
 
 				r.mu.Lock()
 				r.Peers[peerIndex].id = response.GetPeerID()
+				r.Peers[peerIndex].readOnlyNode = response.GetReadOnlyNode()
 				r.mu.Unlock()
+				readOnlyNode = response.GetReadOnlyNode()
+			}
+
+			if r.clusterSizeCounter+1 < r.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !readOnlyNode {
+				r.clusterSizeCounter++
 			}
 			return
 		}

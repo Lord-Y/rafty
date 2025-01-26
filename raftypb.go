@@ -26,7 +26,7 @@ func (rpc *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteRequ
 }
 
 func (rpc *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest) (*raftypb.AskNodeIDResponse, error) {
-	return &raftypb.AskNodeIDResponse{PeerID: rpc.rafty.ID}, nil
+	return &raftypb.AskNodeIDResponse{PeerID: rpc.rafty.ID, ReadOnlyNode: rpc.rafty.ReadOnlyNode}, nil
 }
 
 func (rpc *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.AppendEntryRequest) (*raftypb.AppendEntryResponse, error) {

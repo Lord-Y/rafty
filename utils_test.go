@@ -177,6 +177,20 @@ func TestSwitchStateAndLogState(t *testing.T) {
 			expectedState:       Follower,
 			expectedCurrentTerm: 0,
 		},
+		{
+			state:               ReadOnly,
+			currentTerm:         3,
+			niceMessage:         true,
+			expectedState:       ReadOnly,
+			expectedCurrentTerm: 0,
+		},
+		{
+			state:               Down,
+			currentTerm:         3,
+			niceMessage:         true,
+			expectedState:       Down,
+			expectedCurrentTerm: 0,
+		},
 	}
 
 	s.State = Down
