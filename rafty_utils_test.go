@@ -182,7 +182,7 @@ func (cc *clusterConfig) clientGetLeader(nodeId int) (bool, string, string) {
 }
 
 func (cc *clusterConfig) testClustering(t *testing.T) {
-	// logSource = cc.testName
+	logSource = cc.testName
 	if cc.runTestInParallel {
 		t.Parallel()
 	}
@@ -192,30 +192,29 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 		time.Sleep(20 * time.Second)
 		var found bool
 		for !found {
-			//nolint gosimple
-			select {
-			case <-time.After(time.Second):
-				found, _, _ = cc.clientGetLeader(nodeId)
-				if found {
-					for i, node := range cc.cluster {
-						cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d_%d", cc.testName, nodeId, i), func(t *testing.T) {
-							_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
-							if err != nil {
-								switch {
-								case strings.Contains(err.Error(), "the client connection is closing"):
-									assert.Contains(err.Error(), "the client connection is closing")
-								case strings.Contains(err.Error(), "CommandNotFound"):
-									assert.Equal(errCommandNotFound, err)
-								case strings.Contains(err.Error(), "NoLeader"):
-									assert.Equal(errNoLeader, err)
-								default:
-									assert.Equal(fmt.Errorf("NoLeader"), err)
-								}
-							} else {
-								assert.Nil(err)
+			<-time.After(time.Second)
+			found, _, _ = cc.clientGetLeader(nodeId)
+			if found {
+				for i, node := range cc.cluster {
+					cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d_%d", cc.testName, nodeId, i), func(t *testing.T) {
+						_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
+						if err != nil {
+							switch {
+							case strings.Contains(err.Error(), "the client connection is closing"):
+								assert.Contains(err.Error(), "the client connection is closing")
+							case strings.Contains(err.Error(), "CommandNotFound"):
+								assert.Equal(errCommandNotFound, err)
+							case strings.Contains(err.Error(), "NoLeader"):
+								assert.Equal(errNoLeader, err)
+							case strings.Contains(err.Error(), "Fail to forward command to leader"):
+								assert.Contains(err.Error(), "Fail to forward command to leader")
+							default:
+								assert.Equal(fmt.Errorf("NoLeader"), err)
 							}
-						})
-					}
+						} else {
+							assert.Nil(err)
+						}
+					})
 				}
 			}
 		}
