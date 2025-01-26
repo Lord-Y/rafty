@@ -11,8 +11,6 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
-	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
 )
 
@@ -44,8 +42,6 @@ func (r *Rafty) Start() error {
 	r.mu.Unlock()
 
 	raftypb.RegisterRaftyServer(r.grpcServer, &rm)
-	healthCheck := health.NewServer()
-	healthgrpc.RegisterHealthServer(r.grpcServer, healthCheck)
 	reflection.Register(r.grpcServer)
 
 	r.Logger.Info().Msgf("gRPC server at %s is starting", r.Address.String())
