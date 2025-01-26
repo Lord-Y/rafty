@@ -46,10 +46,6 @@ func TestNextIndex(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	if s.nextIndex == nil {
-		s.nextIndex = make(map[string]uint64)
-		s.matchIndex = make(map[string]uint64)
-	}
 	s.setNextAndMatchIndex(s.ID, 0, 0)
 	for _, peer := range s.Peers {
 		s.setNextAndMatchIndex(peer.id, 0, 0)
@@ -59,16 +55,13 @@ func TestNextIndex(t *testing.T) {
 	assert.Equal(uint64(0), s.getNextIndex(peerId))
 	s.setNextIndex(peerId, uint64(1))
 	assert.Equal(uint64(1), s.getNextIndex(peerId))
+	assert.Equal(uint64(0), s.getNextIndex("plop"))
 }
 
 func TestNextAndMatchIndex(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	if s.nextIndex == nil {
-		s.nextIndex = make(map[string]uint64)
-		s.matchIndex = make(map[string]uint64)
-	}
 	s.setNextAndMatchIndex(s.ID, 0, 0)
 	for _, peer := range s.Peers {
 		s.setNextAndMatchIndex(peer.id, 0, 0)

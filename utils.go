@@ -108,6 +108,13 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 
 	if state == Follower {
 		r.volatileStateInitialized.Store(false)
+		r.murw.Lock()
+		peers := r.Peers
+		r.murw.Unlock()
+		for _, peer := range peers {
+			r.nextIndex.Delete(peer.id)
+			r.matchIndex.Delete(peer.id)
+		}
 	}
 
 	if state == Down {
@@ -140,13 +147,16 @@ func (r *Rafty) logState(state State, niceMessage bool, currentTerm uint64) {
 	}
 
 	if niceMessage {
+		myAddress, myId := r.getMyAddress()
 		switch state {
+		case ReadOnly:
+			r.Logger.Info().Msgf("Me %s / %s stepping as %s for term %d", myAddress, myId, state, currentTerm)
 		case Follower:
-			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", r.Address.String(), r.ID, state, currentTerm)
+			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", myAddress, myId, state, currentTerm)
 		case Candidate:
-			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", r.Address.String(), r.ID, state, currentTerm)
+			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
 		case Leader:
-			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", r.Address.String(), r.ID, state, currentTerm)
+			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
 		}
 	}
 }
