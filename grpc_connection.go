@@ -19,7 +19,7 @@ func (r *Rafty) connectToPeer(address string) {
 			return
 		}
 		r.mu.Lock()
-		peer := r.Peers[peerIndex]
+		peer := r.configuration.ServerMembers[peerIndex]
 		r.mu.Unlock()
 		if peer.client == nil {
 			opts := []grpc.DialOption{
@@ -40,30 +40,35 @@ func (r *Rafty) connectToPeer(address string) {
 				return
 			}
 			r.mu.Lock()
-			r.Peers[peerIndex].client = conn
-			r.Peers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
+			r.configuration.ServerMembers[peerIndex].client = conn
+			r.configuration.ServerMembers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
 			r.mu.Unlock()
 
 			readOnlyNode := false
-			if r.Peers[peerIndex].id == "" {
-				r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.Peers[peerIndex].address.String())
+			if r.configuration.ServerMembers[peerIndex].ID == "" {
+				r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.configuration.ServerMembers[peerIndex].address.String())
 				ctx := context.Background()
-				response, err := r.Peers[peerIndex].rclient.AskNodeID(ctx, &raftypb.AskNodeIDRequest{
-					Id:      r.ID,
-					Address: r.Address.String(),
-				},
+				response, err := r.configuration.ServerMembers[peerIndex].rclient.AskNodeID(
+					ctx,
+					&raftypb.AskNodeIDRequest{
+						Id:      r.ID,
+						Address: r.Address.String(),
+					},
 					grpc.WaitForReady(true),
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to fetch peer %s id", r.Peers[peerIndex].address.String())
+					r.Logger.Error().Err(err).Msgf("Fail to fetch peer %s id", r.configuration.ServerMembers[peerIndex].address.String())
 					return
 				}
 
 				r.mu.Lock()
-				r.Peers[peerIndex].id = response.GetPeerID()
-				r.Peers[peerIndex].readOnlyNode = response.GetReadOnlyNode()
+				r.configuration.ServerMembers[peerIndex].ID = response.GetPeerID()
+				r.configuration.ServerMembers[peerIndex].ReadOnlyNode = response.GetReadOnlyNode()
 				r.mu.Unlock()
+				if response.GetLeaderID() != "" && response.GetLeaderAddress() != "" {
+					r.saveLeaderInformations(leaderMap{id: response.GetLeaderID(), address: response.GetLeaderAddress()})
+				}
 				readOnlyNode = response.GetReadOnlyNode()
 			}
 
@@ -88,9 +93,9 @@ func (r *Rafty) reconnect(conn *grpc.ClientConn, peerIndex int, address string) 
 		time.Sleep(500 * time.Millisecond)
 		if conn.GetState() == connectivity.Ready && !ready {
 			r.mu.Lock()
-			if r.Peers[peerIndex].client == nil || r.Peers[peerIndex].rclient == nil {
-				r.Peers[peerIndex].client = conn
-				r.Peers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
+			if r.configuration.ServerMembers[peerIndex].client == nil || r.configuration.ServerMembers[peerIndex].rclient == nil {
+				r.configuration.ServerMembers[peerIndex].client = conn
+				r.configuration.ServerMembers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
 			}
 			r.mu.Unlock()
 			ready = true
@@ -104,7 +109,7 @@ func (r *Rafty) reconnect(conn *grpc.ClientConn, peerIndex int, address string) 
 func (r *Rafty) disconnectToPeers() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, peer := range r.Peers {
+	for _, peer := range r.configuration.ServerMembers {
 		if peer.client != nil {
 			// we won't check errors on the targetted server it maybe already down
 			_ = peer.client.Close()

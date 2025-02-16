@@ -114,14 +114,14 @@ func TestPrecandidate(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	assert.Equal(s.PreCandidatePeers, s.getPrecandidate())
+	assert.Equal(s.configuration.preCandidatePeers, s.getPrecandidate())
 
-	peer := Peer{
+	peer := peer{
 		Address: "127.0.0.4:50054",
-		id:      "d",
+		ID:      "d",
 	}
 	s.appendPrecandidate(peer)
-	assert.Equal(s.PreCandidatePeers, s.getPrecandidate())
+	assert.Equal(s.configuration.preCandidatePeers, s.getPrecandidate())
 }
 
 func TestGetMinimumClusterSize(t *testing.T) {
@@ -131,9 +131,9 @@ func TestGetMinimumClusterSize(t *testing.T) {
 	s.MinimumClusterSize = 3
 	assert.Equal(uint64(3), s.getMinimumClusterSize())
 
-	peer := Peer{
+	peer := peer{
 		Address: "127.0.0.4:50054",
-		id:      "d",
+		ID:      "d",
 	}
 	s.appendPrecandidate(peer)
 	s.MinimumClusterSize = 4

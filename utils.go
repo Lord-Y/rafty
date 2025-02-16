@@ -9,21 +9,21 @@ import (
 )
 
 func (r *Rafty) parsePeers() error {
-	var uniqPeers []Peer
-	for _, peer := range r.Peers {
+	var uniqPeers []peer
+	for _, server := range r.configuration.ServerMembers {
 		var addr net.TCPAddr
-		host, port, err := net.SplitHostPort(peer.Address)
+		host, port, err := net.SplitHostPort(server.Address)
 		if err != nil {
 			if !strings.Contains(err.Error(), "missing port in address") {
 				return err
 			}
 			if port == "" {
 				addr = net.TCPAddr{
-					IP:   net.ParseIP(peer.Address),
+					IP:   net.ParseIP(server.Address),
 					Port: int(GRPCPort),
 				}
 				if r.Status.Address.String() != addr.String() {
-					uniqPeers = append(uniqPeers, Peer{
+					uniqPeers = append(uniqPeers, peer{
 						Address: addr.String(),
 						address: addr,
 					})
@@ -39,7 +39,7 @@ func (r *Rafty) parsePeers() error {
 				Port: p,
 			}
 			if r.Status.Address.String() != addr.String() {
-				uniqPeers = append(uniqPeers, Peer{
+				uniqPeers = append(uniqPeers, peer{
 					Address: addr.String(),
 					address: addr,
 				})
@@ -47,7 +47,7 @@ func (r *Rafty) parsePeers() error {
 		}
 	}
 	r.mu.Lock()
-	r.Peers = uniqPeers
+	r.configuration.ServerMembers = uniqPeers
 	r.mu.Unlock()
 	return nil
 }
@@ -57,7 +57,7 @@ func (r *Rafty) parsePeers() error {
 func (r *Rafty) getPeerSliceIndex(addr string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	index := slices.IndexFunc(r.Peers, func(p Peer) bool {
+	index := slices.IndexFunc(r.configuration.ServerMembers, func(p peer) bool {
 		return p.address.String() == addr
 	})
 	if index != -1 {
@@ -71,14 +71,14 @@ func (r *Rafty) getPeerSliceIndex(addr string) int {
 func (r *Rafty) checkIfPeerInSliceIndex(preVote bool, addr string) bool {
 	if preVote {
 		r.murw.Lock()
-		index := slices.IndexFunc(r.PreCandidatePeers, func(p Peer) bool {
+		index := slices.IndexFunc(r.configuration.preCandidatePeers, func(p peer) bool {
 			return p.address.String() == addr
 		})
 		r.murw.Unlock()
 		return index != -1
 	}
 
-	index := slices.IndexFunc(r.Peers, func(p Peer) bool {
+	index := slices.IndexFunc(r.configuration.ServerMembers, func(p peer) bool {
 		return p.address.String() == addr
 	})
 	return index != -1
@@ -111,11 +111,11 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 	if state == Follower {
 		r.volatileStateInitialized.Store(false)
 		r.murw.Lock()
-		peers := r.Peers
+		peers := r.configuration.ServerMembers
 		r.murw.Unlock()
 		for _, peer := range peers {
-			r.nextIndex.Delete(peer.id)
-			r.matchIndex.Delete(peer.id)
+			r.nextIndex.Delete(peer.ID)
+			r.matchIndex.Delete(peer.ID)
 		}
 	}
 
@@ -208,14 +208,14 @@ func max(a, b uint64) uint64 {
 
 // getPeerClient will be used to retrieve
 // the index of the peer and return its related struct
-func (r *Rafty) getPeerClient(peerId string) Peer {
+func (r *Rafty) getPeerClient(peerId string) peer {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	index := slices.IndexFunc(r.Peers, func(p Peer) bool {
-		return p.id == peerId
+	index := slices.IndexFunc(r.configuration.ServerMembers, func(p peer) bool {
+		return p.ID == peerId
 	})
 	if index != -1 {
-		return r.Peers[index]
+		return r.configuration.ServerMembers[index]
 	}
-	return Peer{}
+	return peer{}
 }

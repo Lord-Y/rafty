@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -27,11 +28,19 @@ type persistMetadata struct {
 
 	// votedFor is the node the current node voted for during the election campain
 	VotedFor string `json:"votedFor"`
+
+	// Configuration hold server members
+	Configuration configuration `json:"configuration"`
 }
 
 // restoreMetadata allow us to restore node metadata from disk
 func (r *Rafty) restoreMetadata() {
 	if !r.PersistDataOnDisk {
+		r.mu.Lock()
+		for _, server := range r.Peers {
+			r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{ID: server.id, Address: server.Address})
+		}
+		r.mu.Unlock()
 		return
 	}
 	if r.DataDir == "" {
@@ -69,8 +78,31 @@ func (r *Rafty) restoreMetadata() {
 		r.ID = data.Id
 		r.CurrentTerm = data.CurrentTerm
 		r.votedFor = data.VotedFor
+		if len(data.Configuration.ServerMembers) > 0 {
+			r.configuration.ServerMembers = data.Configuration.ServerMembers
+		} else {
+			for _, server := range r.Peers {
+				r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{ID: server.id, Address: server.Address})
+			}
+		}
+
+		for i := range data.Configuration.ServerMembers {
+			index := slices.IndexFunc(r.Peers, func(p Peer) bool {
+				return p.address.String() == data.Configuration.ServerMembers[i].Address && p.id == data.Configuration.ServerMembers[i].ID
+			})
+			if index == -1 {
+				r.configuration.newMembers = append(r.configuration.newMembers, peer{Address: data.Configuration.ServerMembers[i].Address, ID: data.Configuration.ServerMembers[i].ID})
+			}
+		}
 		r.mu.Unlock()
+		return
 	}
+
+	r.mu.Lock()
+	for _, server := range r.Peers {
+		r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{ID: server.id, Address: server.Address})
+	}
+	r.mu.Unlock()
 }
 
 // persistMetadata allow us to persist node metadata on disk
@@ -90,10 +122,17 @@ func (r *Rafty) persistMetadata() error {
 	_, myId := r.getMyAddress()
 	votedFor, _ := r.getVotedFor()
 
+	r.mu.Lock()
+	peers := r.configuration.ServerMembers
+	r.mu.Unlock()
+
 	data := persistMetadata{
 		Id:          myId,
 		CurrentTerm: r.getCurrentTerm(),
 		VotedFor:    votedFor,
+		Configuration: configuration{
+			ServerMembers: peers,
+		},
 	}
 
 	result, err := json.Marshal(data)

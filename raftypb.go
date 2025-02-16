@@ -26,7 +26,22 @@ func (rpc *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteRequ
 }
 
 func (rpc *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest) (*raftypb.AskNodeIDResponse, error) {
-	return &raftypb.AskNodeIDResponse{PeerID: rpc.rafty.ID, ReadOnlyNode: rpc.rafty.ReadOnlyNode}, nil
+	state := rpc.rafty.getState()
+	leader := rpc.rafty.getLeader()
+	var lid, lad string
+	switch {
+	case state == Leader:
+		lid, lad = rpc.rafty.ID, rpc.rafty.Address.String()
+	case leader != nil:
+		lid, lad = leader.id, leader.address
+	}
+
+	return &raftypb.AskNodeIDResponse{
+		PeerID:        rpc.rafty.ID,
+		ReadOnlyNode:  rpc.rafty.ReadOnlyNode,
+		LeaderID:      lid,
+		LeaderAddress: lad,
+	}, nil
 }
 
 func (rpc *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.AppendEntryRequest) (*raftypb.AppendEntryResponse, error) {

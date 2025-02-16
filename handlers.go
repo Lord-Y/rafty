@@ -88,7 +88,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 		r.setCurrentTerm(reader.GetCurrentTerm())
 		r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 		r.setLeaderLastContactDate()
-		go r.switchState(Follower, false, reader.GetCurrentTerm())
+		r.switchState(Follower, false, reader.GetCurrentTerm())
 		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 			CurrentTerm: reader.GetCurrentTerm(),
 			VoteGranted: true,
@@ -115,7 +115,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 			r.Logger.Trace().Msgf("Me %s / %s with state %s granted vote to peer %s / %s for term %d", myAddress, myId, state.String(), reader.GetCandidateAddress(), reader.GetCandidateId(), reader.GetCurrentTerm())
 			r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 			r.setLeaderLastContactDate()
-			go r.switchState(Follower, false, reader.GetCurrentTerm())
+			r.switchState(Follower, false, reader.GetCurrentTerm())
 			r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 				CurrentTerm: currentTerm,
 				PeerID:      r.ID,
@@ -139,7 +139,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 	r.Logger.Trace().Msgf("Me %s / %s with state %s granted vote to peer %s / %s for term %d", myAddress, myId, state.String(), reader.GetCandidateAddress(), reader.GetCandidateId(), reader.GetCurrentTerm())
 	r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 	r.setLeaderLastContactDate()
-	go r.switchState(Follower, false, reader.GetCurrentTerm())
+	r.switchState(Follower, false, reader.GetCurrentTerm())
 	r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 		CurrentTerm: currentTerm,
 		PeerID:      r.ID,
@@ -152,7 +152,7 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 
 func (r *Rafty) handleVoteResponseError(vote voteResponseErrorWrapper) {
 	if vote.err != nil {
-		r.Logger.Error().Err(vote.err).Msgf("Fail to send vote request to peer %s / %s with status code %s", vote.peer.address.String(), vote.peer.id, status.Code(vote.err))
+		r.Logger.Error().Err(vote.err).Msgf("Fail to send vote request to peer %s / %s with status code %s", vote.peer.address.String(), vote.peer.ID, status.Code(vote.err))
 	}
 }
 
@@ -189,7 +189,7 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 			VoterID: vote.response.GetPeerID(),
 		})
 		r.mu.Unlock()
-		r.Logger.Info().Msgf("Peer %s / %s already voted for someone", vote.peer.address.String(), vote.peer.id)
+		r.Logger.Info().Msgf("Peer %s / %s already voted for someone", vote.peer.address.String(), vote.peer.ID)
 	}
 
 	if vote.response.GetRequesterStepDown() {
@@ -204,7 +204,7 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 	votes := 1 // voting for myself
 	r.mu.Lock()
 	quoroms := r.quoroms
-	totalPrecandidates := len(r.PreCandidatePeers) + 1
+	totalPrecandidates := len(r.configuration.preCandidatePeers) + 1
 	r.mu.Unlock()
 	for _, q := range quoroms {
 		if q.VoteGranted {

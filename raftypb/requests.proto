@@ -37,9 +37,10 @@ message LogEntry {
   // should be uint8 but doesn't exist in pb,
   // so we take the closest type
   uint32 fileFormat = 1;
+
   // should be uint8 but doesn't exist in pb,
   // so we take the closest type
-  uint32  tombstone  = 2;
+  uint32 tombstone  = 2;
   uint32 timeStamp  = 3;
   uint64 term       = 4;
   bytes  command    = 5;
@@ -69,6 +70,8 @@ message AskNodeIDRequest {
 message AskNodeIDResponse {
   string peerID = 1;
   bool   readOnlyNode = 2;
+  string leaderID = 3;
+  string leaderAddress = 4;
 }
 
 message ClientGetLeaderRequest {
