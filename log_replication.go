@@ -49,7 +49,7 @@ type triggerAppendEntries struct {
 }
 
 // appendEntries permits to send append entries to followers
-func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesResponse, replyToClient, replyToClientGRPC bool, entryIndex int) {
+func (r *Rafty) appendEntries(heartbeat bool, replyClientChan chan appendEntriesResponse, replyToClientChan, replyToForwardedCommand bool, entryIndex int) {
 	currentTerm := r.getCurrentTerm()
 	commitIndex := r.getCommitIndex()
 	myAddress, myId := r.getMyAddress()
@@ -144,10 +144,10 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 										r.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
 									}
 								}
-								if replyToClient {
-									clientChan <- appendEntriesResponse{}
+								if replyToClientChan {
+									replyClientChan <- appendEntriesResponse{}
 								}
-								if replyToClientGRPC {
+								if replyToForwardedCommand {
 									r.rpcForwardCommandToLeaderRequestChanWritter <- &raftypb.ForwardCommandToLeaderResponse{}
 								}
 								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
