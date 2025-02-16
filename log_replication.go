@@ -56,7 +56,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 	state := r.getState()
 	myNextIndex := r.getNextIndex(r.ID)
 	r.murw.Lock()
-	peers := r.Peers
+	peers := r.configuration.ServerMembers
 	totalPeers := len(peers)
 	totalLogs := len(r.log)
 	r.murw.Unlock()
@@ -71,7 +71,7 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 			prevLogTerm uint64
 			entries     []*raftypb.LogEntry
 		)
-		nextIndex := r.getNextIndex(peer.id)
+		nextIndex := r.getNextIndex(peer.ID)
 		prevLogIndex := nextIndex - 1
 
 		if totalLogs > 0 && int(prevLogIndex) >= 0 {
@@ -87,9 +87,9 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() == Leader {
 			go func() {
 				if totalEntries == 0 {
-					r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d send append entries heartbeats to %s / %s", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id)
+					r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d send append entries heartbeats to %s / %s", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.ID)
 				} else {
-					r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d send %d append entries to %s / %s ", myAddress, myId, state.String(), currentTerm, totalEntries, peer.address.String(), peer.id)
+					r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d send %d append entries to %s / %s ", myAddress, myId, state.String(), currentTerm, totalEntries, peer.address.String(), peer.ID)
 				}
 
 				response, err := peer.rclient.SendAppendEntriesRequest(
@@ -108,12 +108,12 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to send append entries to peers %s / %s", peer.address.String(), peer.id)
+					r.Logger.Error().Err(err).Msgf("Fail to send append entries to peers %s / %s", peer.address.String(), peer.ID)
 					return
 				}
 
 				if response.GetTerm() > currentTerm {
-					r.Logger.Debug().Msgf("Me %s / %s with state %s has lower term %d < %d than %s / %s for append entries", myAddress, myId, state.String(), currentTerm, response.GetTerm(), peer.address.String(), peer.id)
+					r.Logger.Debug().Msgf("Me %s / %s with state %s has lower term %d < %d than %s / %s for append entries", myAddress, myId, state.String(), currentTerm, response.GetTerm(), peer.address.String(), peer.ID)
 					r.setCurrentTerm(response.GetTerm())
 					r.switchState(Follower, true, response.GetTerm())
 					return
@@ -121,13 +121,13 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 
 				if r.getState() == Leader && response.GetTerm() == currentTerm {
 					if response.GetSuccess() {
-						if !peer.readOnlyNode {
+						if !peer.ReadOnlyNode {
 							majority.Add(1)
 						}
 						if int(majority.Load()) >= totalMajority {
 							r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d reports that majority replication reached %t totalLogs %d heartbeat %t", myAddress, myId, state.String(), currentTerm, int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
 							if totalLogs > 0 && !heartbeat {
-								r.setNextAndMatchIndex(peer.id, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
+								r.setNextAndMatchIndex(peer.ID, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
 
 								if !leaderVolatileStateUpdated.Load() {
 									r.setNextAndMatchIndex(r.ID, myNextIndex+1, myNextIndex)
@@ -153,14 +153,14 @@ func (r *Rafty) appendEntries(heartbeat bool, clientChan chan appendEntriesRespo
 								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
 							}
 						}
-						nextIndex, matchIndex := r.getNextAndMatchIndex(peer.id)
+						nextIndex, matchIndex := r.getNextAndMatchIndex(peer.ID)
 
-						r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries of %s / %s with nextIndex: %d / matchIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id, nextIndex, int(matchIndex))
+						r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries of %s / %s with nextIndex: %d / matchIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.ID, nextIndex, int(matchIndex))
 					} else {
 						nextIndex := max(nextIndex-1, 1)
-						r.setNextIndex(peer.id, nextIndex)
+						r.setNextIndex(peer.ID, nextIndex)
 
-						r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).Msgf("Me %s / %s with state %s and term %d failed to append entries of %s / %s because it rejected it, nextIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.id, nextIndex)
+						r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).Msgf("Me %s / %s with state %s and term %d failed to append entries of %s / %s because it rejected it, nextIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.ID, nextIndex)
 					}
 				}
 			}()
@@ -202,7 +202,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to forward command to leader %s / %s", peer.address.String(), peer.id)
+					r.Logger.Error().Err(err).Msgf("Fail to forward command to leader %s / %s", peer.address.String(), peer.ID)
 					return nil, err
 				}
 				if response.Error == "" {

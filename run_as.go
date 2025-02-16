@@ -176,8 +176,8 @@ func (r *Rafty) runAsLeader() {
 	// when becoming a leader
 	if !r.volatileStateInitialized.Load() {
 		r.setNextAndMatchIndex(r.ID, 0, 0)
-		for _, peer := range r.Peers {
-			r.setNextAndMatchIndex(peer.id, 0, 0)
+		for _, peer := range r.configuration.ServerMembers {
+			r.setNextAndMatchIndex(peer.ID, 0, 0)
 		}
 		r.volatileStateInitialized.Store(true)
 	}

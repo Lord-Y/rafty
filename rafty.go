@@ -110,16 +110,6 @@ type Peer struct {
 
 	// id of the current peer
 	id string
-
-	// client hold gprc server connection
-	client *grpc.ClientConn
-
-	// rclient hold gprc rafty client
-	rclient raftypb.RaftyClient
-
-	// readOnlyNode allow to statuate if this peer is a read only node
-	// This kind of node won't participate into any election campain
-	readOnlyNode bool
 }
 
 type leaderMap struct {
@@ -247,11 +237,6 @@ type Rafty struct {
 
 	Status
 
-	// PreCandidatePeers hold the list of the peers
-	// that will be use to elect a new leader
-	// if no leader has been detected
-	PreCandidatePeers []Peer
-
 	// Peers hold the list of the peers
 	Peers []Peer
 
@@ -342,12 +327,23 @@ type Rafty struct {
 	// ReadOnlyNode allow to statuate if the current node is a read only node
 	// This kind of node won't participate into any election campain
 	ReadOnlyNode bool
+
+	// configuration hold server members found on disk
+	// If empty, it will be equal to Peers list
+	//
+	// When a new member has been found into Peers list and not on disk
+	// a cluster membership will be initiated in order to add it
+	//
+	// When persistant storage is not enabled and the cluster start with 3 nodes
+	// if a new node is started it won't be part of the initial cluster list
+	// so a cluster membership will be initiated in order to add it
+	configuration configuration
 }
 
 // preVoteResponseWrapper is a struct that will be used to send response to the appropriate channel
 type preVoteResponseWrapper struct {
 	// peer hold the peer address
-	peer Peer
+	peer peer
 
 	// response hold the message returned by peers
 	response *raftypb.PreVoteResponse
@@ -356,7 +352,7 @@ type preVoteResponseWrapper struct {
 // voteResponseWrapper is a struct that will be used to send response to the appropriate channel
 type voteResponseWrapper struct {
 	// peer hold the peer address
-	peer Peer
+	peer peer
 
 	// response hold the message returned by peers
 	response *raftypb.VoteResponse
@@ -368,7 +364,7 @@ type voteResponseWrapper struct {
 // requestvoteResponseErrorWrapper is a struct that will be used to handle errors and sent back to the appropriate channel
 type voteResponseErrorWrapper struct {
 	// peer hold the peer address
-	peer Peer
+	peer peer
 
 	// err is the error itself
 	err error
@@ -403,10 +399,8 @@ func NewRafty() *Rafty {
 		rpcForwardCommandToLeaderRequestChanWritter: make(chan *raftypb.ForwardCommandToLeaderResponse),
 		rpcGetLeaderChanReader:                      make(chan *raftypb.GetLeaderRequest),
 		rpcGetLeaderChanWritter:                     make(chan *raftypb.GetLeaderResponse),
-
-		// client rpc
-		rpcClientGetLeaderChanReader:  make(chan *raftypb.ClientGetLeaderRequest),
-		rpcClientGetLeaderChanWritter: make(chan *raftypb.ClientGetLeaderResponse),
+		rpcClientGetLeaderChanReader:                make(chan *raftypb.ClientGetLeaderRequest),
+		rpcClientGetLeaderChanWritter:               make(chan *raftypb.ClientGetLeaderResponse),
 	}
 }
 
@@ -445,7 +439,6 @@ func (r *Rafty) start() {
 	}
 
 	if r.getState() == Down {
-		r.Logger.Info().Msgf("YYY r.ReadOnlyNode %t", r.ReadOnlyNode)
 		if r.ReadOnlyNode {
 			r.switchState(ReadOnly, false, r.getCurrentTerm())
 		} else {
@@ -459,7 +452,7 @@ func (r *Rafty) start() {
 		r.Logger.Fatal().Err(err).Msg("Fail to parse peer ip/port")
 	}
 
-	for _, peer := range r.Peers {
+	for _, peer := range r.configuration.ServerMembers {
 		r.connectToPeer(peer.address.String())
 	}
 
@@ -491,7 +484,7 @@ func (r *Rafty) sendGetLeaderRequest() {
 	state := r.getState()
 	var leaderFound atomic.Bool
 	r.mu.Lock()
-	peers := r.Peers
+	peers := r.configuration.ServerMembers
 	totalPeers := len(peers)
 	r.mu.Unlock()
 
@@ -515,17 +508,15 @@ func (r *Rafty) sendGetLeaderRequest() {
 				} else {
 					if response.GetLeaderID() != "" {
 						leader := r.getLeader()
-						r.mu.Lock()
 						if leader == nil {
-							r.leader = &leaderMap{
+							r.saveLeaderInformations(leaderMap{
 								address: response.GetLeaderAddress(),
 								id:      response.GetLeaderID(),
-							}
+							})
 							r.leaderLost.Store(false)
 							leaderFound.Store(true)
 							r.Logger.Info().Msgf("Me %s / %s with state %s reports that peer %s / %s is the leader", myAddress, myId, state, response.GetLeaderAddress(), response.GetLeaderID())
 						}
-						r.mu.Unlock()
 					}
 				}
 

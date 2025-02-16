@@ -33,7 +33,7 @@ func TestHandlePreVoteResponseError(t *testing.T) {
 	err = errors.New("testError")
 
 	s.handlePreVoteResponseError(voteResponseErrorWrapper{
-		peer: s.Peers[0],
+		peer: s.configuration.ServerMembers[0],
 		err:  err,
 	})
 }
@@ -48,9 +48,9 @@ func TestHandlePreVoteResponse(t *testing.T) {
 	s.MinimumClusterSize = 3
 
 	s.handlePreVoteResponse(preVoteResponseWrapper{
-		peer: s.Peers[0],
+		peer: s.configuration.ServerMembers[0],
 		response: &raftypb.PreVoteResponse{
-			PeerID:      s.Peers[0].id,
+			PeerID:      s.configuration.ServerMembers[0].ID,
 			State:       Follower.String(),
 			CurrentTerm: 2,
 		},
@@ -59,14 +59,14 @@ func TestHandlePreVoteResponse(t *testing.T) {
 	assert.Equal(Follower, s.getState())
 
 	// reset pre candidate peers
-	s.PreCandidatePeers = nil
+	s.configuration.preCandidatePeers = nil
 	s.CurrentTerm = 1
 	s.State = Follower
-	for i := 0; i < len(s.Peers); i++ {
+	for i := 0; i < len(s.configuration.ServerMembers); i++ {
 		s.handlePreVoteResponse(preVoteResponseWrapper{
-			peer: s.Peers[i],
+			peer: s.configuration.ServerMembers[i],
 			response: &raftypb.PreVoteResponse{
-				PeerID:      s.Peers[i].id,
+				PeerID:      s.configuration.ServerMembers[i].ID,
 				State:       Follower.String(),
 				CurrentTerm: 1,
 			},
@@ -76,14 +76,14 @@ func TestHandlePreVoteResponse(t *testing.T) {
 
 	// leader lost
 	s.leaderLost.Store(true)
-	s.PreCandidatePeers = nil
+	s.configuration.preCandidatePeers = nil
 	s.CurrentTerm = 1
 	s.State = Follower
-	for i := 0; i < len(s.Peers); i++ {
+	for i := 0; i < len(s.configuration.ServerMembers); i++ {
 		s.handlePreVoteResponse(preVoteResponseWrapper{
-			peer: s.Peers[i],
+			peer: s.configuration.ServerMembers[i],
 			response: &raftypb.PreVoteResponse{
-				PeerID:      s.Peers[i].id,
+				PeerID:      s.configuration.ServerMembers[i].ID,
 				State:       Follower.String(),
 				CurrentTerm: 1,
 			},
@@ -105,7 +105,7 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 
 		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
 			CandidateId:      candidateId,
-			CandidateAddress: s.Peers[id].address.String(),
+			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 			State:            Candidate.String(),
 			CurrentTerm:      2,
 		})
@@ -125,7 +125,7 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 
 		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
 			CandidateId:      candidateId,
-			CandidateAddress: s.Peers[id].address.String(),
+			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 			State:            Candidate.String(),
 			CurrentTerm:      2,
 		})
@@ -148,7 +148,7 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 
 		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
 			CandidateId:      candidateId,
-			CandidateAddress: s.Peers[id].address.String(),
+			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 			State:            Candidate.String(),
 			CurrentTerm:      1,
 		})
@@ -175,7 +175,7 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 
 		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
 			CandidateId:      candidateId,
-			CandidateAddress: s.Peers[id].address.String(),
+			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 			State:            Candidate.String(),
 			CurrentTerm:      2,
 		})
@@ -203,7 +203,7 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 
 		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
 			CandidateId:      candidateId,
-			CandidateAddress: s.Peers[id].address.String(),
+			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 			State:            Candidate.String(),
 			CurrentTerm:      3,
 			LastLogTerm:      3,
@@ -233,7 +233,7 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 
 		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
 			CandidateId:      candidateId,
-			CandidateAddress: s.Peers[id].address.String(),
+			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 			State:            Candidate.String(),
 			CurrentTerm:      3,
 			LastLogTerm:      3,
@@ -260,7 +260,7 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 
 		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
 			CandidateId:      candidateId,
-			CandidateAddress: s.Peers[id].address.String(),
+			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 			State:            Candidate.String(),
 			CurrentTerm:      1,
 		})
@@ -281,7 +281,7 @@ func TestHandleVoteResponseError(t *testing.T) {
 	err = errors.New("testError")
 
 	s.handleVoteResponseError(voteResponseErrorWrapper{
-		peer: s.Peers[0],
+		peer: s.configuration.ServerMembers[0],
 		err:  err,
 	})
 }
@@ -295,9 +295,9 @@ func TestHandleVoteResponse(t *testing.T) {
 
 	// my term is lower this other node term
 	s.quoroms = nil
-	s.PreCandidatePeers = nil
+	s.configuration.preCandidatePeers = nil
 	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.Peers[0],
+		peer:             s.configuration.ServerMembers[0],
 		savedCurrentTerm: 1,
 		response: &raftypb.VoteResponse{
 			CurrentTerm: 2,
@@ -307,9 +307,9 @@ func TestHandleVoteResponse(t *testing.T) {
 	// my term is greater this other node term
 	// but it detected a new leader
 	s.quoroms = nil
-	s.PreCandidatePeers = nil
+	s.configuration.preCandidatePeers = nil
 	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.Peers[0],
+		peer:             s.configuration.ServerMembers[0],
 		savedCurrentTerm: 2,
 		response: &raftypb.VoteResponse{
 			CurrentTerm:       1,
@@ -320,9 +320,9 @@ func TestHandleVoteResponse(t *testing.T) {
 	// my term is greater this other node term
 	// but it granted my vote
 	s.quoroms = nil
-	s.PreCandidatePeers = nil
+	s.configuration.preCandidatePeers = nil
 	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.Peers[0],
+		peer:             s.configuration.ServerMembers[0],
 		savedCurrentTerm: 2,
 		response: &raftypb.VoteResponse{
 			CurrentTerm: 1,
@@ -333,9 +333,9 @@ func TestHandleVoteResponse(t *testing.T) {
 	// my term is greater this other node term
 	// but it didn't granted my vote
 	s.quoroms = nil
-	s.PreCandidatePeers = nil
+	s.configuration.preCandidatePeers = nil
 	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.Peers[0],
+		peer:             s.configuration.ServerMembers[0],
 		savedCurrentTerm: 2,
 		response: &raftypb.VoteResponse{
 			CurrentTerm: 1,
@@ -345,9 +345,9 @@ func TestHandleVoteResponse(t *testing.T) {
 	// my term is greater this other node term
 	// but it asked me to step down
 	s.quoroms = nil
-	s.PreCandidatePeers = nil
+	s.configuration.preCandidatePeers = nil
 	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.Peers[0],
+		peer:             s.configuration.ServerMembers[0],
 		savedCurrentTerm: 2,
 		response: &raftypb.VoteResponse{
 			CurrentTerm:       1,
@@ -358,11 +358,11 @@ func TestHandleVoteResponse(t *testing.T) {
 	// my term is greater this other node term
 	// and I'm a candidate
 	s.quoroms = nil
-	s.PreCandidatePeers = nil
+	s.configuration.preCandidatePeers = nil
 	s.State = Candidate
-	for i := 0; i < len(s.Peers); i++ {
+	for i := 0; i < len(s.configuration.ServerMembers); i++ {
 		s.handleVoteResponse(voteResponseWrapper{
-			peer:             s.Peers[1],
+			peer:             s.configuration.ServerMembers[1],
 			savedCurrentTerm: 2,
 			response: &raftypb.VoteResponse{
 				CurrentTerm: 1,
@@ -408,14 +408,14 @@ func TestHandleClientGetLeaderReader(t *testing.T) {
 		s.State = Follower
 		time.Sleep(2 * time.Second)
 		s.leader = &leaderMap{
-			address: s.Peers[0].address.String(),
-			id:      s.Peers[0].id,
+			address: s.configuration.ServerMembers[0].address.String(),
+			id:      s.configuration.ServerMembers[0].ID,
 		}
 		go s.handleClientGetLeaderReader()
 		time.Sleep(time.Second)
 		data := <-s.rpcClientGetLeaderChanWritter
-		assert.Equal(s.Peers[0].id, data.GetLeaderID())
-		assert.Equal(s.Peers[0].address.String(), data.GetLeaderAddress())
+		assert.Equal(s.configuration.ServerMembers[0].ID, data.GetLeaderID())
+		assert.Equal(s.configuration.ServerMembers[0].address.String(), data.GetLeaderAddress())
 	})
 }
 
@@ -432,7 +432,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
-			LeaderAddress: s.Peers[id].address.String(),
+			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 			Term:          1,
 		})
 		time.Sleep(time.Second)
@@ -451,7 +451,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
-			LeaderAddress: s.Peers[id].address.String(),
+			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 			Term:          2,
 		})
 		time.Sleep(time.Second)
@@ -470,7 +470,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
-			LeaderAddress: s.Peers[id].address.String(),
+			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 			Term:          2,
 		})
 		time.Sleep(time.Second)
@@ -489,7 +489,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
-			LeaderAddress: s.Peers[id].address.String(),
+			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 			Term:          2,
 		})
 		time.Sleep(time.Second)
@@ -508,12 +508,12 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1})
 		s.leader = &leaderMap{
-			address: s.Peers[id].address.String(),
-			id:      s.Peers[id].id,
+			address: s.configuration.ServerMembers[id].address.String(),
+			id:      s.configuration.ServerMembers[id].ID,
 		}
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
-			LeaderAddress: s.Peers[id].address.String(),
+			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 			Term:          1,
 			Heartbeat:     true,
 		})
@@ -534,7 +534,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:          idx,
-			LeaderAddress:     s.Peers[id].address.String(),
+			LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 			Term:              2,
 			PrevLogIndex:      0,
 			PrevLogTerm:       1,
@@ -563,7 +563,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:          idx,
-			LeaderAddress:     s.Peers[id].address.String(),
+			LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 			Term:              2,
 			PrevLogIndex:      1,
 			PrevLogTerm:       1,
@@ -592,7 +592,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 1})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:          idx,
-			LeaderAddress:     s.Peers[id].address.String(),
+			LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 			Term:              1,
 			PrevLogIndex:      1,
 			PrevLogTerm:       1,
@@ -626,7 +626,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:          idx,
-			LeaderAddress:     s.Peers[id].address.String(),
+			LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 			Term:              2,
 			PrevLogIndex:      1,
 			PrevLogTerm:       1,

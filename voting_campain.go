@@ -18,12 +18,12 @@ func (r *Rafty) preVoteRequest() {
 	currentTerm := r.getCurrentTerm()
 	state := r.getState()
 	r.mu.Lock()
-	r.PreCandidatePeers = nil
-	peers := r.Peers
+	r.configuration.preCandidatePeers = nil
+	peers := r.configuration.ServerMembers
 	r.mu.Unlock()
 
 	for _, peer := range peers {
-		if peer.client != nil && !peer.readOnlyNode && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down && r.leaderLost.Load() {
+		if peer.client != nil && !peer.ReadOnlyNode && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down && r.leaderLost.Load() {
 			go func() {
 				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d for pre vote request", myAddress, myId, state.String(), peer.address.String(), currentTerm)
 
@@ -62,7 +62,7 @@ func (r *Rafty) startElection() {
 	state := r.getState()
 	lastLogIndex := r.getLastLogIndex()
 	r.mu.Lock()
-	preCandidatePeers := r.PreCandidatePeers
+	preCandidatePeers := r.configuration.preCandidatePeers
 	r.quoroms = nil
 	r.mu.Unlock()
 	if err := r.persistMetadata(); err != nil {
@@ -73,11 +73,11 @@ func (r *Rafty) startElection() {
 		lastLogTerm = r.getX(r.log[lastLogIndex].Term)
 	}
 
-	r.Logger.Trace().Msgf("Me %s / %s starting election campain with term %d and peers %+v", myAddress, myId, currentTerm, preCandidatePeers)
+	r.Logger.Trace().Msgf("Me %s / %s starting election campain with term %d", myAddress, myId, currentTerm)
 	for _, peer := range preCandidatePeers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() == Candidate && r.leaderLost.Load() {
 			go func() {
-				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s / %s with term %d for election campain", myAddress, myId, state.String(), peer.address.String(), peer.id, currentTerm)
+				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s / %s with term %d for election campain", myAddress, myId, state.String(), peer.address.String(), peer.ID, currentTerm)
 
 				response, err := peer.rclient.SendVoteRequest(
 					context.Background(),

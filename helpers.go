@@ -115,17 +115,17 @@ func (r *Rafty) setVotedFor(votedFor string, term uint64) {
 }
 
 // getPrecandidate permits to retrieve node pre candidates
-func (r *Rafty) getPrecandidate() []Peer {
+func (r *Rafty) getPrecandidate() []peer {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.PreCandidatePeers
+	return r.configuration.preCandidatePeers
 }
 
 // appendPrecandidate permits to append node pre candidates
-func (r *Rafty) appendPrecandidate(peer Peer) {
+func (r *Rafty) appendPrecandidate(peer peer) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.PreCandidatePeers = append(r.PreCandidatePeers, peer)
+	r.configuration.preCandidatePeers = append(r.configuration.preCandidatePeers, peer)
 }
 
 // getMinimumClusterSize permits to safely retrieve node minimum cluster size

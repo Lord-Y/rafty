@@ -30,7 +30,11 @@ func basicNodeSetup() *Rafty {
 	id := "abe35d4f-787e-4262-9894-f6475ed81028"
 	s.ID = id
 	s.Peers = peers
-	s.PreCandidatePeers = peers
+
+	for _, v := range s.Peers {
+		s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{ID: v.id, Address: v.Address})
+	}
+	s.configuration.preCandidatePeers = s.configuration.ServerMembers
 	return s
 }
 
@@ -88,14 +92,25 @@ func TestParsePeers(t *testing.T) {
 	s.ID = id
 	s.Peers = peers
 
+	mergePeers := func(peers []Peer) {
+		for _, v := range peers {
+			s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{ID: v.id, Address: v.Address})
+		}
+		s.configuration.preCandidatePeers = s.configuration.ServerMembers
+	}
+
+	mergePeers(s.Peers)
+
 	err := s.parsePeers()
 	assert.Nil(err)
 
 	s.Peers = badPeers1
+	mergePeers(s.Peers)
 	err = s.parsePeers()
 	assert.Error(err)
 
 	s.Peers = badPeers2
+	mergePeers(s.Peers)
 	err = s.parsePeers()
 	assert.Error(err)
 }
@@ -104,7 +119,7 @@ func TestGetPeerSliceIndex(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	peer := s.Peers[0].address.String()
+	peer := s.configuration.ServerMembers[0].address.String()
 	index := s.getPeerSliceIndex(peer)
 	assert.Equal(0, index)
 
@@ -121,7 +136,7 @@ func TestCheckIfPeerInSliceIndex(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	peer := s.Peers[0].address.String()
+	peer := s.configuration.ServerMembers[0].address.String()
 	index := s.checkIfPeerInSliceIndex(false, peer)
 	assert.Equal(true, index)
 
@@ -320,10 +335,10 @@ func TestGetPeerClient(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	peer := s.Peers[0]
-	index := s.getPeerClient(peer.id)
-	assert.Equal(peer, index)
+	server := s.configuration.ServerMembers[0]
+	index := s.getPeerClient(server.ID)
+	assert.Equal(server, index)
 
 	index = s.getPeerClient("xxxxx")
-	assert.Equal(Peer{}, index)
+	assert.Equal(peer{}, index)
 }
