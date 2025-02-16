@@ -542,7 +542,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 			Entries: []*raftypb.LogEntry{
 				{
 					Term:      2,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 			},
 		})
@@ -571,7 +571,7 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 			Entries: []*raftypb.LogEntry{
 				{
 					Term:      2,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 			},
 		})
@@ -600,11 +600,11 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 			Entries: []*raftypb.LogEntry{
 				{
 					Term:      1,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 				{
 					Term:      1,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 			},
 		})
@@ -634,23 +634,23 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 			Entries: []*raftypb.LogEntry{
 				{
 					Term:      1,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 				{
 					Term:      1,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 				{
 					Term:      2,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 				{
 					Term:      2,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 				{
 					Term:      2,
-					TimeStamp: uint32(time.Now().Unix()),
+					Timestamp: uint32(time.Now().Unix()),
 				},
 			},
 		})

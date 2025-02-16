@@ -204,7 +204,7 @@ func (r *Rafty) restoreData() {
 type logEntry struct {
 	FileFormat uint8  // 1 byte
 	Tombstone  uint8  // 1 byte
-	TimeStamp  uint32 // 4 bytes
+	Timestamp  uint32 // 4 bytes
 	Term       uint64 // 4 bytes
 	Command    []byte
 }
@@ -241,7 +241,7 @@ func (r *Rafty) persistData(entryIndex int) error {
 	logEntry := &logEntry{
 		FileFormat: uint8(entry.FileFormat),
 		Tombstone:  uint8(entry.Tombstone),
-		TimeStamp:  entry.TimeStamp,
+		Timestamp:  entry.Timestamp,
 		Term:       entry.Term,
 		Command:    entry.Command,
 	}

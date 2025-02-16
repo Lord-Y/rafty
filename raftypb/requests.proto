@@ -41,7 +41,7 @@ message LogEntry {
   // should be uint8 but doesn't exist in pb,
   // so we take the closest type
   uint32 tombstone  = 2;
-  uint32 timeStamp  = 3;
+  uint32 timestamp  = 3;
   uint64 term       = 4;
   bytes  command    = 5;
 }

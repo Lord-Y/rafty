@@ -136,7 +136,7 @@ func TestMetadata(t *testing.T) {
 
 		userCommand := command{kind: commandSet, key: "a", value: "b"}
 		now := uint32(time.Now().Unix())
-		entry := raftypb.LogEntry{TimeStamp: now, Term: node.CurrentTerm, Command: node.encodeCommand(userCommand)}
+		entry := raftypb.LogEntry{Timestamp: now, Term: node.CurrentTerm, Command: node.encodeCommand(userCommand)}
 		node.log = append(node.log, &entry)
 		err := node.persistData(0)
 		assert.Nil(err)
@@ -175,7 +175,7 @@ func TestMetadata(t *testing.T) {
 
 		userCommand := command{kind: commandSet, key: "a", value: "b"}
 		now := uint32(time.Now().Unix())
-		entry := raftypb.LogEntry{TimeStamp: now, Term: node.CurrentTerm, Command: node.encodeCommand(userCommand)}
+		entry := raftypb.LogEntry{Timestamp: now, Term: node.CurrentTerm, Command: node.encodeCommand(userCommand)}
 		node.log = append(node.log, &entry)
 		err := node.persistData(0)
 		assert.Nil(err)
@@ -183,7 +183,7 @@ func TestMetadata(t *testing.T) {
 		node.log = nil
 		node.restoreData()
 		assert.Equal(1, len(node.log))
-		assert.Equal(now, node.log[0].TimeStamp)
+		assert.Equal(now, node.log[0].Timestamp)
 
 		node.closeAllFilesDescriptor()
 
