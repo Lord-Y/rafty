@@ -54,7 +54,7 @@ func TestMarshallUnmarshallBinary(t *testing.T) {
 	data := []byte("a=b")
 	cmd.FileFormat = 1
 	cmd.Term = 1
-	cmd.TimeStamp = now
+	cmd.Timestamp = now
 	cmd.Command = data
 
 	enc = node.marshalBinary(cmd)
@@ -62,7 +62,7 @@ func TestMarshallUnmarshallBinary(t *testing.T) {
 	dec = node.unmarshalBinary(enc)
 	assert.Equal(cmd.FileFormat, uint8(dec.FileFormat))
 	assert.Equal(cmd.Term, dec.Term)
-	assert.Equal(cmd.TimeStamp, dec.TimeStamp)
+	assert.Equal(cmd.Timestamp, dec.Timestamp)
 	assert.Equal(cmd.Tombstone, uint8(dec.Tombstone))
 	assert.Equal(cmd.Command, dec.Command)
 }

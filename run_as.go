@@ -226,7 +226,7 @@ func (r *Rafty) runAsLeader() {
 		case data := <-r.triggerAppendEntriesChan:
 			heartbeatTicker.Stop()
 			r.mu.Lock()
-			r.log = append(r.log, &raftypb.LogEntry{TimeStamp: uint32(time.Now().Unix()), Term: r.getCurrentTerm(), Command: data.command})
+			r.log = append(r.log, &raftypb.LogEntry{Timestamp: uint32(time.Now().Unix()), Term: r.getCurrentTerm(), Command: data.command})
 			entryIndex := len(r.log) - 1
 			r.mu.Unlock()
 			r.appendEntries(false, data.responseChan, true, false, entryIndex)
@@ -237,7 +237,7 @@ func (r *Rafty) runAsLeader() {
 		case command := <-r.rpcForwardCommandToLeaderRequestChanReader:
 			heartbeatTicker.Stop()
 			r.mu.Lock()
-			r.log = append(r.log, &raftypb.LogEntry{TimeStamp: uint32(time.Now().Unix()), Term: r.getCurrentTerm(), Command: command.GetCommand()})
+			r.log = append(r.log, &raftypb.LogEntry{Timestamp: uint32(time.Now().Unix()), Term: r.getCurrentTerm(), Command: command.GetCommand()})
 			entryIndex := len(r.log) - 1
 			r.mu.Unlock()
 			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true, entryIndex)

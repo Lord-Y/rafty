@@ -72,7 +72,7 @@ func (r *Rafty) marshalBinary(entry *logEntry) []byte {
 		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
 	}
 
-	err = binary.Write(buffer, binary.LittleEndian, entry.TimeStamp)
+	err = binary.Write(buffer, binary.LittleEndian, entry.Timestamp)
 	if err != nil {
 		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
 	}
@@ -116,7 +116,7 @@ func (r *Rafty) unmarshalBinary(data []byte) *raftypb.LogEntry {
 		}
 	}
 
-	if err := binary.Read(buffer, binary.LittleEndian, &entry.TimeStamp); err != nil {
+	if err := binary.Read(buffer, binary.LittleEndian, &entry.Timestamp); err != nil {
 		if err != io.EOF {
 			r.Logger.Fatal().Err(err).Msgf("Fail to decode data")
 		}
@@ -149,7 +149,7 @@ func (r *Rafty) unmarshalBinary(data []byte) *raftypb.LogEntry {
 	logEntry := raftypb.LogEntry{
 		FileFormat: uint32(entry.FileFormat),
 		Tombstone:  uint32(entry.Tombstone),
-		TimeStamp:  entry.TimeStamp,
+		Timestamp:  entry.Timestamp,
 		Term:       entry.Term,
 		Command:    entry.Command,
 	}
