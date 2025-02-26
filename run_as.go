@@ -61,11 +61,11 @@ func (r *Rafty) runAsFollower() {
 			if leaderLastContactDate != nil && time.Since(*leaderLastContactDate) > timeout {
 				r.leaderLost.Store(true)
 				leaderLost = true
-				if r.leader != nil {
-					r.oldLeader = r.leader
-					r.Logger.Info().Msgf("Me %s / %s with state %s reports that Leader %s / %s has been lost for term %d", myAddress, myId, r.getState().String(), r.oldLeader.address, r.oldLeader.id, r.getCurrentTerm())
+				leader := r.getLeader()
+				if leader != (leaderMap{}) {
+					r.Logger.Info().Msgf("Me %s / %s with state %s reports that Leader %s / %s has been lost for term %d", myAddress, myId, r.getState().String(), leader.address, leader.id, r.getCurrentTerm())
 				}
-				r.leader = nil
+				r.setLeader(leaderMap{})
 				r.votedFor = ""
 			}
 			r.mu.Unlock()

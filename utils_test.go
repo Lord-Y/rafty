@@ -266,12 +266,12 @@ func TestSaveLeaderInformations(t *testing.T) {
 			s.switchState(tc.state, tc.niceMessage, tc.currentTerm)
 			assert.Equal(tc.expectedState, s.State)
 			assert.Equal(tc.expectedCurrentTerm, s.CurrentTerm)
-			s.saveLeaderInformations(tc.newLeader)
+			s.setLeader(tc.newLeader)
 		} else {
 			s.State = Candidate
-			s.leader = nil
-			s.saveLeaderInformations(tc.newLeader)
-			s.saveLeaderInformations(tc.newLeader)
+			s.setLeader(leaderMap{})
+			s.setLeader(tc.newLeader)
+			s.setLeader(tc.newLeader)
 		}
 	}
 }

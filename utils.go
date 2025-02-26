@@ -120,9 +120,7 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 	}
 
 	if state == Down {
-		r.mu.Lock()
-		r.leader = nil
-		r.mu.Unlock()
+		r.setLeader(leaderMap{})
 	}
 
 	if niceMessage {
@@ -166,28 +164,6 @@ func (r *Rafty) logState(state State, niceMessage bool, currentTerm uint64) {
 			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
 		}
 	}
-}
-
-// saveLeaderInformations permits to copy leader informations to oldLeader
-// for later use and then set it to nil
-func (r *Rafty) saveLeaderInformations(newLeader leaderMap) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.State == Leader {
-		if r.oldLeader == nil {
-			leader := leaderMap{
-				id:      r.ID,
-				address: r.Address.String(),
-			}
-			r.oldLeader = &leader
-		}
-		return
-	}
-	if r.leader != nil && *r.leader == newLeader {
-		return
-	}
-	r.oldLeader = r.leader
-	r.leader = &newLeader
 }
 
 // min return the minimum value based on provided values

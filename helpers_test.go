@@ -161,7 +161,7 @@ func TestGetLeader(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	s.saveLeaderInformations(leaderMap{address: s.Address.String(), id: s.ID})
+	s.setLeader(leaderMap{address: s.Address.String(), id: s.ID})
 	assert.Equal(s.ID, s.getLeader().id)
 	s.State = Leader
 	assert.Equal(s.ID, s.getLeader().id)

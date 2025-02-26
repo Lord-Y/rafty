@@ -149,11 +149,30 @@ func (r *Rafty) setLeaderLastContactDate() {
 	r.LeaderLastContactDate = &now
 }
 
-// getLeader permits to retrieve current leader id
-func (r *Rafty) getLeader() *leaderMap {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.leader
+// getLeader permits to retrieve current leader informations
+func (r *Rafty) getLeader() leaderMap {
+	xx, ok := r.leader.Load("leader")
+	if ok {
+		return xx.(leaderMap)
+	}
+	return leaderMap{}
+}
+
+// setLeader permits to set current leader informations
+func (r *Rafty) setLeader(newLeader leaderMap) {
+	var currentLeader leaderMap
+	xx, ok := r.leader.Load("leader")
+	if ok {
+		currentLeader = xx.(leaderMap)
+		r.leader.Store("oldLeader", currentLeader)
+	}
+	if newLeader == (leaderMap{}) {
+		r.leader.Delete("leader")
+		return
+	}
+	if currentLeader != newLeader {
+		r.leader.Store("leader", newLeader)
+	}
 }
 
 // incrementLeaderCommitIndex permits to safely increase leader current commit index

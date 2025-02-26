@@ -42,7 +42,7 @@ func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
 		minimumClusterSize := r.getMinimumClusterSize()
 		if r.leaderLost.Load() {
 			if len(r.getPrecandidate())+1 == int(minimumClusterSize)-1 {
-				r.Logger.Trace().Msgf("Me %s / %s reports PreCandidatePeers majority length when leader is lost %d", r.Address.String(), r.ID, r.MinimumClusterSize-1)
+				r.Logger.Trace().Msgf("Me %s / %s reports PreCandidatePeers majority length when leader is lost is %d", r.Address.String(), r.ID, r.MinimumClusterSize-1)
 				majority = true
 			}
 		} else {
@@ -233,15 +233,6 @@ func (r *Rafty) handleGetLeaderReader(reader *raftypb.GetLeaderRequest) {
 	}
 
 	leader := r.getLeader()
-	if leader == nil {
-		r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
-			LeaderID:      "",
-			LeaderAddress: "",
-			PeerID:        r.ID,
-		}
-		return
-	}
-
 	r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
 		LeaderID:      leader.id,
 		LeaderAddress: leader.address,
@@ -258,17 +249,10 @@ func (r *Rafty) handleClientGetLeaderReader() {
 		return
 	}
 
-	if r.leader == nil {
-		r.rpcClientGetLeaderChanWritter <- &raftypb.ClientGetLeaderResponse{
-			LeaderID:      "",
-			LeaderAddress: "",
-		}
-		return
-	}
-
+	leader := r.getLeader()
 	r.rpcClientGetLeaderChanWritter <- &raftypb.ClientGetLeaderResponse{
-		LeaderID:      r.leader.id,
-		LeaderAddress: r.leader.address,
+		LeaderID:      leader.id,
+		LeaderAddress: leader.address,
 	}
 }
 
@@ -347,21 +331,12 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntry
 	}
 
 	r.Logger.Trace().Msgf("Me %s / %s with state %s received heartbeat from leader %s / %s for term %d", myAddress, myId, state.String(), reader.GetLeaderAddress(), reader.GetLeaderID(), reader.GetTerm())
-	leader := r.getLeader()
-	if leader != nil && leader.id != reader.GetLeaderID() {
-		r.saveLeaderInformations(leaderMap{
-			id:      reader.GetLeaderID(),
-			address: reader.GetLeaderAddress(),
-		})
-	}
-
-	if leader == nil {
-		r.saveLeaderInformations(leaderMap{
-			id:      reader.GetLeaderID(),
-			address: reader.GetLeaderAddress(),
-		})
-		r.switchState(Follower, false, reader.GetTerm())
-	}
+	r.setLeader(leaderMap{
+		id:      reader.GetLeaderID(),
+		address: reader.GetLeaderAddress(),
+	})
+	r.leaderLost.Store(false)
+	r.switchState(Follower, false, reader.GetTerm())
 
 	r.mu.Lock()
 	lastContactDate := time.Now()

@@ -32,7 +32,7 @@ func (rpc *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDReque
 	switch {
 	case state == Leader:
 		lid, lad = rpc.rafty.ID, rpc.rafty.Address.String()
-	case leader != nil:
+	default:
 		lid, lad = leader.id, leader.address
 	}
 
