@@ -188,7 +188,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			return response.Data, response.Error
 		} else {
 			leader := r.getLeader()
-			if leader == nil {
+			if leader == (leaderMap{}) {
 				return nil, errNoLeader
 			}
 			peer := r.getPeerClient(leader.id)

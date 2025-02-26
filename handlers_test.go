@@ -407,10 +407,10 @@ func TestHandleClientGetLeaderReader(t *testing.T) {
 		// we have a leader
 		s.State = Follower
 		time.Sleep(2 * time.Second)
-		s.leader = &leaderMap{
+		s.setLeader(leaderMap{
 			address: s.configuration.ServerMembers[0].address.String(),
 			id:      s.configuration.ServerMembers[0].ID,
-		}
+		})
 		go s.handleClientGetLeaderReader()
 		time.Sleep(time.Second)
 		data := <-s.rpcClientGetLeaderChanWritter
@@ -507,10 +507,10 @@ func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
 		idx := fmt.Sprintf("%d", id)
 		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
 		s.log = append(s.log, &raftypb.LogEntry{Term: 1})
-		s.leader = &leaderMap{
+		s.setLeader(leaderMap{
 			address: s.configuration.ServerMembers[id].address.String(),
 			id:      s.configuration.ServerMembers[id].ID,
-		}
+		})
 		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
 			LeaderID:      idx,
 			LeaderAddress: s.configuration.ServerMembers[id].address.String(),

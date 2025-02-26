@@ -67,7 +67,7 @@ func (r *Rafty) connectToPeer(address string) {
 				r.configuration.ServerMembers[peerIndex].ReadOnlyNode = response.GetReadOnlyNode()
 				r.mu.Unlock()
 				if response.GetLeaderID() != "" && response.GetLeaderAddress() != "" {
-					r.saveLeaderInformations(leaderMap{id: response.GetLeaderID(), address: response.GetLeaderAddress()})
+					r.setLeader(leaderMap{id: response.GetLeaderID(), address: response.GetLeaderAddress()})
 				}
 				readOnlyNode = response.GetReadOnlyNode()
 			}

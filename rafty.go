@@ -240,11 +240,8 @@ type Rafty struct {
 	// Peers hold the list of the peers
 	Peers []Peer
 
-	// oldLeader hold informations about the old leader
-	oldLeader *leaderMap
-
 	// leader hold informations about the leader
-	leader *leaderMap
+	leader sync.Map
 
 	// leaderLost is a boolean that allow the node to properly
 	// restart pre election campain when leader is lost
@@ -507,16 +504,13 @@ func (r *Rafty) sendGetLeaderRequest() {
 					r.Logger.Error().Err(err).Msgf("Fail to get leader from peer %s", peer.address.String())
 				} else {
 					if response.GetLeaderID() != "" {
-						leader := r.getLeader()
-						if leader == nil {
-							r.saveLeaderInformations(leaderMap{
-								address: response.GetLeaderAddress(),
-								id:      response.GetLeaderID(),
-							})
-							r.leaderLost.Store(false)
-							leaderFound.Store(true)
-							r.Logger.Info().Msgf("Me %s / %s with state %s reports that peer %s / %s is the leader", myAddress, myId, state, response.GetLeaderAddress(), response.GetLeaderID())
-						}
+						r.setLeader(leaderMap{
+							address: response.GetLeaderAddress(),
+							id:      response.GetLeaderID(),
+						})
+						r.leaderLost.Store(false)
+						leaderFound.Store(true)
+						r.Logger.Info().Msgf("Me %s / %s with state %s reports that peer %s / %s is the leader", myAddress, myId, state, response.GetLeaderAddress(), response.GetLeaderID())
 					}
 				}
 
