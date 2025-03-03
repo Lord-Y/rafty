@@ -1,8 +1,6 @@
 package rafty
 
 import (
-	"time"
-
 	"github.com/Lord-Y/rafty/raftypb"
 	"google.golang.org/grpc/status"
 )
@@ -18,7 +16,7 @@ func (r *Rafty) handleSendPreVoteRequestReader() {
 }
 
 func (r *Rafty) handlePreVoteResponseError(vote voteResponseErrorWrapper) {
-	if vote.err != nil {
+	if vote.err != nil && r.getState() != Down {
 		r.Logger.Error().Err(vote.err).Msgf("Me %s / %s failed to get pre vote request from peer %s", r.Address.String(), r.ID, vote.peer.address.String())
 	}
 }
@@ -88,12 +86,12 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 		r.setCurrentTerm(reader.GetCurrentTerm())
 		r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 		r.setLeaderLastContactDate()
-		r.switchState(Follower, false, reader.GetCurrentTerm())
 		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 			CurrentTerm: reader.GetCurrentTerm(),
 			VoteGranted: true,
 			PeerID:      r.ID,
 		}
+		r.switchState(Follower, false, reader.GetCurrentTerm())
 		if err := r.persistMetadata(); err != nil {
 			r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
 		}
@@ -115,12 +113,12 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 			r.Logger.Trace().Msgf("Me %s / %s with state %s granted vote to peer %s / %s for term %d", myAddress, myId, state.String(), reader.GetCandidateAddress(), reader.GetCandidateId(), reader.GetCurrentTerm())
 			r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 			r.setLeaderLastContactDate()
-			r.switchState(Follower, false, reader.GetCurrentTerm())
 			r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 				CurrentTerm: currentTerm,
 				PeerID:      r.ID,
 				VoteGranted: true,
 			}
+			r.switchState(Follower, false, reader.GetCurrentTerm())
 			if err := r.persistMetadata(); err != nil {
 				r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
 			}
@@ -139,12 +137,12 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 	r.Logger.Trace().Msgf("Me %s / %s with state %s granted vote to peer %s / %s for term %d", myAddress, myId, state.String(), reader.GetCandidateAddress(), reader.GetCandidateId(), reader.GetCurrentTerm())
 	r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
 	r.setLeaderLastContactDate()
-	r.switchState(Follower, false, reader.GetCurrentTerm())
 	r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
 		CurrentTerm: currentTerm,
 		PeerID:      r.ID,
 		VoteGranted: true,
 	}
+	r.switchState(Follower, false, reader.GetCurrentTerm())
 	if err := r.persistMetadata(); err != nil {
 		r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
 	}
@@ -215,7 +213,7 @@ func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
 	if totalVotes > totalPrecandidates && r.getState() == Candidate {
 		currentTerm := r.getCurrentTerm()
 		r.Logger.Info().Msgf("Me %s / %s with term %d has won the election %d > %d ", r.Address.String(), r.ID, currentTerm, totalVotes, totalPrecandidates)
-		r.switchState(Leader, false, currentTerm)
+		r.switchState(Leader, true, currentTerm)
 	}
 }
 
@@ -306,7 +304,6 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntry
 		nextIndex := reader.GetPrevLogIndex() + 1
 		newEntries := 0
 		for index := nextIndex; index < nextIndex+totalLogs; index++ {
-			previousEntry := reader.GetEntries()[index-nextIndex]
 			if index > uint64(cap(r.log)) {
 				totalOfEntries := nextIndex + totalLogs
 				newLog := make([]*raftypb.LogEntry, index, totalOfEntries*2)
@@ -314,6 +311,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntry
 				r.log = newLog
 			}
 
+			previousEntry := reader.GetEntries()[index-nextIndex]
 			if index < totalLogs && r.log[index].Term != previousEntry.Term {
 				// conflicting entries in follower logs will be overwritten with entries from the leader's log
 				r.log = r.log[:index]
@@ -325,8 +323,8 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntry
 				newEntries++
 			}
 		}
-		if reader.GetLeaderCommitIndex() > r.commitIndex {
-			r.commitIndex = min(reader.GetLeaderCommitIndex(), totalLogs-1)
+		if reader.GetLeaderCommitIndex() > r.commitIndex.Load() {
+			r.commitIndex.Store(min(reader.GetLeaderCommitIndex(), totalLogs-1))
 		}
 	}
 
@@ -337,12 +335,7 @@ func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntry
 	})
 	r.leaderLost.Store(false)
 	r.switchState(Follower, false, reader.GetTerm())
-
-	r.mu.Lock()
-	lastContactDate := time.Now()
-	r.LeaderLastContactDate = &lastContactDate
-	r.leaderLost.Store(false)
-	r.mu.Unlock()
+	r.setLeaderLastContactDate()
 
 	r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{Term: reader.GetTerm(), Success: true}
 }

@@ -62,7 +62,7 @@ func TestHandlePreVoteResponse(t *testing.T) {
 	s.configuration.preCandidatePeers = nil
 	s.CurrentTerm = 1
 	s.State = Follower
-	for i := 0; i < len(s.configuration.ServerMembers); i++ {
+	for i := range len(s.configuration.ServerMembers) {
 		s.handlePreVoteResponse(preVoteResponseWrapper{
 			peer: s.configuration.ServerMembers[i],
 			response: &raftypb.PreVoteResponse{
@@ -79,7 +79,7 @@ func TestHandlePreVoteResponse(t *testing.T) {
 	s.configuration.preCandidatePeers = nil
 	s.CurrentTerm = 1
 	s.State = Follower
-	for i := 0; i < len(s.configuration.ServerMembers); i++ {
+	for i := range len(s.configuration.ServerMembers) {
 		s.handlePreVoteResponse(preVoteResponseWrapper{
 			peer: s.configuration.ServerMembers[i],
 			response: &raftypb.PreVoteResponse{
@@ -129,8 +129,8 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 			State:            Candidate.String(),
 			CurrentTerm:      2,
 		})
-		time.Sleep(time.Second)
 		data := <-s.rpcSendVoteRequestChanWritter
+		time.Sleep(3 * time.Second)
 		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
 		assert.Equal(s.ID, data.GetPeerID())
 		assert.Equal(Follower, s.getState())
@@ -152,8 +152,8 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 			State:            Candidate.String(),
 			CurrentTerm:      1,
 		})
-		time.Sleep(time.Second)
 		data := <-s.rpcSendVoteRequestChanWritter
+		time.Sleep(3 * time.Second)
 		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
 		assert.Equal(s.ID, data.GetPeerID())
 		assert.Equal(Follower, s.getState())
@@ -209,8 +209,8 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 			LastLogTerm:      3,
 			LastLogIndex:     2,
 		})
-		time.Sleep(time.Second)
 		data := <-s.rpcSendVoteRequestChanWritter
+		time.Sleep(3 * time.Second)
 		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
 		assert.Equal(s.ID, data.GetPeerID())
 		assert.Equal(true, data.GetVoteGranted())
@@ -239,8 +239,8 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 			LastLogTerm:      3,
 			LastLogIndex:     1,
 		})
-		time.Sleep(time.Second)
 		data := <-s.rpcSendVoteRequestChanWritter
+		time.Sleep(3 * time.Second)
 		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
 		assert.Equal(s.ID, data.GetPeerID())
 		assert.Equal(false, data.GetVoteGranted())
@@ -264,8 +264,8 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 			State:            Candidate.String(),
 			CurrentTerm:      1,
 		})
-		time.Sleep(time.Second)
 		data := <-s.rpcSendVoteRequestChanWritter
+		time.Sleep(3 * time.Second)
 		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
 		assert.Equal(s.ID, data.GetPeerID())
 		assert.Equal(true, data.GetVoteGranted())
@@ -360,15 +360,13 @@ func TestHandleVoteResponse(t *testing.T) {
 	s.quoroms = nil
 	s.configuration.preCandidatePeers = nil
 	s.State = Candidate
-	for i := 0; i < len(s.configuration.ServerMembers); i++ {
-		s.handleVoteResponse(voteResponseWrapper{
-			peer:             s.configuration.ServerMembers[1],
-			savedCurrentTerm: 2,
-			response: &raftypb.VoteResponse{
-				CurrentTerm: 1,
-			},
-		})
-	}
+	s.handleVoteResponse(voteResponseWrapper{
+		peer:             s.configuration.ServerMembers[1],
+		savedCurrentTerm: 2,
+		response: &raftypb.VoteResponse{
+			CurrentTerm: 1,
+		},
+	})
 }
 
 func TestHandleClientGetLeaderReader(t *testing.T) {
