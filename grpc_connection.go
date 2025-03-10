@@ -36,44 +36,67 @@ func (r *Rafty) connectToPeer(address string) {
 
 			go r.reconnect(conn, peerIndex, address)
 			if err != nil {
-				r.Logger.Err(err).Msgf("Fail to connect to peer %s", address)
+				if r.getState() != Down {
+					r.Logger.Error().Err(err).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("peerAddress", peer.address.String()).
+						Str("peerId", peer.ID).
+						Msgf("Fail to connect to peer")
+				}
 				return
 			}
 			r.mu.Lock()
 			r.configuration.ServerMembers[peerIndex].client = conn
 			r.configuration.ServerMembers[peerIndex].rclient = raftypb.NewRaftyClient(conn)
+			peer = r.configuration.ServerMembers[peerIndex]
 			r.mu.Unlock()
 
 			readOnlyNode := false
-			if r.configuration.ServerMembers[peerIndex].ID == "" {
-				r.Logger.Trace().Msgf("Me %s / %s contact peer %s to fetch its id", r.Address.String(), r.ID, r.configuration.ServerMembers[peerIndex].address.String())
+			if peer.ID == "" {
+				r.Logger.Trace().
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Str("peerAddress", peer.address.String()).
+					Str("peerId", peer.ID).
+					Msgf("Trying to fetch peer id")
 				ctx := context.Background()
-				response, err := r.configuration.ServerMembers[peerIndex].rclient.AskNodeID(
+				response, err := peer.rclient.AskNodeID(
 					ctx,
 					&raftypb.AskNodeIDRequest{
-						Id:      r.ID,
+						Id:      r.id,
 						Address: r.Address.String(),
 					},
 					grpc.WaitForReady(true),
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to fetch peer %s id", r.configuration.ServerMembers[peerIndex].address.String())
+					if r.getState() != Down {
+						r.Logger.Error().Err(err).
+							Str("address", r.Address.String()).
+							Str("id", r.id).
+							Str("state", r.getState().String()).
+							Str("peerAddress", peer.address.String()).
+							Str("peerId", peer.ID).
+							Msgf("Fail to fetch peer id")
+					}
 					return
 				}
 
 				r.mu.Lock()
-				r.configuration.ServerMembers[peerIndex].ID = response.GetPeerID()
-				r.configuration.ServerMembers[peerIndex].ReadOnlyNode = response.GetReadOnlyNode()
+				r.configuration.ServerMembers[peerIndex].ID = response.PeerID
+				r.configuration.ServerMembers[peerIndex].ReadOnlyNode = response.ReadOnlyNode
 				r.mu.Unlock()
-				if response.GetLeaderID() != "" && response.GetLeaderAddress() != "" {
-					r.setLeader(leaderMap{id: response.GetLeaderID(), address: response.GetLeaderAddress()})
+				if response.LeaderAddress != "" && response.LeaderID != "" {
+					r.setLeader(leaderMap{address: response.LeaderAddress, id: response.LeaderID})
 				}
-				readOnlyNode = response.GetReadOnlyNode()
+				readOnlyNode = response.ReadOnlyNode
 			}
 
-			if r.clusterSizeCounter+1 < r.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !readOnlyNode {
-				r.clusterSizeCounter++
+			if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !readOnlyNode {
+				r.clusterSizeCounter.Add(1)
 			}
 			return
 		}
@@ -83,7 +106,6 @@ func (r *Rafty) connectToPeer(address string) {
 func (r *Rafty) reconnect(conn *grpc.ClientConn, peerIndex int, address string) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	ready := false
-	myAddress, myId := r.getMyAddress()
 	for r.getState() != Down {
 		<-ticker.C
 		if conn.GetState() != connectivity.Ready {
@@ -99,7 +121,12 @@ func (r *Rafty) reconnect(conn *grpc.ClientConn, peerIndex int, address string) 
 			}
 			r.mu.Unlock()
 			ready = true
-			r.Logger.Trace().Msgf("Me %s / %s with state %s is reconnected to peer %s ", myAddress, myId, r.getState().String(), address)
+			r.Logger.Trace().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("peerAddress", address).
+				Msgf("Reconnected to peer")
 		}
 	}
 }

@@ -33,7 +33,7 @@ func TestMetadata(t *testing.T) {
 		node := cc.cluster[0]
 		node.Logger = &logger
 
-		node.PersistDataOnDisk = true
+		node.options.PersistDataOnDisk = true
 		node.restoreMetadata()
 	})
 
@@ -43,21 +43,21 @@ func TestMetadata(t *testing.T) {
 		node.Logger = &logger
 
 		id, currentTerm, votedFor := "test", uint64(1), "a"
-		node.ID = id
+		node.id = id
 		node.CurrentTerm = currentTerm
 		node.votedFor = votedFor
 
 		err := node.persistMetadata()
 		assert.Nil(err)
 
-		node.PersistDataOnDisk = true
+		node.options.PersistDataOnDisk = true
 		err = node.persistMetadata()
 		assert.Nil(err)
 
-		node.DataDir = filepath.Join(os.TempDir(), "rafty_persist_metadata_basic")
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_persist_metadata_basic")
 		err = node.persistMetadata()
 		assert.Nil(err)
-		err = os.RemoveAll(node.DataDir)
+		err = os.RemoveAll(node.options.DataDir)
 		assert.Nil(err)
 	})
 
@@ -66,12 +66,12 @@ func TestMetadata(t *testing.T) {
 		node := cc.cluster[0]
 		node.Logger = &logger
 
-		node.PersistDataOnDisk = true
-		node.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
-		node.Logger.Debug().Msgf("node.DataDir %s", node.DataDir)
+		node.options.PersistDataOnDisk = true
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
+		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
 
 		node.restoreMetadata()
-		err := os.RemoveAll(node.DataDir)
+		err := os.RemoveAll(node.options.DataDir)
 		assert.Nil(err)
 	})
 
@@ -81,24 +81,24 @@ func TestMetadata(t *testing.T) {
 		node.Logger = &logger
 
 		node.restoreMetadata()
-		assert.Equal("", node.ID)
+		assert.Equal("", node.id)
 		assert.Equal(uint64(0), node.CurrentTerm)
 
 		id, currentTerm, votedFor := "test", uint64(1), "a"
-		node.ID = id
+		node.id = id
 		node.CurrentTerm = currentTerm
 		node.votedFor = votedFor
-		node.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
-		node.Logger.Debug().Msgf("node.DataDir %s", node.DataDir)
-		node.PersistDataOnDisk = true
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
+		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
+		node.options.PersistDataOnDisk = true
 
-		node.restoreMetadata() // needed after node.DataDir is set
+		node.restoreMetadata() // needed after node.options.DataDir is set
 		err := node.persistMetadata()
 		assert.Nil(err)
 
 		node.restoreMetadata()
 
-		assert.Equal(id, node.ID)
+		assert.Equal(id, node.id)
 		assert.Equal(currentTerm, node.CurrentTerm)
 		node.closeAllFilesDescriptor()
 
@@ -106,9 +106,9 @@ func TestMetadata(t *testing.T) {
 		cc.cluster = cc.makeCluster()
 		node = cc.cluster[0]
 		node.Logger = &logger
-		node.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
-		node.Logger.Debug().Msgf("node.DataDir %s", node.DataDir)
-		node.PersistDataOnDisk = true
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
+		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
+		node.options.PersistDataOnDisk = true
 		node.restoreMetadata()
 	})
 
@@ -125,7 +125,7 @@ func TestMetadata(t *testing.T) {
 		node := cc.cluster[0]
 		node.Logger = &logger
 
-		node.PersistDataOnDisk = true
+		node.options.PersistDataOnDisk = true
 		node.restoreData()
 	})
 
@@ -141,14 +141,14 @@ func TestMetadata(t *testing.T) {
 		err := node.persistData(0)
 		assert.Nil(err)
 
-		node.PersistDataOnDisk = true
+		node.options.PersistDataOnDisk = true
 		err = node.persistData(0)
 		assert.Nil(err)
 
-		node.DataDir = filepath.Join(os.TempDir(), "rafty_persist_data_basic")
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_persist_data_basic")
 		err = node.persistData(0)
 		assert.Nil(err)
-		err = os.RemoveAll(node.DataDir)
+		err = os.RemoveAll(node.options.DataDir)
 		assert.Nil(err)
 	})
 
@@ -157,12 +157,12 @@ func TestMetadata(t *testing.T) {
 		node := cc.cluster[0]
 		node.Logger = &logger
 
-		node.PersistDataOnDisk = true
-		node.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
-		node.Logger.Debug().Msgf("node.DataDir %s", node.DataDir)
+		node.options.PersistDataOnDisk = true
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
+		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
 
 		node.restoreData()
-		err := os.RemoveAll(node.DataDir)
+		err := os.RemoveAll(node.options.DataDir)
 		assert.Nil(err)
 	})
 
@@ -170,8 +170,8 @@ func TestMetadata(t *testing.T) {
 		cc.cluster = cc.makeCluster()
 		node := cc.cluster[0]
 		node.Logger = &logger
-		node.PersistDataOnDisk = true
-		node.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
+		node.options.PersistDataOnDisk = true
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
 
 		userCommand := command{kind: commandSet, key: "a", value: "b"}
 		now := uint32(time.Now().Unix())
@@ -191,12 +191,12 @@ func TestMetadata(t *testing.T) {
 		cc.cluster = cc.makeCluster()
 		node = cc.cluster[0]
 		node.Logger = &logger
-		node.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
-		node.Logger.Debug().Msgf("node.DataDir %s", node.DataDir)
-		node.PersistDataOnDisk = true
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
+		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
+		node.options.PersistDataOnDisk = true
 		node.restoreData()
 
-		err = os.RemoveAll(node.DataDir)
+		err = os.RemoveAll(node.options.DataDir)
 		assert.Nil(err)
 	})
 }

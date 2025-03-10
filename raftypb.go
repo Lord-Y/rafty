@@ -31,14 +31,14 @@ func (rpc *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDReque
 	var lid, lad string
 	switch {
 	case state == Leader:
-		lid, lad = rpc.rafty.ID, rpc.rafty.Address.String()
+		lid, lad = rpc.rafty.id, rpc.rafty.Address.String()
 	default:
 		lid, lad = leader.id, leader.address
 	}
 
 	return &raftypb.AskNodeIDResponse{
-		PeerID:        rpc.rafty.ID,
-		ReadOnlyNode:  rpc.rafty.ReadOnlyNode,
+		PeerID:        rpc.rafty.id,
+		ReadOnlyNode:  rpc.rafty.options.ReadOnlyNode,
 		LeaderID:      lid,
 		LeaderAddress: lad,
 	}, nil

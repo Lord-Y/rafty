@@ -124,19 +124,34 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 	}
 
 	if niceMessage {
-		myAddress, myId := r.getMyAddress()
 		switch state {
 		case ReadOnly:
-			r.Logger.Info().Msgf("Me %s / %s stepping as %s for term %d", myAddress, myId, state, currentTerm)
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Stepping for term %d", currentTerm)
 		case Follower:
-			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", myAddress, myId, state, currentTerm)
-		case Candidate:
-			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
-		case Leader:
-			r.stopElectionTimer()
-			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Stepping down for term %d", currentTerm)
+		case Candidate, Leader:
+			if state == Leader {
+				r.stopElectionTimer()
+			}
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Stepping up %s for term %d", state, currentTerm)
 		case Down:
-			r.Logger.Info().Msgf("Me %s / %s is shutting down with term %d", myAddress, myId, currentTerm)
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Shutting down with term %d", currentTerm)
 		}
 	}
 }
@@ -149,19 +164,31 @@ func (r *Rafty) logState(state State, niceMessage bool, currentTerm uint64) {
 	}
 
 	if niceMessage {
-		myAddress, myId := r.getMyAddress()
 		switch state {
 		case ReadOnly:
-			r.Logger.Info().Msgf("Me %s / %s stepping as %s for term %d", myAddress, myId, state, currentTerm)
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Stepping for term %d", currentTerm)
 		case Follower:
-			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", myAddress, myId, state, currentTerm)
-			r.Logger.Info().Msgf("Me %s / %s stepping down as %s for term %d", myAddress, myId, state, currentTerm)
-		case Candidate:
-			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
-			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
-		case Leader:
-			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
-			r.Logger.Info().Msgf("Me %s / %s stepping up as %s for term %d", myAddress, myId, state, currentTerm)
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Stepping down for term %d", currentTerm)
+		case Candidate, Leader:
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Stepping up %s for term %d", state, currentTerm)
+		case Down:
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Shutting down with term %d", currentTerm)
 		}
 	}
 }

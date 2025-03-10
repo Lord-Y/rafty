@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -14,7 +15,6 @@ import (
 // If no leader, fetch their currentTerm
 // and decided if they are suitable for election campain
 func (r *Rafty) preVoteRequest() {
-	myAddress, myId := r.getMyAddress()
 	currentTerm := r.getCurrentTerm()
 	state := r.getState()
 	r.mu.Lock()
@@ -25,12 +25,19 @@ func (r *Rafty) preVoteRequest() {
 	for _, peer := range peers {
 		if peer.client != nil && !peer.ReadOnlyNode && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() != Down && r.leaderLost.Load() {
 			go func() {
-				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d for pre vote request", myAddress, myId, state.String(), peer.address.String(), currentTerm)
+				r.Logger.Trace().
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Str("term", fmt.Sprintf("%d", currentTerm)).
+					Str("peerAddress", peer.address.String()).
+					Str("peerId", peer.ID).
+					Msgf("Send pre vote request")
 
 				response, err := peer.rclient.SendPreVoteRequest(
 					context.Background(),
 					&raftypb.PreVoteRequest{
-						Id:          myId,
+						Id:          r.id,
 						State:       state.String(),
 						CurrentTerm: currentTerm,
 					},
@@ -65,19 +72,29 @@ func (r *Rafty) startElection() {
 	preCandidatePeers := r.configuration.preCandidatePeers
 	r.quoroms = nil
 	r.mu.Unlock()
-	if err := r.persistMetadata(); err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
-	}
 	var lastLogTerm uint64
 	if lastLogIndex > 0 {
 		lastLogTerm = r.getX(r.log[lastLogIndex].Term)
 	}
 
-	r.Logger.Trace().Msgf("Me %s / %s starting election campain with term %d", myAddress, myId, currentTerm)
+	r.Logger.Trace().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Str("term", fmt.Sprintf("%d", currentTerm)).
+		Msgf("Start election campain")
+
 	for _, peer := range preCandidatePeers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() == Candidate && r.leaderLost.Load() {
 			go func() {
-				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s / %s with term %d for election campain", myAddress, myId, state.String(), peer.address.String(), peer.ID, currentTerm)
+				r.Logger.Trace().
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Str("term", fmt.Sprintf("%d", currentTerm)).
+					Str("peerAddress", peer.address.String()).
+					Str("peerId", peer.ID).
+					Msgf("Send vote request")
 
 				response, err := peer.rclient.SendVoteRequest(
 					context.Background(),

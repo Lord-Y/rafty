@@ -43,13 +43,30 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 	}
 	readOnlyNodeCount := 0
 	for i := range cc.clusterSize {
-		var addr net.TCPAddr
+		var (
+			addr    net.TCPAddr
+			options Options
+		)
 
 		server := new(Rafty)
 		peers := []Peer{}
 		addr = net.TCPAddr{
 			IP:   net.ParseIP("127.0.0.5"),
 			Port: defaultPort + int(i),
+		}
+
+		options.TimeMultiplier = cc.timeMultiplier
+		if cc.autoSetMinimumClusterSize {
+			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.readOnlyNodeCount
+		}
+		options.MaxAppendEntries = cc.maxAppendEntries
+		if cc.noDataDir && i != 0 || !cc.noDataDir {
+			options.PersistDataOnDisk = true
+			options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
+		}
+		if cc.readOnlyNodeCount > 0 && int(cc.readOnlyNodeCount) > readOnlyNodeCount {
+			options.ReadOnlyNode = true
+			readOnlyNodeCount++
 		}
 
 		for j := range cc.clusterSize {
@@ -72,25 +89,13 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 					Address: peerAddr,
 				})
 
-				server = NewServer(addr)
+				options.Peers = peers
+				id := ""
 				if !cc.noNodeID {
-					server.ID = fmt.Sprintf("%d", i)
+					id = fmt.Sprintf("%d", i)
 				}
-				server.Peers = peers
+				server = NewRafty(addr, id, options)
 			}
-		}
-		server.TimeMultiplier = cc.timeMultiplier
-		if cc.autoSetMinimumClusterSize {
-			server.MinimumClusterSize = uint64(cc.clusterSize) - cc.readOnlyNodeCount
-		}
-		server.MaxAppendEntries = cc.maxAppendEntries
-		if cc.noDataDir && i != 0 || !cc.noDataDir {
-			server.PersistDataOnDisk = true
-			server.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
-		}
-		if cc.readOnlyNodeCount > 0 && int(cc.readOnlyNodeCount) > readOnlyNodeCount {
-			server.ReadOnlyNode = true
-			readOnlyNodeCount++
 		}
 		cluster = append(cluster, server)
 	}
@@ -134,7 +139,7 @@ func (cc *clusterConfig) startOrStopSpecificicNode(nodeId int, action string) er
 		node.Logger.Info().Msgf("Stopping node %d", nodeId)
 		node.Stop()
 		node.Logger.Info().Msgf("Stopped node %d", nodeId)
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			time.Sleep(5 * time.Second)
 			node.Logger.Info().Msgf("Sleeping number %d waiting for node %d to be completely stopped", i, nodeId)
 			if node.getState() == Down {
@@ -232,13 +237,13 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	startAndRestart := func(node int) {
 		cc.t.Run(fmt.Sprintf("startAndRestart_%d", node), func(t *testing.T) {
 			err := cc.startOrStopSpecificicNode(node, "start")
-			cc.cluster[node].Logger.Info().Msgf("err startOrStopSpecificicNode start %s", err.Error())
+			cc.cluster[node].Logger.Info().Str("step", "startOrStopSpecificicNode start").Msgf("%s", err.Error())
 			assert.Error(err)
 
 			time.Sleep(5 * time.Second)
 			err = cc.startOrStopSpecificicNode(node, "restart")
 			if err != nil {
-				cc.cluster[node].Logger.Info().Msgf("err startOrStopSpecificicNode restart %s", err.Error())
+				cc.cluster[node].Logger.Info().Str("step", "startOrStopSpecificicNode restart").Msgf("%s", err.Error())
 			}
 			assert.Nil(err)
 		})
@@ -261,6 +266,6 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	time.Sleep(150 * time.Second)
 	os.Unsetenv("RAFTY_LOG_LEVEL")
 	cc.stopCluster()
-	err := os.RemoveAll(cc.cluster[node].DataDir)
+	err := os.RemoveAll(cc.cluster[node].options.DataDir)
 	assert.Nil(err)
 }

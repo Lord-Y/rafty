@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -39,19 +40,19 @@ func TestGetMyAddress(t *testing.T) {
 	s := basicNodeSetup()
 	addr, id := s.getMyAddress()
 	assert.Equal(s.Address.String(), addr)
-	assert.Equal(s.ID, id)
+	assert.Equal(s.id, id)
 }
 
 func TestNextIndex(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	s.setNextAndMatchIndex(s.ID, 0, 0)
-	for _, peer := range s.Peers {
-		s.setNextAndMatchIndex(peer.id, 0, 0)
+	s.setNextAndMatchIndex(s.id, 0, 0)
+	for id := range s.options.Peers {
+		s.setNextAndMatchIndex(fmt.Sprintf("%d", id), 0, 0)
 	}
-	assert.Equal(uint64(0), s.getNextIndex(s.ID))
-	peerId := s.Peers[0].id
+	assert.Equal(uint64(0), s.getNextIndex(s.id))
+	peerId := "0"
 	assert.Equal(uint64(0), s.getNextIndex(peerId))
 	s.setNextIndex(peerId, uint64(1))
 	assert.Equal(uint64(1), s.getNextIndex(peerId))
@@ -62,11 +63,11 @@ func TestNextAndMatchIndex(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	s.setNextAndMatchIndex(s.ID, 0, 0)
-	for _, peer := range s.Peers {
-		s.setNextAndMatchIndex(peer.id, 0, 0)
+	s.setNextAndMatchIndex(s.id, 0, 0)
+	for id := range s.options.Peers {
+		s.setNextAndMatchIndex(fmt.Sprintf("%d", id), 0, 0)
 	}
-	n, m := s.getNextAndMatchIndex(s.ID)
+	n, m := s.getNextAndMatchIndex(s.id)
 	assert.Equal(uint64(0), n)
 	assert.Equal(uint64(0), m)
 }
@@ -102,11 +103,11 @@ func TestVotedFor(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	peer := s.Peers[0]
+	peerId := "0"
 	term := uint64(1)
-	s.setVotedFor(peer.id, term)
+	s.setVotedFor(peerId, term)
 	votedFor, votedForTerm := s.getVotedFor()
-	assert.Equal(peer.id, votedFor)
+	assert.Equal(peerId, votedFor)
 	assert.Equal(term, votedForTerm)
 }
 
@@ -128,7 +129,7 @@ func TestGetMinimumClusterSize(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	s.MinimumClusterSize = 3
+	s.options.MinimumClusterSize = 3
 	assert.Equal(uint64(3), s.getMinimumClusterSize())
 
 	peer := peer{
@@ -136,7 +137,7 @@ func TestGetMinimumClusterSize(t *testing.T) {
 		ID:      "d",
 	}
 	s.appendPrecandidate(peer)
-	s.MinimumClusterSize = 4
+	s.options.MinimumClusterSize = 4
 	assert.Equal(uint64(4), s.getMinimumClusterSize())
 }
 
@@ -154,17 +155,17 @@ func TestSetLeaderLastContactDate(t *testing.T) {
 
 	s := basicNodeSetup()
 	s.setLeaderLastContactDate()
-	assert.NotNil(s.LeaderLastContactDate)
+	assert.NotNil(s.leaderLastContactDate)
 }
 
 func TestGetLeader(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	s.setLeader(leaderMap{address: s.Address.String(), id: s.ID})
-	assert.Equal(s.ID, s.getLeader().id)
+	s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+	assert.Equal(s.id, s.getLeader().id)
 	s.State = Leader
-	assert.Equal(s.ID, s.getLeader().id)
+	assert.Equal(s.id, s.getLeader().id)
 }
 
 func TestIncrementLeaderCommitIndex(t *testing.T) {

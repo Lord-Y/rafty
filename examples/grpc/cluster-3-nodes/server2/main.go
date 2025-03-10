@@ -36,13 +36,13 @@ func main() {
 		},
 	}
 
-	s := rafty.NewServer(addr)
 	id := "229fc9de-a8f7-4d21-964f-f23a2cc20eff"
-	s.ID = id
-	s.Peers = peers
-	s.PersistDataOnDisk = true
-	s.DataDir = filepath.Join(os.TempDir(), "rafty_"+id)
-
+	options := rafty.Options{
+		Peers:             peers,
+		PersistDataOnDisk: true,
+		DataDir:           filepath.Join(os.TempDir(), "rafty_"+id),
+	}
+	s := rafty.NewRafty(addr, id, options)
 	if *disableNormalMode {
 		if *restartNodeAfterN >= *maxUptimeAfterN {
 			*restartNodeAfterN = 3
@@ -62,7 +62,7 @@ func main() {
 					s.Stop()
 					time.Sleep(30 * time.Second)
 					if err := s.Start(); err != nil {
-						s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+						s.Logger.Fatal().Err(err).Msg("Fail to start node")
 					}
 				}()
 			}()
@@ -70,13 +70,13 @@ func main() {
 
 		go func() {
 			if err := s.Start(); err != nil {
-				s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+				s.Logger.Fatal().Err(err).Msg("Fail to start node")
 			}
 		}()
 		return
 	}
 
 	if err := s.Start(); err != nil {
-		s.Logger.Fatal().Err(err).Msg("Fail to serve gRPC server")
+		s.Logger.Fatal().Err(err).Msg("Fail to start node")
 	}
 }

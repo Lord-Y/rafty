@@ -3,12 +3,15 @@ package rafty
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/Lord-Y/rafty/logger"
@@ -18,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/reflection"
 )
 
 const (
@@ -107,9 +111,6 @@ type Peer struct {
 
 	// address is the address of a peer node with explicit host and port
 	address net.TCPAddr
-
-	// id of the current peer
-	id string
 }
 
 type leaderMap struct {
@@ -122,8 +123,8 @@ type leaderMap struct {
 
 // Status of the raft server
 type Status struct {
-	// ID of the current raft server
-	ID string
+	// id of the current raft server
+	id string
 
 	// Address is the current address of the raft server
 	Address net.TCPAddr
@@ -148,6 +149,39 @@ type rpcManager struct {
 	rafty *Rafty
 }
 
+// Options hold config that will be modified by users
+type Options struct {
+	// Logger expose zerolog so it can be override
+	Logger *zerolog.Logger
+
+	// TimeMultiplier is a scaling factor that will be used during election timeout
+	// by electionTimeoutMin/electionTimeoutMax/leaderHeartBeatTimeout in order to avoid cluster instability
+	// The default value is 1 and the maximum is 10
+	TimeMultiplier uint
+
+	// MinimumClusterSize is the size minimum to have before starting prevote or election campain
+	// default is 3
+	// all members of the cluster will be contacted before any other tasks
+	MinimumClusterSize uint64
+
+	// MaxAppendEntries will hold how much append entries the leader will send to the follower at once
+	MaxAppendEntries uint64
+
+	// DataDir is the default data directory that will be used to store all data on the disk
+	// Defaults to os.TempDir()/rafty ex: /tmp/rafty
+	DataDir string
+
+	// PersistDataOnDisk is a boolean that allow us to persist data on disk
+	PersistDataOnDisk bool
+
+	// ReadOnlyNode allow to statuate if the current node is a read only node
+	// This kind of node won't participate into any election campain
+	ReadOnlyNode bool
+
+	// Peers hold the list of the peers
+	Peers []Peer
+}
+
 // Rafty is a struct representing the raft requirements
 type Rafty struct {
 	// grpc listener
@@ -156,8 +190,8 @@ type Rafty struct {
 	// grpcServer hold requirements for grpc server
 	grpcServer *grpc.Server
 
-	// LeaderLastContactDate is the last date we heard from the leader
-	LeaderLastContactDate *time.Time
+	// leaderLastContactDate is the last date we heard from the leader
+	leaderLastContactDate *time.Time
 
 	// electionTimer is used during the election campain
 	// but also to detect if a Follower
@@ -235,10 +269,10 @@ type Rafty struct {
 	// Logger expose zerolog so it can be override
 	Logger *zerolog.Logger
 
-	Status
+	// options are configuration options
+	options Options
 
-	// Peers hold the list of the peers
-	Peers []Peer
+	Status
 
 	// leader hold informations about the leader
 	leader sync.Map
@@ -254,23 +288,13 @@ type Rafty struct {
 	// quitCtx will be used to stop all go routines
 	quitCtx context.Context
 
-	// TimeMultiplier is a scaling factor that will be used during election timeout
-	// by electionTimeoutMin/electionTimeoutMax/leaderHeartBeatTimeout in order to avoid cluster instability
-	// The default value is 1 and the maximum is 10
-	TimeMultiplier uint
-
-	// MinimumClusterSize is the size minimum to have before starting prevote or election campain
-	// default is 3
-	// all members of the cluster will be contacted before any other tasks
-	MinimumClusterSize uint64
-
 	// minimumClusterSizeReach is an atomic bool flag to set
 	// and start follower requirements
 	minimumClusterSizeReach atomic.Bool
 
 	// clusterSizeCounter is used to check how many nodes has been reached
 	// before acknoledging the start prevote election
-	clusterSizeCounter uint64
+	clusterSizeCounter atomic.Uint64
 
 	// votedFor is the node the current node voted for during the election campain
 	votedFor string
@@ -303,16 +327,6 @@ type Rafty struct {
 	// log hold all logs entries
 	log []*raftypb.LogEntry
 
-	// MaxAppendEntries will hold how much append entries the leader will send to the follower at once
-	MaxAppendEntries uint64
-
-	// DataDir is the default data directory that will be used to store all data on the disk
-	// Defaults to os.TempDir()/rafty ex: /tmp/rafty
-	DataDir string
-
-	// PersistDataOnDisk is a boolean that allow us to persist data on disk
-	PersistDataOnDisk bool
-
 	// metadataFileDescriptor is the file descriptor that allow us to manage
 	// metadata content
 	metadataFileDescriptor *os.File
@@ -320,10 +334,6 @@ type Rafty struct {
 	// dataFileDescriptor is the file descriptor that allow us to manage
 	// data content
 	dataFileDescriptor *os.File
-
-	// ReadOnlyNode allow to statuate if the current node is a read only node
-	// This kind of node won't participate into any election campain
-	ReadOnlyNode bool
 
 	// configuration hold server members found on disk
 	// If empty, it will be equal to Peers list
@@ -371,16 +381,10 @@ type voteResponseErrorWrapper struct {
 // better debug logs
 var logSource = ""
 
-func NewRafty() *Rafty {
-	var zlogger zerolog.Logger
-	if logSource == "" {
-		zlogger = logger.NewLogger().With().Str("logProvider", "rafty").Logger()
-	} else {
-		zlogger = logger.NewLogger().With().Str("logProvider", "rafty").Str("logSource", logSource).Logger()
-	}
-
-	return &Rafty{
-		Logger:                                      &zlogger,
+// NewRafty instantiate rafty with default configuration
+// with server address and its id
+func NewRafty(address net.TCPAddr, id string, options Options) *Rafty {
+	r := &Rafty{
 		preVoteResponseChan:                         make(chan preVoteResponseWrapper),
 		preVoteResponseErrorChan:                    make(chan voteResponseErrorWrapper),
 		voteResponseChan:                            make(chan voteResponseWrapper),
@@ -399,58 +403,127 @@ func NewRafty() *Rafty {
 		rpcClientGetLeaderChanReader:                make(chan *raftypb.ClientGetLeaderRequest),
 		rpcClientGetLeaderChanWritter:               make(chan *raftypb.ClientGetLeaderResponse),
 	}
+	r.Address = address
+	r.id = id
+
+	if options.Logger == nil {
+		var zlogger zerolog.Logger
+		if logSource == "" {
+			zlogger = logger.NewLogger().With().Str("logProvider", "rafty").Logger()
+		} else {
+			zlogger = logger.NewLogger().With().Str("logProvider", "rafty").Str("logSource", logSource).Logger()
+		}
+		options.Logger = &zlogger
+	}
+
+	if options.TimeMultiplier == 0 {
+		options.TimeMultiplier = 1
+	}
+	if options.TimeMultiplier > 10 {
+		options.TimeMultiplier = 10
+	}
+
+	if options.MinimumClusterSize == 0 {
+		options.MinimumClusterSize = 3
+	}
+
+	if options.MaxAppendEntries == 0 {
+		options.MaxAppendEntries = maxAppendEntries
+	}
+
+	if options.DataDir == "" {
+		options.DataDir = filepath.Join(os.TempDir(), "rafty")
+	}
+
+	r.options = options
+	r.Logger = options.Logger
+	return r
 }
 
-func (r *Rafty) start() {
-	r.mu.Lock()
-	if r.TimeMultiplier == 0 {
-		r.TimeMultiplier = 1
-	}
-	if r.TimeMultiplier > 10 {
-		r.TimeMultiplier = 10
-	}
-
-	if r.MinimumClusterSize == 0 {
-		r.MinimumClusterSize = 3
-	}
-
-	if r.MaxAppendEntries == 0 {
-		r.MaxAppendEntries = maxAppendEntries
-	}
-
-	if r.DataDir == "" {
-		datadir := filepath.Join(os.TempDir(), "rafty")
-		r.DataDir = datadir
-		r.Logger.Debug().Msgf("default data dir is %s", datadir)
-	}
-	r.mu.Unlock()
-
+// Start permits to start the node with the provided configuration
+func (r *Rafty) Start() error {
 	r.restoreMetadata()
 	r.restoreData()
 
-	if r.ID == "" {
-		r.ID = uuid.NewString()
+	if err := r.parsePeers(); err != nil {
+		return fmt.Errorf("Fail to parse peer ip/port %w", err)
+	}
+
+	if r.id == "" {
+		r.id = uuid.NewString()
 		if err := r.persistMetadata(); err != nil {
-			r.Logger.Fatal().Err(err).Msgf("Fail to persist metadata")
+			return fmt.Errorf("Fail to persist metadata %w", err)
 		}
 	}
 
+	var err error
+	r.mu.Lock()
+	if r.listener, err = net.Listen(r.Address.Network(), r.Address.String()); err != nil {
+		r.mu.Unlock()
+		return fmt.Errorf("Fail to listen gRPC server %w", err)
+	}
+
+	r.grpcServer = grpc.NewServer(
+		grpc.KeepaliveEnforcementPolicy(kaep),
+		grpc.KeepaliveParams(kasp),
+	)
+	rpcManager := rpcManager{
+		rafty: r,
+	}
+	r.mu.Unlock()
+
+	raftypb.RegisterRaftyServer(r.grpcServer, &rpcManager)
+	reflection.Register(r.grpcServer)
+
+	var stop context.CancelFunc
+	r.mu.Lock()
+	r.quitCtx, stop = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	r.mu.Unlock()
+	defer stop()
+
+	r.wg.Add(1)
+	errChan := make(chan error, 1)
+	go func() {
+		defer r.wg.Done()
+		errChan <- r.grpcServer.Serve(r.listener)
+	}()
+
+	select {
+	case err := <-errChan:
+		return fmt.Errorf("Fail to start gRPC server %w", err)
+	default:
+	}
+
 	if r.getState() == Down {
-		if r.ReadOnlyNode {
+		if r.options.ReadOnlyNode {
 			r.switchState(ReadOnly, false, r.getCurrentTerm())
 		} else {
 			r.switchState(Follower, false, r.getCurrentTerm())
 		}
-		r.Logger.Info().Msgf("Me %s / %s is starting as %s", r.Address.String(), r.ID, r.State.String())
+		r.Logger.Info().
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Msgf("Node successfully started")
 	}
 
-	err := r.parsePeers()
-	if err != nil {
-		r.Logger.Fatal().Err(err).Msg("Fail to parse peer ip/port")
-	}
+	go r.start()
 
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		// stop go routine when os signal is receive or ctrl+c
+		<-r.quitCtx.Done()
+		r.Stop()
+	}()
+	r.wg.Wait()
+	return nil
+}
+
+// start run sub requirements from Start() func
+func (r *Rafty) start() {
 	for _, peer := range r.configuration.ServerMembers {
-		r.connectToPeer(peer.address.String())
+		go r.connectToPeer(peer.address.String())
 	}
 
 	r.startClusterWithMinimumSize()
@@ -458,15 +531,34 @@ func (r *Rafty) start() {
 	go r.loopingOverNodeState()
 }
 
+// Stop permits to stop the gRPC server and Rafty with the provided configuration
+func (r *Rafty) Stop() {
+	// this is just a safe guard when invoking Stop function directly
+	r.switchState(Down, true, r.getCurrentTerm())
+	stopped := make(chan struct{})
+	go func() {
+		r.grpcServer.GracefulStop()
+		close(stopped)
+	}()
+	t := time.NewTimer(30 * time.Second)
+	<-t.C
+	t.Stop()
+	r.disconnectToPeers()
+	r.closeAllFilesDescriptor()
+}
+
 // startClusterWithMinimumSize allow us to reach minimum cluster size
 // before doing anything else
 func (r *Rafty) startClusterWithMinimumSize() {
-	myAddress, myId := r.getMyAddress()
 	for r.getState() != Down {
 		time.Sleep(time.Second)
-		if r.MinimumClusterSize == r.clusterSizeCounter+1 {
-			r.Logger.Info().Msgf("Minimum cluster size has been reached for me %s / %s, %d out of %d", myAddress, myId, r.clusterSizeCounter+1, r.MinimumClusterSize)
+		if r.options.MinimumClusterSize == r.clusterSizeCounter.Load()+1 {
 			r.minimumClusterSizeReach.Store(true)
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Msgf("Minimum cluster size has been reached: %d out of %d", r.clusterSizeCounter.Load()+1, r.options.MinimumClusterSize)
 			break
 		}
 	}
@@ -476,10 +568,8 @@ func (r *Rafty) startClusterWithMinimumSize() {
 // ask to other nodes who is the actual leader
 // and prevent starting election campain
 func (r *Rafty) sendGetLeaderRequest() {
-	currentTerm := r.getCurrentTerm()
-	myAddress, myId := r.getMyAddress()
-	state := r.getState()
 	var leaderFound atomic.Bool
+	currentTerm := r.getCurrentTerm()
 	r.mu.Lock()
 	peers := r.configuration.ServerMembers
 	totalPeers := len(peers)
@@ -488,12 +578,19 @@ func (r *Rafty) sendGetLeaderRequest() {
 	for i, peer := range peers {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && !r.leaderLost.Load() && r.getState() != Down {
 			go func() {
-				r.Logger.Trace().Msgf("Me %s / %s with state %s contact peer %s with term %d to ask who is the leader", myAddress, myId, state.String(), peer.address.String(), currentTerm)
+				r.Logger.Trace().
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Str("term", fmt.Sprintf("%d", currentTerm)).
+					Str("peerAddress", peer.address.String()).
+					Str("peerId", peer.ID).
+					Msgf("Asking who is the leader")
 
 				response, err := peer.rclient.GetLeader(
 					context.Background(),
 					&raftypb.GetLeaderRequest{
-						PeerID:      r.ID,
+						PeerID:      r.id,
 						PeerAddress: r.Address.String(),
 					},
 					grpc.WaitForReady(true),
@@ -501,22 +598,44 @@ func (r *Rafty) sendGetLeaderRequest() {
 				)
 
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to get leader from peer %s", peer.address.String())
+					r.Logger.Error().Err(err).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("peerAddress", peer.address.String()).
+						Str("peerId", peer.ID).
+						Msgf("Fail to ask this peer who is the leader")
 				} else {
-					if response.GetLeaderID() != "" {
-						r.setLeader(leaderMap{
-							address: response.GetLeaderAddress(),
-							id:      response.GetLeaderID(),
-						})
-						r.leaderLost.Store(false)
+					if response.LeaderID != "" {
+						if !leaderFound.Load() {
+							r.setLeader(leaderMap{
+								address: response.LeaderAddress,
+								id:      response.LeaderID,
+							})
+							r.leaderLost.Store(false)
+
+							r.Logger.Info().
+								Str("address", r.Address.String()).
+								Str("id", r.id).
+								Str("state", r.getState().String()).
+								Str("term", fmt.Sprintf("%d", currentTerm)).
+								Str("leaderAddress", response.LeaderAddress).
+								Str("leaderId", response.LeaderID).
+								Msgf("Leader found")
+						}
 						leaderFound.Store(true)
-						r.Logger.Info().Msgf("Me %s / %s with state %s reports that peer %s / %s is the leader", myAddress, myId, state, response.GetLeaderAddress(), response.GetLeaderID())
 					}
 				}
 
 				if !leaderFound.Load() && i+1 == totalPeers {
-					r.Logger.Info().Msgf("Me %s / %s with state %s reports that there is no leader", myAddress, myId, state)
 					r.leaderLost.Store(true)
+					r.Logger.Info().
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Msgf("There is no leader")
 				}
 			}()
 		}
