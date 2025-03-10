@@ -10,7 +10,7 @@ import (
 // when preVote set to true, a value will be generated for preVote election
 func (r *Rafty) randomElectionTimeout() time.Duration {
 	rd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return time.Duration(electionTimeoutMin+rd.Intn(electionTimeoutMax-electionTimeoutMin)) * time.Millisecond * time.Duration(r.TimeMultiplier)
+	return time.Duration(electionTimeoutMin+rd.Intn(electionTimeoutMax-electionTimeoutMin)) * time.Millisecond * time.Duration(r.options.TimeMultiplier)
 }
 
 // resetElectionTimer permit during election campain to reset electionTimer

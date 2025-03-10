@@ -43,7 +43,7 @@ func (r *Rafty) getCommitIndex() uint64 {
 
 func (r *Rafty) getMyAddress() (addr, id string) {
 	r.mu.Lock()
-	addr, id = r.Address.String(), r.ID
+	addr, id = r.Address.String(), r.id
 	r.mu.Unlock()
 	return
 }
@@ -130,7 +130,7 @@ func (r *Rafty) appendPrecandidate(peer peer) {
 
 // getMinimumClusterSize permits to safely retrieve node minimum cluster size
 func (r *Rafty) getMinimumClusterSize() uint64 {
-	addr := (*uint64)(&r.MinimumClusterSize)
+	addr := (*uint64)(&r.options.MinimumClusterSize)
 	return atomic.LoadUint64(addr)
 }
 
@@ -146,7 +146,7 @@ func (r *Rafty) setLeaderLastContactDate() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now()
-	r.LeaderLastContactDate = &now
+	r.leaderLastContactDate = &now
 }
 
 // getLeader permits to retrieve current leader informations

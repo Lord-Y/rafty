@@ -18,21 +18,20 @@ func basicNodeSetup() *Rafty {
 		},
 		{
 			Address: "127.0.0.2",
-			id:      "b",
 		},
 		{
 			Address: "127.0.0.3:50053",
-			id:      "c",
 		},
 	}
 
-	s := NewServer(addr)
 	id := "abe35d4f-787e-4262-9894-f6475ed81028"
-	s.ID = id
-	s.Peers = peers
+	options := Options{
+		Peers: peers,
+	}
+	s := NewRafty(addr, id, options)
 
-	for _, v := range s.Peers {
-		s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{ID: v.id, Address: v.Address})
+	for _, v := range s.options.Peers {
+		s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
 	}
 	s.configuration.preCandidatePeers = s.configuration.ServerMembers
 	return s
@@ -87,30 +86,31 @@ func TestParsePeers(t *testing.T) {
 		},
 	}
 
-	s := NewServer(addr)
 	id := "abe35d4f-787e-4262-9894-f6475ed81028"
-	s.ID = id
-	s.Peers = peers
+	options := Options{
+		Peers: peers,
+	}
+	s := NewRafty(addr, id, options)
 
 	mergePeers := func(peers []Peer) {
 		for _, v := range peers {
-			s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{ID: v.id, Address: v.Address})
+			s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
 		}
 		s.configuration.preCandidatePeers = s.configuration.ServerMembers
 	}
 
-	mergePeers(s.Peers)
+	mergePeers(s.options.Peers)
 
 	err := s.parsePeers()
 	assert.Nil(err)
 
-	s.Peers = badPeers1
-	mergePeers(s.Peers)
+	s.options.Peers = badPeers1
+	mergePeers(s.options.Peers)
 	err = s.parsePeers()
 	assert.Error(err)
 
-	s.Peers = badPeers2
-	mergePeers(s.Peers)
+	s.options.Peers = badPeers2
+	mergePeers(s.options.Peers)
 	err = s.parsePeers()
 	assert.Error(err)
 }
@@ -234,7 +234,7 @@ func TestSaveLeaderInformations(t *testing.T) {
 	}{
 		{
 			state:               Leader,
-			newLeader:           leaderMap{address: s.Address.String(), id: s.ID},
+			newLeader:           leaderMap{address: s.Address.String(), id: s.id},
 			currentTerm:         1,
 			switchState:         true,
 			niceMessage:         true,
@@ -244,7 +244,7 @@ func TestSaveLeaderInformations(t *testing.T) {
 		// this block is duplicated on purpose
 		{
 			state:               Leader,
-			newLeader:           leaderMap{address: s.Address.String(), id: s.ID},
+			newLeader:           leaderMap{address: s.Address.String(), id: s.id},
 			currentTerm:         1,
 			switchState:         true,
 			niceMessage:         true,
@@ -252,10 +252,10 @@ func TestSaveLeaderInformations(t *testing.T) {
 			expectedCurrentTerm: 1,
 		},
 		{
-			newLeader: leaderMap{address: s.Peers[0].address.String(), id: s.Peers[0].id},
+			newLeader: leaderMap{address: s.options.Peers[0].address.String()},
 		},
 		{
-			newLeader: leaderMap{address: s.Address.String(), id: s.ID},
+			newLeader: leaderMap{address: s.Address.String(), id: s.id},
 		},
 	}
 

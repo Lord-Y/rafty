@@ -37,9 +37,8 @@ func (r *Rafty) runAsFollower() {
 	r.electionTimer = time.NewTimer(r.randomElectionTimeout())
 	r.mu.Unlock()
 
-	timeout := time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond
+	timeout := time.Duration(leaderHeartBeatTimeout*int(r.options.TimeMultiplier)) * time.Millisecond
 	hearbeatTimer := time.NewTimer(timeout)
-	myAddress, myId := r.getMyAddress()
 
 	for r.getState() == Follower {
 		select {
@@ -56,14 +55,20 @@ func (r *Rafty) runAsFollower() {
 			}
 
 			r.mu.Lock()
-			leaderLastContactDate := r.LeaderLastContactDate
+			leaderLastContactDate := r.leaderLastContactDate
 			leaderLost := false
 			if leaderLastContactDate != nil && time.Since(*leaderLastContactDate) > timeout {
 				r.leaderLost.Store(true)
 				leaderLost = true
 				leader := r.getLeader()
 				if leader != (leaderMap{}) {
-					r.Logger.Info().Msgf("Me %s / %s with state %s reports that Leader %s / %s has been lost for term %d", myAddress, myId, r.getState().String(), leader.address, leader.id, r.getCurrentTerm())
+					r.Logger.Info().
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("oldLeaderAddress", leader.address).
+						Str("oldLeaderId", leader.id).
+						Msgf("Leader has been lost for term %d", r.getCurrentTerm())
 				}
 				r.setLeader(leaderMap{})
 				r.votedFor = ""
@@ -175,14 +180,14 @@ func (r *Rafty) runAsLeader() {
 	// According to raft paper, we need to reset nextIndex and matchIndex
 	// when becoming a leader
 	if !r.volatileStateInitialized.Load() {
-		r.setNextAndMatchIndex(r.ID, 0, 0)
+		r.setNextAndMatchIndex(r.id, 0, 0)
 		for _, peer := range r.configuration.ServerMembers {
 			r.setNextAndMatchIndex(peer.ID, 0, 0)
 		}
 		r.volatileStateInitialized.Store(true)
 	}
 
-	heartbeatTicker := time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
+	heartbeatTicker := time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.options.TimeMultiplier)) * time.Millisecond)
 	defer heartbeatTicker.Stop()
 
 	for r.getState() == Leader {
@@ -230,7 +235,7 @@ func (r *Rafty) runAsLeader() {
 			entryIndex := len(r.log) - 1
 			r.mu.Unlock()
 			r.appendEntries(false, data.responseChan, true, false, entryIndex)
-			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
+			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.options.TimeMultiplier)) * time.Millisecond)
 
 		// commands sent by clients to Follower nodes will be forwarded to the leader
 		// to later apply commands
@@ -241,7 +246,7 @@ func (r *Rafty) runAsLeader() {
 			entryIndex := len(r.log) - 1
 			r.mu.Unlock()
 			r.appendEntries(false, make(chan appendEntriesResponse, 1), false, true, entryIndex)
-			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.TimeMultiplier)) * time.Millisecond)
+			heartbeatTicker = time.NewTicker(time.Duration(leaderHeartBeatTimeout*int(r.options.TimeMultiplier)) * time.Millisecond)
 		}
 	}
 }

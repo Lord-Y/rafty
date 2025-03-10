@@ -62,10 +62,19 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 					Address: peerAddr,
 				})
 
-				server = rafty.NewServer(addr)
-				server.ID = fmt.Sprintf("%d", i)
-				server.Peers = peers
-				server.TimeMultiplier = 2
+				minimumClusterSize := uint64(0)
+				if cc.autoSetMinimumClusterSize {
+					minimumClusterSize = uint64(cc.clusterSize)
+				}
+				id := fmt.Sprintf("%d", i)
+				options := rafty.Options{
+					Peers:              peers,
+					PersistDataOnDisk:  true,
+					DataDir:            filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i)),
+					TimeMultiplier:     2,
+					MinimumClusterSize: minimumClusterSize,
+				}
+				server = rafty.NewRafty(addr, id, options)
 			}
 		}
 		cluster = append(cluster, server)
@@ -76,8 +85,6 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 func (cc *clusterConfig) startCluster() {
 	cc.cluster = cc.makeCluster()
 	for i, node := range cc.cluster {
-		node.PersistDataOnDisk = true
-		node.DataDir = filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i))
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		sleep := 1 + r.Intn(len(cc.cluster))
 		time.Sleep(time.Duration(sleep) * time.Second)
@@ -116,9 +123,6 @@ func (cc *clusterConfig) startOrStopSpecificicNode(index int, action string) err
 		}()
 		return nil
 	default:
-		if cc.autoSetMinimumClusterSize {
-			node.MinimumClusterSize = uint64(cc.clusterSize)
-		}
 		return node.Start()
 	}
 }

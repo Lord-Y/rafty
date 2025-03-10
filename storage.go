@@ -35,24 +35,24 @@ type persistMetadata struct {
 
 // restoreMetadata allow us to restore node metadata from disk
 func (r *Rafty) restoreMetadata() {
-	if !r.PersistDataOnDisk {
+	if !r.options.PersistDataOnDisk {
 		r.mu.Lock()
-		for _, server := range r.Peers {
-			r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{ID: server.id, Address: server.Address})
+		for _, server := range r.options.Peers {
+			r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{Address: server.Address})
 		}
 		r.mu.Unlock()
 		return
 	}
-	if r.DataDir == "" {
+	if r.options.DataDir == "" {
 		return
 	}
 
-	err := createDirectoryIfNotExist(r.DataDir, 0750)
+	err := createDirectoryIfNotExist(r.options.DataDir, 0750)
 	if err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to create directory %s", r.DataDir)
+		r.Logger.Fatal().Err(err).Msgf("Fail to create directory %s", r.options.DataDir)
 	}
 
-	dataFile := filepath.Join(r.DataDir, metadataFile)
+	dataFile := filepath.Join(r.options.DataDir, metadataFile)
 	if r.metadataFileDescriptor == nil {
 		var err error
 		r.metadataFileDescriptor, err = os.OpenFile(dataFile, os.O_RDWR|os.O_CREATE, 0644)
@@ -75,20 +75,20 @@ func (r *Rafty) restoreMetadata() {
 		}
 
 		r.mu.Lock()
-		r.ID = data.Id
+		r.id = data.Id
 		r.CurrentTerm = data.CurrentTerm
 		r.votedFor = data.VotedFor
 		if len(data.Configuration.ServerMembers) > 0 {
 			r.configuration.ServerMembers = data.Configuration.ServerMembers
 		} else {
-			for _, server := range r.Peers {
-				r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{ID: server.id, Address: server.Address})
+			for _, server := range r.options.Peers {
+				r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{Address: server.Address})
 			}
 		}
 
 		for i := range data.Configuration.ServerMembers {
-			index := slices.IndexFunc(r.Peers, func(p Peer) bool {
-				return p.address.String() == data.Configuration.ServerMembers[i].Address && p.id == data.Configuration.ServerMembers[i].ID
+			index := slices.IndexFunc(r.options.Peers, func(p Peer) bool {
+				return p.address.String() == data.Configuration.ServerMembers[i].Address
 			})
 			if index == -1 {
 				r.configuration.newMembers = append(r.configuration.newMembers, peer{Address: data.Configuration.ServerMembers[i].Address, ID: data.Configuration.ServerMembers[i].ID})
@@ -99,22 +99,22 @@ func (r *Rafty) restoreMetadata() {
 	}
 
 	r.mu.Lock()
-	for _, server := range r.Peers {
-		r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{ID: server.id, Address: server.Address})
+	for _, server := range r.options.Peers {
+		r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{Address: server.Address})
 	}
 	r.mu.Unlock()
 }
 
 // persistMetadata allow us to persist node metadata on disk
 func (r *Rafty) persistMetadata() error {
-	if !r.PersistDataOnDisk {
+	if !r.options.PersistDataOnDisk {
 		return nil
 	}
-	if r.DataDir == "" {
+	if r.options.DataDir == "" {
 		return nil
 	}
 
-	err := createDirectoryIfNotExist(r.DataDir, 0755)
+	err := createDirectoryIfNotExist(r.options.DataDir, 0755)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (r *Rafty) persistMetadata() error {
 		return err
 	}
 
-	dataFile := filepath.Join(r.DataDir, metadataFile)
+	dataFile := filepath.Join(r.options.DataDir, metadataFile)
 	if r.metadataFileDescriptor == nil {
 		var err error
 		r.metadataFileDescriptor, err = os.OpenFile(dataFile, os.O_RDWR|os.O_CREATE, 0644)
@@ -164,14 +164,14 @@ func (r *Rafty) persistMetadata() error {
 
 // restoreData allow us to restore node data from disk
 func (r *Rafty) restoreData() {
-	if !r.PersistDataOnDisk {
+	if !r.options.PersistDataOnDisk {
 		return
 	}
-	if r.DataDir == "" {
+	if r.options.DataDir == "" {
 		return
 	}
 
-	datadir := filepath.Join(r.DataDir, dataStateDir)
+	datadir := filepath.Join(r.options.DataDir, dataStateDir)
 	err := createDirectoryIfNotExist(datadir, 0750)
 	if err != nil {
 		r.Logger.Fatal().Err(err).Msgf("Fail to create directory %s", datadir)
@@ -211,14 +211,14 @@ type logEntry struct {
 
 // persistData allow us to persist node data on disk
 func (r *Rafty) persistData(entryIndex int) error {
-	if !r.PersistDataOnDisk {
+	if !r.options.PersistDataOnDisk {
 		return nil
 	}
-	if r.DataDir == "" {
+	if r.options.DataDir == "" {
 		return nil
 	}
 
-	datadir := filepath.Join(r.DataDir, dataStateDir)
+	datadir := filepath.Join(r.options.DataDir, dataStateDir)
 	err := createDirectoryIfNotExist(datadir, 0750)
 	if err != nil {
 		r.Logger.Fatal().Err(err).Msgf("Fail to create directory %s", datadir)

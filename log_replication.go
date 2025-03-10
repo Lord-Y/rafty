@@ -52,14 +52,12 @@ type triggerAppendEntries struct {
 func (r *Rafty) appendEntries(heartbeat bool, replyClientChan chan appendEntriesResponse, replyToClientChan, replyToForwardedCommand bool, entryIndex int) {
 	currentTerm := r.getCurrentTerm()
 	commitIndex := r.getCommitIndex()
-	myAddress, myId := r.getMyAddress()
-	state := r.getState()
-	myNextIndex := r.getNextIndex(r.ID)
-	r.murw.Lock()
+	myNextIndex := r.getNextIndex(r.id)
+	r.mu.Lock()
 	peers := r.configuration.ServerMembers
 	totalPeers := len(peers)
 	totalLogs := len(r.log)
-	r.murw.Unlock()
+	r.mu.Unlock()
 	var (
 		majority                   atomic.Uint64
 		leaderVolatileStateUpdated atomic.Bool
@@ -87,16 +85,30 @@ func (r *Rafty) appendEntries(heartbeat bool, replyClientChan chan appendEntries
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && r.getState() == Leader {
 			go func() {
 				if totalEntries == 0 {
-					r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d send append entries heartbeats to %s / %s", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.ID)
+					r.Logger.Trace().
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("peerAddress", peer.address.String()).
+						Str("peerId", peer.ID).
+						Msgf("Send append entries heartbeats")
 				} else {
-					r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d send %d append entries to %s / %s ", myAddress, myId, state.String(), currentTerm, totalEntries, peer.address.String(), peer.ID)
+					r.Logger.Trace().
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("peerAddress", peer.address.String()).
+						Str("peerId", peer.ID).
+						Msgf("Send %d append entries", totalEntries)
 				}
 
 				response, err := peer.rclient.SendAppendEntriesRequest(
 					context.Background(),
 					&raftypb.AppendEntryRequest{
-						LeaderID:          myId,
-						LeaderAddress:     myAddress,
+						LeaderID:          r.id,
+						LeaderAddress:     r.Address.String(),
 						Term:              currentTerm,
 						PrevLogIndex:      prevLogIndex,
 						PrevLogTerm:       prevLogTerm,
@@ -108,12 +120,30 @@ func (r *Rafty) appendEntries(heartbeat bool, replyClientChan chan appendEntries
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to send append entries to peers %s / %s", peer.address.String(), peer.ID)
+					if r.getState() != Down {
+						r.Logger.Error().Err(err).
+							Str("address", r.Address.String()).
+							Str("id", r.id).
+							Str("state", r.getState().String()).
+							Str("term", fmt.Sprintf("%d", currentTerm)).
+							Str("peerAddress", peer.address.String()).
+							Str("peerId", peer.ID).
+							Msgf("Fail to send append entries to peer")
+					}
 					return
 				}
 
-				if response.GetTerm() > currentTerm {
-					r.Logger.Debug().Msgf("Me %s / %s with state %s has lower term %d < %d than %s / %s for append entries", myAddress, myId, state.String(), currentTerm, response.GetTerm(), peer.address.String(), peer.ID)
+				if response.Term > currentTerm {
+					r.Logger.Debug().
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("peerAddress", peer.address.String()).
+						Str("peerId", peer.ID).
+						Str("peerTerm", fmt.Sprintf("%d", response.Term)).
+						Msgf("My term is lower than peer")
+
 					r.setCurrentTerm(response.GetTerm())
 					r.switchState(Follower, true, response.GetTerm())
 					return
@@ -125,24 +155,45 @@ func (r *Rafty) appendEntries(heartbeat bool, replyClientChan chan appendEntries
 							majority.Add(1)
 						}
 						if int(majority.Load()) >= totalMajority {
-							r.Logger.Trace().Msgf("Me %s / %s with state %s and term %d reports that majority replication reached %t totalLogs %d heartbeat %t", myAddress, myId, state.String(), currentTerm, int(majority.Load()) >= totalMajority, totalLogs, heartbeat)
+							r.Logger.Trace().
+								Str("address", r.Address.String()).
+								Str("id", r.id).
+								Str("state", r.getState().String()).
+								Str("term", fmt.Sprintf("%d", currentTerm)).
+								Str("peerAddress", peer.address.String()).
+								Str("peerId", peer.ID).
+								Str("peerTerm", fmt.Sprintf("%d", response.Term)).
+								Str("heartbeat", fmt.Sprintf("%t", heartbeat)).
+								Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+								Msgf("Replication majority reached")
+
 							if totalLogs > 0 && !heartbeat {
 								r.setNextAndMatchIndex(peer.ID, max(prevLogIndex+uint64(totalEntries)+1, 1), nextIndex-1)
 
 								if !leaderVolatileStateUpdated.Load() {
-									r.setNextAndMatchIndex(r.ID, myNextIndex+1, myNextIndex)
+									r.setNextAndMatchIndex(r.id, myNextIndex+1, myNextIndex)
 									r.incrementLeaderCommitIndex()
 									r.incrementLastApplied()
 									leaderVolatileStateUpdated.Store(true)
 								}
 
-								leaderNextIndex, leaderMatchIndex := r.getNextAndMatchIndex(r.ID)
-								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d nextIndex: %d / matchIndex: %d leaderVolatileStateUpdated %t", myAddress, myId, state.String(), currentTerm, leaderNextIndex, leaderMatchIndex, leaderVolatileStateUpdated.Load())
+								leaderNextIndex, leaderMatchIndex := r.getNextAndMatchIndex(r.id)
+								r.Logger.Debug().
+									Str("address", r.Address.String()).
+									Str("id", r.id).
+									Str("state", r.getState().String()).
+									Str("term", fmt.Sprintf("%d", currentTerm)).
+									Str("nextIndex", fmt.Sprintf("%d", leaderNextIndex)).
+									Str("matchIndex", fmt.Sprintf("%d", leaderMatchIndex)).
+									Str("leaderVolatileStateUpdated", fmt.Sprintf("%t", leaderVolatileStateUpdated.Load())).
+									Msgf("Leader volatile state")
 
-								if r.PersistDataOnDisk {
-									if err := r.persistData(entryIndex); err != nil {
-										r.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
-									}
+								if err := r.persistData(entryIndex); err != nil {
+									r.Logger.Fatal().Err(err).
+										Str("address", r.Address.String()).
+										Str("id", r.id).
+										Str("state", r.getState().String()).
+										Msgf("Fail to persist data on disk")
 								}
 								if replyToClientChan {
 									replyClientChan <- appendEntriesResponse{}
@@ -150,17 +201,42 @@ func (r *Rafty) appendEntries(heartbeat bool, replyClientChan chan appendEntries
 								if replyToForwardedCommand {
 									r.rpcForwardCommandToLeaderRequestChanWritter <- &raftypb.ForwardCommandToLeaderResponse{}
 								}
-								r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries to the majority of servers %d >= %d", myAddress, myId, state.String(), currentTerm, int(majority.Load()), totalMajority)
+
+								r.Logger.Debug().
+									Str("address", r.Address.String()).
+									Str("id", r.id).
+									Str("state", r.getState().String()).
+									Str("term", fmt.Sprintf("%d", currentTerm)).
+									Str("peerAddress", peer.address.String()).
+									Str("peerId", peer.ID).
+									Msgf("Successfully append entries to the majority of servers %d >= %d", int(majority.Load()), totalMajority)
 							}
 						}
 						nextIndex, matchIndex := r.getNextAndMatchIndex(peer.ID)
 
-						r.Logger.Debug().Msgf("Me %s / %s with state %s and term %d successfully append entries of %s / %s with nextIndex: %d / matchIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.ID, nextIndex, int(matchIndex))
+						r.Logger.Debug().
+							Str("address", r.Address.String()).
+							Str("id", r.id).
+							Str("state", r.getState().String()).
+							Str("term", fmt.Sprintf("%d", currentTerm)).
+							Str("peerAddress", peer.address.String()).
+							Str("peerId", peer.ID).
+							Str("peerTerm", fmt.Sprintf("%d", currentTerm)).
+							Str("peerNextIndex", fmt.Sprintf("%d", nextIndex)).
+							Str("peerMatchIndex", fmt.Sprintf("%d", int(matchIndex))).
+							Msgf("Successfully append entries to peer")
 					} else {
 						nextIndex := max(nextIndex-1, 1)
 						r.setNextIndex(peer.ID, nextIndex)
 
-						r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).Msgf("Me %s / %s with state %s and term %d failed to append entries of %s / %s because it rejected it, nextIndex: %d", myAddress, myId, state.String(), currentTerm, peer.address.String(), peer.ID, nextIndex)
+						r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).
+							Str("address", r.Address.String()).
+							Str("id", r.id).
+							Str("peerAddress", peer.address.String()).
+							Str("peerId", peer.ID).
+							Str("peerTerm", fmt.Sprintf("%d", response.Term)).
+							Str("peerNextIndex", fmt.Sprintf("%d", nextIndex)).
+							Msgf("Fail to send append entries to peer because it rejected it")
 					}
 				}
 			}()
@@ -202,7 +278,12 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(err).Msgf("Fail to forward command to leader %s / %s", peer.address.String(), peer.ID)
+					r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("leaderAddress", peer.address.String()).
+						Str("leaderId", peer.ID).
+						Msgf("Fail to forward command to leader")
 					return nil, err
 				}
 				if response.Error == "" {
