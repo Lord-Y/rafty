@@ -251,7 +251,7 @@ func (r *Rafty) handleVoteResponseError(vote voteResponseErrorWrapper) {
 			Str("id", r.id).
 			Str("peerAddress", vote.peer.address.String()).
 			Str("peerId", vote.peer.ID).
-			Str("statusCode", fmt.Sprintf("%s", status.Code(vote.err))).
+			Str("statusCode", status.Code(vote.err).String()).
 			Msgf("Fail to send vote request to peer")
 	}
 }
