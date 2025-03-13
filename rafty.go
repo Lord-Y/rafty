@@ -575,29 +575,31 @@ func (r *Rafty) sendGetLeaderRequest() {
 	totalPeers := len(peers)
 	r.mu.Unlock()
 
-	for i, peer := range peers {
+	askPeer := func(i int, peer peer) {
 		if peer.client != nil && slices.Contains([]connectivity.State{connectivity.Ready, connectivity.Idle}, peer.client.GetState()) && !r.leaderLost.Load() && r.getState() != Down {
-			go func() {
-				r.Logger.Trace().
-					Str("address", r.Address.String()).
-					Str("id", r.id).
-					Str("state", r.getState().String()).
-					Str("term", fmt.Sprintf("%d", currentTerm)).
-					Str("peerAddress", peer.address.String()).
-					Str("peerId", peer.ID).
-					Msgf("Asking who is the leader")
+			r.Logger.Trace().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("peerAddress", peer.address.String()).
+				Str("peerId", peer.ID).
+				Msgf("Asking who is the leader")
 
-				response, err := peer.rclient.GetLeader(
-					context.Background(),
-					&raftypb.GetLeaderRequest{
-						PeerID:      r.id,
-						PeerAddress: r.Address.String(),
-					},
-					grpc.WaitForReady(true),
-					grpc.UseCompressor(gzip.Name),
-				)
-
-				if err != nil {
+			var (
+				response *raftypb.GetLeaderResponse
+				err      error
+			)
+			if response, err = peer.rclient.GetLeader(
+				context.Background(),
+				&raftypb.GetLeaderRequest{
+					PeerID:      r.id,
+					PeerAddress: r.Address.String(),
+				},
+				grpc.WaitForReady(true),
+				grpc.UseCompressor(gzip.Name),
+			); err != nil {
+				if r.getState() != Down {
 					r.Logger.Error().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).
@@ -606,38 +608,39 @@ func (r *Rafty) sendGetLeaderRequest() {
 						Str("peerAddress", peer.address.String()).
 						Str("peerId", peer.ID).
 						Msgf("Fail to ask this peer who is the leader")
-				} else {
-					if response.LeaderID != "" {
-						if !leaderFound.Load() {
-							r.setLeader(leaderMap{
-								address: response.LeaderAddress,
-								id:      response.LeaderID,
-							})
-							r.leaderLost.Store(false)
-
-							r.Logger.Info().
-								Str("address", r.Address.String()).
-								Str("id", r.id).
-								Str("state", r.getState().String()).
-								Str("term", fmt.Sprintf("%d", currentTerm)).
-								Str("leaderAddress", response.LeaderAddress).
-								Str("leaderId", response.LeaderID).
-								Msgf("Leader found")
-						}
-						leaderFound.Store(true)
-					}
 				}
+			}
+			if !leaderFound.Load() && response.LeaderID != "" {
+				r.setLeader(leaderMap{
+					address: response.LeaderAddress,
+					id:      response.LeaderID,
+				})
+				r.leaderLost.Store(false)
 
-				if !leaderFound.Load() && i+1 == totalPeers {
-					r.leaderLost.Store(true)
-					r.Logger.Info().
-						Str("address", r.Address.String()).
-						Str("id", r.id).
-						Str("state", r.getState().String()).
-						Str("term", fmt.Sprintf("%d", currentTerm)).
-						Msgf("There is no leader")
-				}
-			}()
+				r.Logger.Info().
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Str("term", fmt.Sprintf("%d", currentTerm)).
+					Str("leaderAddress", response.LeaderAddress).
+					Str("leaderId", response.LeaderID).
+					Msgf("Leader found")
+				leaderFound.Store(true)
+			}
 		}
+
+		if !leaderFound.Load() && i+1 == totalPeers {
+			r.leaderLost.Store(true)
+			r.Logger.Info().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Msgf("There is no leader")
+		}
+	}
+
+	for i, peer := range peers {
+		go askPeer(i, peer)
 	}
 }
