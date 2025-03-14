@@ -27,7 +27,6 @@ func (r *Rafty) connectToPeer(address string) {
 					address,
 					opts...,
 				)
-				go r.reconnect(conn, peerIndex, address)
 
 				if err != nil {
 					if r.getState() != Down {
@@ -38,6 +37,7 @@ func (r *Rafty) connectToPeer(address string) {
 							Str("peerAddress", peer.address.String()).
 							Str("peerId", peer.ID).
 							Msgf("Fail to connect to peer")
+						go r.reconnect(conn, peerIndex, address)
 					}
 					return
 				}
@@ -88,6 +88,7 @@ func (r *Rafty) connectToPeer(address string) {
 						r.setLeader(leaderMap{address: response.LeaderAddress, id: response.LeaderID})
 					}
 					readOnlyNode = response.ReadOnlyNode
+					go r.reconnect(conn, peerIndex, address)
 				}
 
 				if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !readOnlyNode {
