@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/Lord-Y/rafty/raftypb"
-	"google.golang.org/grpc/status"
 )
 
 func (r *Rafty) handleSendPreVoteRequestReader() {
@@ -14,18 +13,6 @@ func (r *Rafty) handleSendPreVoteRequestReader() {
 		PeerID:      r.id,
 		State:       state.String(),
 		CurrentTerm: currentTerm,
-	}
-}
-
-func (r *Rafty) handlePreVoteResponseError(vote voteResponseErrorWrapper) {
-	if vote.err != nil && r.getState() != Down {
-		r.Logger.Error().Err(vote.err).
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Str("peerAddress", vote.peer.address.String()).
-			Str("peerId", vote.peer.ID).
-			Msgf("Fail to get pre vote request")
 	}
 }
 
@@ -241,18 +228,6 @@ func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
 			Str("id", r.id).
 			Str("state", r.getState().String()).
 			Msgf("Fail to persist metadata")
-	}
-}
-
-func (r *Rafty) handleVoteResponseError(vote voteResponseErrorWrapper) {
-	if vote.err != nil && r.getState() != Down {
-		r.Logger.Error().Err(vote.err).
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("peerAddress", vote.peer.address.String()).
-			Str("peerId", vote.peer.ID).
-			Str("statusCode", status.Code(vote.err).String()).
-			Msgf("Fail to send vote request to peer")
 	}
 }
 

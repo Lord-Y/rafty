@@ -206,14 +206,8 @@ type Rafty struct {
 	// preVoteResponseChan is the chan that will receive pre vote reply
 	preVoteResponseChan chan preVoteResponseWrapper
 
-	// preVoteResponseErrorChan is the chan that will receive vote reply error
-	preVoteResponseErrorChan chan voteResponseErrorWrapper
-
 	// voteResponseChan is the chan that will receive vote reply
 	voteResponseChan chan voteResponseWrapper
-
-	// voteResponseErrorChan is the chan that will receive vote reply error
-	voteResponseErrorChan chan voteResponseErrorWrapper
 
 	// triggerAppendEntriesChan is the chan that will trigger append entries
 	// without waiting leader hearbeat append entries
@@ -368,15 +362,6 @@ type voteResponseWrapper struct {
 	savedCurrentTerm uint64
 }
 
-// requestvoteResponseErrorWrapper is a struct that will be used to handle errors and sent back to the appropriate channel
-type voteResponseErrorWrapper struct {
-	// peer hold the peer address
-	peer peer
-
-	// err is the error itself
-	err error
-}
-
 // logSource is only use during unit testing running in parallel in order to
 // better debug logs
 var logSource = ""
@@ -386,9 +371,7 @@ var logSource = ""
 func NewRafty(address net.TCPAddr, id string, options Options) *Rafty {
 	r := &Rafty{
 		preVoteResponseChan:                         make(chan preVoteResponseWrapper),
-		preVoteResponseErrorChan:                    make(chan voteResponseErrorWrapper),
 		voteResponseChan:                            make(chan voteResponseWrapper),
-		voteResponseErrorChan:                       make(chan voteResponseErrorWrapper),
 		triggerAppendEntriesChan:                    make(chan triggerAppendEntries),
 		rpcPreVoteRequestChanReader:                 make(chan struct{}),
 		rpcPreVoteRequestChanWritter:                make(chan *raftypb.PreVoteResponse),

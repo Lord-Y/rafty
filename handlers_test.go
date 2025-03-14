@@ -1,7 +1,6 @@
 package rafty
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -22,20 +21,6 @@ func TestHandleSendPreVoteRequestReader(t *testing.T) {
 	data := <-s.rpcPreVoteRequestChanWritter
 	assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
 	assert.Equal(s.id, data.GetPeerID())
-}
-
-func TestHandlePreVoteResponseError(t *testing.T) {
-	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-	s.CurrentTerm = 1
-	err = errors.New("testError")
-
-	s.handlePreVoteResponseError(voteResponseErrorWrapper{
-		peer: s.configuration.ServerMembers[0],
-		err:  err,
-	})
 }
 
 func TestHandlePreVoteResponse(t *testing.T) {
@@ -269,20 +254,6 @@ func TestHandleSendVoteRequestReader(t *testing.T) {
 		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
 		assert.Equal(s.id, data.GetPeerID())
 		assert.Equal(true, data.GetVoteGranted())
-	})
-}
-
-func TestHandleVoteResponseError(t *testing.T) {
-	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-	s.CurrentTerm = 1
-	err = errors.New("testError")
-
-	s.handleVoteResponseError(voteResponseErrorWrapper{
-		peer: s.configuration.ServerMembers[0],
-		err:  err,
 	})
 }
 

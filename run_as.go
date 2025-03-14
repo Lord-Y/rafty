@@ -92,10 +92,6 @@ func (r *Rafty) runAsFollower() {
 			}
 			r.handlePreVoteResponse(preVote)
 
-		// handle pre vote response error from other nodes
-		case preVoteError := <-r.preVoteResponseErrorChan:
-			r.handlePreVoteResponseError(preVoteError)
-
 		// receive and answer request vote from other nodes
 		case reader := <-r.rpcSendVoteRequestChanReader:
 			r.handleSendVoteRequestReader(reader)
@@ -135,10 +131,6 @@ func (r *Rafty) runAsCandidate() {
 			}
 			r.handlePreVoteResponse(preVote)
 
-		// handle pre vote response error from other nodes
-		case preVoteError := <-r.preVoteResponseErrorChan:
-			r.handlePreVoteResponseError(preVoteError)
-
 		// when vote election timer time out, start a new election campain
 		// if vote election succeed
 		case <-r.electionTimer.C:
@@ -154,10 +146,6 @@ func (r *Rafty) runAsCandidate() {
 		// and become a leader if conditions are met
 		case vote := <-r.voteResponseChan:
 			r.handleVoteResponse(vote)
-
-		// handle vote response error from other nodes
-		case voteError := <-r.voteResponseErrorChan:
-			r.handleVoteResponseError(voteError)
 
 		// handle append entries from the leader
 		case entries := <-r.rpcSendAppendEntriesRequestChanReader:
@@ -202,10 +190,6 @@ func (r *Rafty) runAsLeader() {
 				return
 			}
 			r.handlePreVoteResponse(preVote)
-
-		// handle pre vote response error from other nodes
-		case preVoteError := <-r.preVoteResponseErrorChan:
-			r.handlePreVoteResponseError(preVoteError)
 
 		// receive and answer request vote from other nodes
 		case reader := <-r.rpcSendVoteRequestChanReader:
