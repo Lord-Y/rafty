@@ -76,7 +76,7 @@ const (
 )
 
 var (
-	errAppendEntriesToLeader = errors.New("Cannot append entries from leader")
+	errAppendEntriesToLeader = errors.New("Cannot append entries to a leader")
 	errTermTooOld            = errors.New("Requester term older than mine")
 	errNoLeader              = errors.New("NoLeader")
 	errCommandNotFound       = errors.New("CommandNotFound")

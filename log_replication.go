@@ -278,7 +278,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 					grpc.UseCompressor(gzip.Name),
 				)
 				if err != nil {
-					r.Logger.Error().Err(fmt.Errorf("Fail to append entries")).
+					r.Logger.Error().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).
 						Str("leaderAddress", peer.address.String()).

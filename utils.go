@@ -110,9 +110,9 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 
 	if state == Follower {
 		r.volatileStateInitialized.Store(false)
-		r.murw.Lock()
+		r.mu.Lock()
 		peers := r.configuration.ServerMembers
-		r.murw.Unlock()
+		r.mu.Unlock()
 		for _, peer := range peers {
 			r.nextIndex.Delete(peer.ID)
 			r.matchIndex.Delete(peer.ID)
