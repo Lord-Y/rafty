@@ -2,9 +2,6 @@ package rafty
 
 import (
 	"net"
-
-	"github.com/Lord-Y/rafty/raftypb"
-	"google.golang.org/grpc"
 )
 
 type peer struct {
@@ -20,12 +17,6 @@ type peer struct {
 
 	// address is the address of a peer node with explicit host and port
 	address net.TCPAddr
-
-	// client hold gprc server connection
-	client *grpc.ClientConn
-
-	// rclient hold gprc rafty client
-	rclient raftypb.RaftyClient
 }
 
 // configuration hold configuration related to current server
@@ -35,9 +26,4 @@ type configuration struct {
 
 	// newMembers hold all new members of the cluster
 	newMembers []peer
-
-	// preCandidatePeers hold the list of the peers
-	// that will be use to elect a new leader
-	// if no leader has been detected
-	preCandidatePeers []peer
 }

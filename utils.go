@@ -2,10 +2,10 @@ package rafty
 
 import (
 	"net"
-	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 )
 
 func (r *Rafty) parsePeers() error {
@@ -22,10 +22,11 @@ func (r *Rafty) parsePeers() error {
 					IP:   net.ParseIP(server.Address),
 					Port: int(GRPCPort),
 				}
-				if r.Status.Address.String() != addr.String() {
+				if r.Address.String() != addr.String() {
 					uniqPeers = append(uniqPeers, peer{
 						Address: addr.String(),
 						address: addr,
+						ID:      server.ID,
 					})
 				}
 			}
@@ -38,10 +39,11 @@ func (r *Rafty) parsePeers() error {
 				IP:   net.ParseIP(host),
 				Port: p,
 			}
-			if r.Status.Address.String() != addr.String() {
+			if r.Address.String() != addr.String() {
 				uniqPeers = append(uniqPeers, peer{
 					Address: addr.String(),
 					address: addr,
+					ID:      server.ID,
 				})
 			}
 		}
@@ -52,72 +54,21 @@ func (r *Rafty) parsePeers() error {
 	return nil
 }
 
-// getPeerSliceIndex will be used to retrieve
-// the index of the peer by providing its address
-func (r *Rafty) getPeerSliceIndex(addr string) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	index := slices.IndexFunc(r.configuration.ServerMembers, func(p peer) bool {
-		return p.address.String() == addr
-	})
-	if index != -1 {
-		return index
-	}
-	return -1
-}
-
-// checkIfPeerInSliceIndex will be used to check
-// if peer is present in the peer list
-func (r *Rafty) checkIfPeerInSliceIndex(preVote bool, addr string) bool {
-	if preVote {
-		r.murw.Lock()
-		index := slices.IndexFunc(r.configuration.preCandidatePeers, func(p peer) bool {
-			return p.address.String() == addr
-		})
-		r.murw.Unlock()
-		return index != -1
-	}
-
-	index := slices.IndexFunc(r.configuration.ServerMembers, func(p peer) bool {
-		return p.address.String() == addr
-	})
-	return index != -1
-}
-
-func (r *Rafty) loopingOverNodeState() {
-	for r.getState() != Down {
-		switch r.getState() {
-		case ReadOnly:
-			r.runAsReadOnly()
-		case Follower:
-			r.runAsFollower()
-		case Candidate:
-			r.runAsCandidate()
-		case Leader:
-			r.runAsLeader()
-		}
-	}
-}
-
 // switchState permits to switch to the mentionned state
 // and print a nice message if needed
-func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
-	if r.getState() == state {
+func (r *Rafty) switchState(state State, upOrDown upOrDown, niceMessage bool, currentTerm uint64) {
+	// _, file, no, ok := runtime.Caller(1)
+	// if ok {
+	// 	r.Logger.Info().
+	// 		Str("address", r.Address.String()).
+	// 		Str("newState", state.String()).
+	// 		Msgf("Called from %s#%d", file, no)
+	// }
+	if r.getState() == state || (r.isRunning.Load() && r.getState() == Down) {
 		return
 	}
 	addr := (*uint32)(&r.State)
 	atomic.StoreUint32(addr, uint32(state))
-
-	if state == Follower {
-		r.volatileStateInitialized.Store(false)
-		r.mu.Lock()
-		peers := r.configuration.ServerMembers
-		r.mu.Unlock()
-		for _, peer := range peers {
-			r.nextIndex.Delete(peer.ID)
-			r.matchIndex.Delete(peer.ID)
-		}
-	}
 
 	if state == Down {
 		r.setLeader(leaderMap{})
@@ -126,69 +77,24 @@ func (r *Rafty) switchState(state State, niceMessage bool, currentTerm uint64) {
 	if niceMessage {
 		switch state {
 		case ReadOnly:
-			r.Logger.Info().
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Stepping for term %d", currentTerm)
-		case Follower:
-			r.Logger.Info().
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Stepping down for term %d", currentTerm)
-		case Candidate, Leader:
-			if state == Leader {
-				r.stopElectionTimer()
-			}
-			r.Logger.Info().
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Stepping up %s for term %d", state, currentTerm)
 		case Down:
 			r.Logger.Info().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
 				Msgf("Shutting down with term %d", currentTerm)
-		}
-	}
-}
-
-// logState permits to log mentionned state
-// with a nice message if needed
-func (r *Rafty) logState(state State, niceMessage bool, currentTerm uint64) {
-	if r.getState() == state {
-		return
-	}
-
-	if niceMessage {
-		switch state {
-		case ReadOnly:
+		case Candidate:
 			r.Logger.Info().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
-				Msgf("Stepping for term %d", currentTerm)
-		case Follower:
+				Msgf("Stepping %s as %s with term %d", upOrDown.String(), state.String(), currentTerm+1)
+		default:
 			r.Logger.Info().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
-				Msgf("Stepping down for term %d", currentTerm)
-		case Candidate, Leader:
-			r.Logger.Info().
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Stepping up %s for term %d", state, currentTerm)
-		case Down:
-			r.Logger.Info().
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Shutting down with term %d", currentTerm)
+				Msgf("Stepping %s as %s with term %d", upOrDown.String(), state.String(), currentTerm)
 		}
 	}
 }
@@ -209,16 +115,44 @@ func max(a, b uint64) uint64 {
 	return b
 }
 
-// getPeerClient will be used to retrieve
-// the index of the peer and return its related struct
-func (r *Rafty) getPeerClient(peerId string) peer {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	index := slices.IndexFunc(r.configuration.ServerMembers, func(p peer) bool {
-		return p.ID == peerId
-	})
-	if index != -1 {
-		return r.configuration.ServerMembers[index]
+// backoff is used to calculate exponential backoff
+// time to wait before processing again
+func backoff(wait time.Duration, failures, maxFailures uint64) time.Duration {
+	power := min(failures, maxFailures)
+	for power > 2 {
+		wait *= 2
+		power--
 	}
-	return peer{}
+	return wait
+}
+
+// quorum calculate the number to be reach to start election
+func (r *Rafty) quorum() int {
+	r.murw.RLock()
+	defer r.murw.RUnlock()
+	voter := 0
+	for _, member := range r.configuration.ServerMembers {
+		if !member.ReadOnlyNode {
+			voter++
+		}
+	}
+	return voter/2 + 1
+}
+
+// calculateMaxRangeLogIndex return the max log index limit
+// needed when leader need to send catchup entries to followers
+func calculateMaxRangeLogIndex(totalLogs, maxAppendEntries, initialIndex uint) (limit uint, snapshot bool) {
+	if totalLogs > maxAppendEntries {
+		limit = maxAppendEntries
+		snapshot = true
+	} else {
+		limit = totalLogs
+	}
+
+	if initialIndex > limit {
+		limit += initialIndex
+		snapshot = false
+		return
+	}
+	return
 }

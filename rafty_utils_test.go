@@ -3,10 +3,12 @@ package rafty
 import (
 	"context"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 
 type clusterConfig struct {
 	t                         *testing.T
+	assert                    *assert.Assertions
 	runTestInParallel         bool
 	testName                  string
 	portStartRange            uint
@@ -31,6 +34,7 @@ type clusterConfig struct {
 	noNodeID                  bool
 	maxAppendEntries          uint64
 	readOnlyNodeCount         uint64
+	disablePrevote            bool
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
@@ -54,6 +58,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 			Port: defaultPort + int(i),
 		}
 
+		options.DisablePrevote = cc.disablePrevote
 		options.TimeMultiplier = cc.timeMultiplier
 		if cc.autoSetMinimumClusterSize {
 			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.readOnlyNodeCount
@@ -89,6 +94,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 				})
 
 				options.Peers = peers
+				options.logSource = cc.testName
 				id := ""
 				if !cc.noNodeID {
 					id = fmt.Sprintf("%d", i)
@@ -108,160 +114,192 @@ func (cc *clusterConfig) startCluster() {
 			time.Sleep(cc.delayLastNodeTimeDuration)
 		}
 		cc.t.Run(fmt.Sprintf("cluster_%s_%d", cc.testName, i), func(t *testing.T) {
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			sleep := 1 + r.Intn(10)
-			go func() {
-				time.Sleep(time.Duration(sleep) * time.Second)
-				if err := node.Start(); err != nil {
-					t.Errorf("Fail to start cluster node %d with error %s", i, err.Error())
-					return
-				}
-			}()
+			time.AfterFunc(time.Second, func() {
+				go func() {
+					if err := node.Start(); err != nil {
+						node.Logger.Error().Err(err).
+							Str("node", fmt.Sprintf("%d", i)).
+							Msgf("Failed to start node")
+						cc.assert.Errorf(err, "Fail to start cluster node %d with error", i)
+						return
+					}
+				}()
+			})
 		})
 	}
 }
 
 func (cc *clusterConfig) stopCluster() {
-	for _, node := range cc.cluster {
-		node.Stop()
+	_ = os.Unsetenv("RAFTY_LOG_LEVEL")
+	for i, node := range cc.cluster {
+		go func() {
+			node.Stop()
+			if !node.isRunning.Load() {
+				err := os.RemoveAll(node.options.DataDir)
+				cc.assert.Nil(err)
+				cc.cluster[i] = nil
+			}
+		}()
 	}
+	time.Sleep(10 * time.Second)
 }
 
-func (cc *clusterConfig) startOrStopSpecificicNode(nodeId int, action string) error {
-	node := cc.cluster[nodeId]
-	switch action {
-	case "stop":
-		node.Logger.Info().Msgf("Stopping node %d", nodeId)
+func (cc *clusterConfig) restartNode(nodeId int) {
+	cc.t.Run(fmt.Sprintf("restart_%d", nodeId), func(t *testing.T) {
+		node := cc.cluster[nodeId]
 		node.Stop()
-		return nil
-	case "restart":
-		node.Logger.Info().Msgf("Stopping node %d", nodeId)
-		node.Stop()
-		node.Logger.Info().Msgf("Stopped node %d", nodeId)
-		for i := range 100 {
-			time.Sleep(5 * time.Second)
-			node.Logger.Info().
-				Str("node", fmt.Sprintf("%d", nodeId)).
-				Msgf("Sleeping number, %d waiting for node to be completely stopped", i)
-			if node.getState() == Down {
-				time.Sleep(3 * time.Second)
+
+		var stop bool
+		for !stop {
+			<-time.After(5 * time.Second)
+			if !node.isRunning.Load() {
+				stop = true
+				id := node.id
+				options := node.options
+				addr := node.Address
 				node = nil
-				redoCluster := cc.makeCluster()
-				node = redoCluster[nodeId]
+				node = NewRafty(addr, id, options)
 				go func() {
-					node.Logger.Info().Msgf("Restart node %d", nodeId)
+					node.Logger.Info().Msgf("Restart node %s / %d", node.Address.String(), nodeId)
 					if err := node.Start(); err != nil {
 						node.Logger.Error().Err(err).
 							Str("node", fmt.Sprintf("%d", nodeId)).
-							Msgf("Error while starting node")
-						cc.t.Errorf("Fail to start cluster node %d with error %s", nodeId, err.Error())
+							Msgf("Failed to restart node")
+						cc.assert.Errorf(err, "Fail to restart node %s / %d", nodeId, node.Address.String())
 					}
 				}()
-				break
+			} else {
+				node.Logger.Info().
+					Str("node", fmt.Sprintf("%d", nodeId)).
+					Msgf("Waiting for node to be completely stopped")
 			}
 		}
-		return nil
-	default:
-		node.Logger.Info().Msgf("Start node %d", nodeId)
-		return node.Start()
-	}
+	})
 }
 
-func (cc *clusterConfig) clientGetLeader(nodeId int) (bool, string, string) {
-	assert := assert.New(cc.t)
-	nodeAddr := cc.cluster[0].Address.String()
-	conn, err := grpc.NewClient(
-		nodeAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		assert.Errorf(err, "Node %d reports fail to connect to grpc server %s", nodeId, nodeAddr)
+func (cc *clusterConfig) submitCommandOnAllNodes() (count atomic.Uint64) {
+	var wg sync.WaitGroup
+	for i, node := range cc.cluster {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d", cc.testName, i), func(t *testing.T) {
+				_, err := node.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)})
+				if err != nil {
+					node.Logger.Error().Err(err).
+						Str("node", fmt.Sprintf("%d", i)).
+						Msgf("Failed to submit commmand to node")
+					cc.assert.Error(err)
+				} else {
+					count.Add(1)
+					cc.assert.Nil(err)
+				}
+			})
+		}()
 	}
-	defer conn.Close()
-	client := raftypb.NewRaftyClient(conn)
+	wg.Wait()
+	return
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	response, err := client.ClientGetLeader(ctx, &raftypb.ClientGetLeaderRequest{Message: "Who is the leader?"})
-	if err != nil {
-		assert.Errorf(err, "Node %d reports fail to ask %s who is the leader", nodeId, nodeAddr)
+// func (cc *clusterConfig) countLogsOnAllNodes(count uint64) {
+// 	var wg sync.WaitGroup
+// 	for i, node := range cc.cluster {
+// 		wg.Add(1)
+// 		cc.t.Run(fmt.Sprintf("%s_countLogsOnNode_%d", cc.testName, i), func(t *testing.T) {
+// 			defer wg.Done()
+// 			node.mu.Lock()
+// 			totalLogs := len(node.logs.log)
+// 			node.mu.Unlock()
+// 			cc.assert.GreaterOrEqual(uint64(totalLogs), count)
+// 			cc.assert.Greater(totalLogs, 1)
+// 		})
+// 	}
+// 	wg.Wait()
+// }
+
+func (cc *clusterConfig) submitFakeCommandOnAllNodes() {
+	i := 0
+	node := cc.cluster[i]
+	cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d", cc.testName, i), func(t *testing.T) {
+		_, err := node.SubmitCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)})
+		if err != nil {
+			node.Logger.Error().Err(err).
+				Str("node", fmt.Sprintf("%d", i)).
+				Msgf("Failed to submit commmand to node")
+			cc.assert.Error(err)
+			return
+		}
+		cc.assert.Nil(err)
+	})
+}
+
+func (cc *clusterConfig) waitForLeader() (leader leaderMap) {
+	round := 0
+	for round != 50 {
+		<-time.After(5 * time.Second)
+		nodeId := rand.IntN(int(cc.clusterSize))
+		node := cc.cluster[nodeId]
+
+		conn, err := grpc.NewClient(
+			node.Address.String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		if err != nil {
+			cc.assert.Errorf(err, "Node %d reports fail to connect to grpc server %s", nodeId, node.Address.String())
+			return
+		}
+		defer func() {
+			_ = conn.Close()
+		}()
+		client := raftypb.NewRaftyClient(conn)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		response, err := client.ClientGetLeader(ctx, &raftypb.ClientGetLeaderRequest{Message: "Who is the leader?"})
+		if err != nil {
+			cc.assert.Errorf(err, "Node %d reports fail to ask %s who is the leader", nodeId, node.Address.String())
+			return
+		}
+		if response.LeaderAddress != "" && response.LeaderID != "" {
+			leader.id, leader.address = response.LeaderID, response.LeaderAddress
+			node.Logger.Info().Msgf("Node %d reports that %s / %s is the leader", nodeId, response.LeaderAddress, response.LeaderID)
+			return
+		}
+
+		node.Logger.Info().Msgf("Node %d reports no leader found", nodeId)
+		round++
 	}
-	if response.GetLeaderAddress() == "" && response.GetLeaderID() == "" {
-		cc.cluster[nodeId].Logger.Info().Msgf("Node %d reports no leader found", nodeId)
-		return false, response.GetLeaderAddress(), response.GetLeaderID()
-	}
-	cc.cluster[nodeId].Logger.Info().Msgf("Node %d reports that %s / %s is the leader", nodeId, response.GetLeaderAddress(), response.GetLeaderID())
-	return true, "", ""
+
+	return leaderMap{}
 }
 
 func (cc *clusterConfig) testClustering(t *testing.T) {
-	logSource = cc.testName
 	if cc.runTestInParallel {
 		t.Parallel()
 	}
-	assert := assert.New(t)
 
-	submitCommandToNode := func(nodeId int) {
-		time.Sleep(20 * time.Second)
-		var found bool
-		for !found {
-			<-time.After(time.Second)
-			found, _, _ = cc.clientGetLeader(nodeId)
-			if found {
-				for i, node := range cc.cluster {
-					cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d_%d", cc.testName, nodeId, i), func(t *testing.T) {
-						_, err := node.SubmitCommand(command{kind: commandSet, key: fmt.Sprintf("key%d%d", nodeId, i), value: fmt.Sprintf("value%d", i)})
-						if err != nil {
-							assert.Error(err)
-						} else {
-							assert.Nil(err)
-						}
-					})
-				}
-			}
+	_ = os.Setenv("RAFTY_LOG_LEVEL", "trace")
+	cc.startCluster()
+
+	if leader := cc.waitForLeader(); leader != (leaderMap{}) {
+		go cc.submitCommandOnAllNodes()
+	}
+
+	done, nodeId := false, 0
+	for !done {
+		<-time.After(15 * time.Second)
+		go cc.restartNode(nodeId)
+		nodeId++
+		if nodeId > 2 {
+			done = true
 		}
 	}
 
-	os.Setenv("RAFTY_LOG_LEVEL", "trace")
-	cc.startCluster()
-	time.Sleep(2 * time.Second)
-
-	startAndRestart := func(node int) {
-		cc.t.Run(fmt.Sprintf("startAndRestart_%d", node), func(t *testing.T) {
-			err := cc.startOrStopSpecificicNode(node, "start")
-			if err != nil {
-				cc.cluster[node].Logger.Error().Err(err).Msgf("step startOrStopSpecificicNode start")
-				assert.Error(err)
-			}
-			assert.Nil(nil)
-
-			time.Sleep(5 * time.Second)
-			err = cc.startOrStopSpecificicNode(node, "restart")
-			if err != nil {
-				cc.cluster[node].Logger.Error().Err(err).Msgf("step startOrStopSpecificicNode restart")
-				assert.Error(err)
-			}
-			assert.Nil(err)
-		})
-		time.Sleep(10 * time.Second)
-		submitCommandToNode(node)
+	if leader := cc.waitForLeader(); leader != (leaderMap{}) {
+		go cc.submitCommandOnAllNodes()
 	}
 
-	time.Sleep(30 * time.Second)
-	node := 0
-	go startAndRestart(node)
-
-	time.Sleep(90 * time.Second)
-	node = 1
-	go startAndRestart(node)
-
-	time.Sleep(90 * time.Second)
-	node = 2
-	go startAndRestart(node)
-
-	time.Sleep(150 * time.Second)
-	os.Unsetenv("RAFTY_LOG_LEVEL")
+	time.Sleep(60 * time.Second)
 	cc.stopCluster()
-	err := os.RemoveAll(cc.cluster[node].options.DataDir)
-	assert.Nil(err)
+	cc = nil
 }

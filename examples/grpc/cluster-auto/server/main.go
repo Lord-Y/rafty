@@ -148,7 +148,10 @@ func main() {
 	if cc.restartNode {
 		defer func() {
 			time.Sleep(1 * time.Minute)
-			cc.startOrStopSpecificicNode(0, "restart")
+			index := 0
+			if err := cc.startOrStopSpecificicNode(index, "restart"); err != nil {
+				log.Err(err).Msgf("Fail to start cluster node %d with error %s", index, err.Error())
+			}
 		}()
 	}
 

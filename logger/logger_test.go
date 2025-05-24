@@ -51,19 +51,21 @@ func TestSetLoggerLogLevel(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		os.Setenv("RAFTY_LOG_LEVEL", tc.logLevel)
+		_ = os.Setenv("RAFTY_LOG_LEVEL", tc.logLevel)
 		log.Logger = *NewLogger()
 
 		assert.Equal(tc.expected, zerolog.GlobalLevel().String())
-		os.Unsetenv("RAFTY_LOG_LEVEL")
+		_ = os.Unsetenv("RAFTY_LOG_LEVEL")
 
-		os.Setenv("RAFTY_LOG_LEVEL", tc.logLevel)
-		os.Setenv("RAFTY_LOG_FORMAT_JSON", "true")
-		defer os.Unsetenv("RAFTY_LOG_FORMAT_JSON")
+		_ = os.Setenv("RAFTY_LOG_LEVEL", tc.logLevel)
+		_ = os.Setenv("RAFTY_LOG_FORMAT_JSON", "true")
+		defer func() {
+			_ = os.Unsetenv("RAFTY_LOG_FORMAT_JSON")
+		}()
 		log.Logger = *NewLogger()
 
 		assert.Equal(tc.expected, zerolog.GlobalLevel().String())
-		os.Unsetenv("RAFTY_LOG_LEVEL")
+		_ = os.Unsetenv("RAFTY_LOG_LEVEL")
 	}
 }
 
