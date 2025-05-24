@@ -2,7 +2,6 @@ package rafty
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -14,13 +13,17 @@ func TestRandomElectionTimeout(t *testing.T) {
 	assert.NotNil(s.randomElectionTimeout())
 }
 
-func TestResetAndStopElectionTimer(t *testing.T) {
+func TestHeartbeatTimeout(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	assert.Nil(s.electionTimer)
-	s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-	assert.NotNil(s.electionTimer)
-	s.resetElectionTimer()
-	s.stopElectionTimer()
+	assert.NotNil(s.heartbeatTimeout())
+}
+
+func TestRandomRPCTimeout(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	assert.NotNil(s.randomRPCTimeout(true))
+	assert.NotNil(s.randomRPCTimeout(false))
 }

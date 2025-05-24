@@ -2,488 +2,394 @@ package rafty
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
-func (r *Rafty) handleSendPreVoteRequestReader() {
-	state := r.getState()
-	currentTerm := r.getCurrentTerm()
-	r.rpcPreVoteRequestChanWritter <- &raftypb.PreVoteResponse{
+func (r *Rafty) handleSendPreVoteRequest(data preVoteResquestWrapper) {
+	leader := r.getLeader()
+	currentTerm := r.currentTerm.Load()
+	response := &raftypb.PreVoteResponse{
 		PeerID:      r.id,
-		State:       state.String(),
-		CurrentTerm: currentTerm,
+		CurrentTerm: r.currentTerm.Load(),
 	}
+
+	switch {
+	case leader != (leaderMap{}):
+		response.Granted = false
+	case currentTerm > data.request.CurrentTerm:
+		response.Granted = false
+	default:
+		response.Granted = true
+	}
+	data.responseChan <- response
 }
 
-func (r *Rafty) handlePreVoteResponse(vote preVoteResponseWrapper) {
-	currentTerm := r.getCurrentTerm()
-	if vote.response.GetCurrentTerm() > currentTerm {
-		r.Logger.Info().
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Str("peerAddress", vote.peer.address.String()).
-			Str("peerId", vote.peer.ID).
-			Msgf("Peer has higher term than me %d > %d", vote.response.CurrentTerm, currentTerm)
-		r.setCurrentTerm(vote.response.GetCurrentTerm())
-		r.switchState(Follower, false, vote.response.GetCurrentTerm())
-		return
-	}
-
-	if vote.response.CurrentTerm <= currentTerm {
-		if !r.checkIfPeerInSliceIndex(true, vote.peer.address.String()) {
-			r.appendPrecandidate(vote.peer)
-			r.Logger.Info().
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Str("peerAddress", vote.peer.address.String()).
-				Str("peerId", vote.peer.ID).
-				Msgf("Peer will be part of the election campain")
-		}
-
-		var majority bool
-		minimumClusterSize := r.getMinimumClusterSize()
-		if r.leaderLost.Load() {
-			if len(r.getPrecandidate())+1 == int(minimumClusterSize)-1 {
-				majority = true
-				r.Logger.Trace().
-					Str("address", r.Address.String()).
-					Str("id", r.id).
-					Str("state", r.getState().String()).
-					Str("term", fmt.Sprintf("%d", currentTerm)).
-					Msgf("PreCandidatePeers majority length when leader is lost is %d", r.options.MinimumClusterSize-1)
-			}
-		} else {
-			// TODO: review this part when more than 3 nodes are involved
-			if len(r.getPrecandidate())+1 == int(minimumClusterSize) {
-				majority = true
-				r.Logger.Trace().
-					Str("address", r.Address.String()).
-					Str("id", r.id).
-					Str("state", r.getState().String()).
-					Str("term", fmt.Sprintf("%d", currentTerm)).
-					Msgf("PreCandidatePeers majority length is %d", minimumClusterSize)
-			}
-		}
-
-		if majority {
-			r.Logger.Trace().
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Msgf("Pre vote quorum as been reach")
-
-			r.startElectionCampain.Store(true)
-			r.switchState(Candidate, false, currentTerm)
-			r.stopElectionTimer()
-		}
-	}
-}
-
-func (r *Rafty) handleSendVoteRequestReader(reader *raftypb.VoteRequest) {
-	currentTerm := r.getCurrentTerm()
+func (r *Rafty) handleSendVoteRequest(data voteResquestWrapper) {
+	currentTerm := r.currentTerm.Load()
 	votedFor, _ := r.getVotedFor()
-	lastLogIndex := r.getLastLogIndex()
-	totalLogs := r.getTotalLogs()
-
-	if currentTerm > reader.CurrentTerm {
-		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
-			CurrentTerm:       currentTerm,
-			PeerID:            r.id,
-			RequesterStepDown: true,
-		}
-		r.Logger.Trace().
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Str("term", fmt.Sprintf("%d", currentTerm)).
-			Str("peerAddress", reader.CandidateAddress).
-			Str("peerId", reader.CandidateId).
-			Str("peerTerm", fmt.Sprintf("%d", reader.CurrentTerm)).
-			Msgf("Reject vote request from peer")
-		return
+	lastLogIndex := r.lastLogIndex.Load()
+	totalLogs := r.logs.total().total
+	response := &raftypb.VoteResponse{
+		PeerID: r.id,
 	}
 
 	// if my current term is lower than candidate current term
 	// set my current term to the candidate term
 	// vote for the candidate
-	if currentTerm < reader.CurrentTerm {
-		r.setCurrentTerm(reader.GetCurrentTerm())
-		r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
-		r.setLeaderLastContactDate()
-		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
-			CurrentTerm: reader.GetCurrentTerm(),
-			VoteGranted: true,
-			PeerID:      r.id,
-		}
+	if currentTerm < data.request.CurrentTerm {
+		r.currentTerm.Store(data.request.CurrentTerm)
+		r.setVotedFor(data.request.CandidateId, data.request.CurrentTerm)
+
 		r.Logger.Trace().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
 			Str("term", fmt.Sprintf("%d", currentTerm)).
-			Str("peerAddress", reader.CandidateAddress).
-			Str("peerId", reader.CandidateId).
-			Str("peerTerm", fmt.Sprintf("%d", reader.CurrentTerm)).
-			Msgf("Grant vote to peer")
-		r.switchState(Follower, false, reader.GetCurrentTerm())
-		if err := r.persistMetadata(); err != nil {
+			Str("peerAddress", data.request.CandidateAddress).
+			Str("peerId", data.request.CandidateId).
+			Str("peerTerm", fmt.Sprintf("%d", data.request.CurrentTerm)).
+			Msgf("Vote granted to peer")
+
+		r.switchState(Follower, stepDown, true, data.request.CurrentTerm)
+		if err := r.storage.metadata.store(); err != nil {
 			r.Logger.Fatal().Err(err).
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
 				Msgf("Fail to persist metadata")
 		}
+		response.CurrentTerm = data.request.CurrentTerm
+		response.Granted = true
+		data.responseChan <- response
 		return
 	}
 
-	if votedFor != "" && votedFor != reader.CandidateId {
-		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
-			CurrentTerm: currentTerm,
-			PeerID:      r.id,
-		}
+	// need to be reevaluated, not sure it's necessary anymore
+	if votedFor != "" && votedFor != data.request.CandidateId {
+		response.CurrentTerm = currentTerm
 		r.Logger.Trace().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
 			Str("term", fmt.Sprintf("%d", currentTerm)).
-			Str("peerAddress", reader.CandidateAddress).
-			Str("peerId", reader.CandidateId).
-			Str("peerTerm", fmt.Sprintf("%d", reader.CurrentTerm)).
-			Msgf("Reject vote request from peer because I already voted")
+			Str("peerAddress", data.request.CandidateAddress).
+			Str("peerId", data.request.CandidateId).
+			Str("peerTerm", fmt.Sprintf("%d", data.request.CurrentTerm)).
+			Msgf("Vote request rejected to peer because I already voted")
+
+		data.responseChan <- response
 		return
 	}
 
 	if totalLogs > 0 {
-		lastLogTerm := r.getLastLogTerm(r.log[r.lastLogIndex].Term)
-		if reader.GetLastLogTerm() > lastLogTerm || (lastLogTerm == reader.GetLastLogTerm() && reader.GetLastLogIndex() >= lastLogIndex) {
-			r.setVotedFor(reader.GetCandidateId(), reader.GetCurrentTerm())
-			r.setLeaderLastContactDate()
-			r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
-				CurrentTerm: currentTerm,
-				PeerID:      r.id,
-				VoteGranted: true,
-			}
+		r.Logger.Trace().
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+			Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
+			Msgf("debug data lastLogTerm")
+
+		lastLogTerm := r.logs.fromIndex(r.lastLogIndex.Load()).logs[0].Term
+		if data.request.LastLogTerm > lastLogTerm || (lastLogTerm == data.request.LastLogTerm && data.request.LastLogIndex >= lastLogIndex) {
+			r.setVotedFor(data.request.CandidateId, data.request.CurrentTerm)
+			response.CurrentTerm = data.request.CurrentTerm
+			response.Granted = true
 			r.Logger.Trace().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
 				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Str("peerAddress", reader.CandidateAddress).
-				Str("peerId", reader.CandidateId).
-				Str("peerTerm", fmt.Sprintf("%d", reader.CurrentTerm)).
-				Msgf("Grant vote to peer")
-			r.switchState(Follower, false, reader.GetCurrentTerm())
-			if err := r.persistMetadata(); err != nil {
+				Str("peerAddress", data.request.CandidateAddress).
+				Str("peerId", data.request.CandidateId).
+				Str("peerTerm", fmt.Sprintf("%d", data.request.CurrentTerm)).
+				Msgf("Vote granted to peer")
+
+			r.switchState(Follower, stepDown, false, data.request.CurrentTerm)
+			if err := r.storage.metadata.store(); err != nil {
 				r.Logger.Fatal().Err(err).
 					Str("address", r.Address.String()).
 					Str("id", r.id).
 					Str("state", r.getState().String()).
 					Msgf("Fail to persist metadata")
 			}
+			data.responseChan <- response
 			return
 		}
 
-		r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
-			CurrentTerm:       currentTerm,
-			PeerID:            r.id,
-			RequesterStepDown: true,
-		}
+		response.CurrentTerm = currentTerm
 		r.Logger.Trace().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
 			Str("term", fmt.Sprintf("%d", currentTerm)).
 			Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
-			Str("peerAddress", reader.CandidateAddress).
-			Str("peerId", reader.CandidateId).
-			Str("peerTerm", fmt.Sprintf("%d", reader.LastLogIndex)).
-			Str("peerLastLogIndex", fmt.Sprintf("%d", reader.CurrentTerm)).
-			Msgf("Reject vote request from peer because of lastLogIndex")
+			Str("peerAddress", data.request.CandidateAddress).
+			Str("peerId", data.request.CandidateId).
+			Str("peerTerm", fmt.Sprintf("%d", data.request.CurrentTerm)).
+			Str("peerLastLogIndex", fmt.Sprintf("%d", data.request.LastLogIndex)).
+			Msgf("Vote request rejected to peer because of lastLogIndex")
+
+		data.responseChan <- response
 		return
 	}
 
-	r.setVotedFor(reader.CandidateId, reader.CurrentTerm)
-	r.setLeaderLastContactDate()
-	r.rpcSendVoteRequestChanWritter <- &raftypb.VoteResponse{
-		CurrentTerm: currentTerm,
-		PeerID:      r.id,
-		VoteGranted: true,
-	}
+	r.setVotedFor(data.request.CandidateId, data.request.CurrentTerm)
 	r.Logger.Trace().
 		Str("address", r.Address.String()).
 		Str("id", r.id).
 		Str("state", r.getState().String()).
 		Str("term", fmt.Sprintf("%d", currentTerm)).
-		Str("peerAddress", reader.CandidateAddress).
-		Str("peerId", reader.CandidateId).
-		Str("peerTerm", fmt.Sprintf("%d", reader.CurrentTerm)).
-		Msgf("Grant vote to peer")
-	r.switchState(Follower, false, reader.CurrentTerm)
-	if err := r.persistMetadata(); err != nil {
+		Str("peerAddress", data.request.CandidateAddress).
+		Str("peerId", data.request.CandidateId).
+		Str("peerTerm", fmt.Sprintf("%d", data.request.CurrentTerm)).
+		Msgf("Vote granted to peer")
+
+	r.switchState(Follower, stepDown, false, data.request.CurrentTerm)
+	if err := r.storage.metadata.store(); err != nil {
 		r.Logger.Fatal().Err(err).
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
 			Msgf("Fail to persist metadata")
 	}
+
+	response.CurrentTerm = data.request.CurrentTerm
+	response.Granted = true
+	data.responseChan <- response
 }
 
-func (r *Rafty) handleVoteResponse(vote voteResponseWrapper) {
-	if vote.savedCurrentTerm < vote.response.CurrentTerm {
-		r.Logger.Info().
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Str("term", fmt.Sprintf("%d", vote.savedCurrentTerm)).
-			Str("peerAddress", vote.peer.address.String()).
-			Str("peerId", vote.peer.ID).
-			Str("peerTerm", fmt.Sprintf("%d", vote.response.CurrentTerm)).
-			Msgf("Peer has higher term than me")
-		r.setCurrentTerm(vote.response.CurrentTerm)
-		r.switchState(Follower, false, vote.response.CurrentTerm)
-		if err := r.persistMetadata(); err != nil {
-			r.Logger.Fatal().Err(err).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Fail to persist metadata")
-		}
-		return
-	}
-
-	if vote.response.NewLeaderDetected {
-		r.setCurrentTerm(vote.response.CurrentTerm)
-		r.switchState(Follower, false, vote.response.CurrentTerm)
-		if err := r.persistMetadata(); err != nil {
-			r.Logger.Fatal().Err(err).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Fail to persist metadata")
-		}
-		return
-	}
-
-	if vote.response.VoteGranted {
-		r.mu.Lock()
-		r.quoroms = append(r.quoroms, quorom{
-			VoterID:     vote.response.GetPeerID(),
-			VoteGranted: true,
-		})
-		r.mu.Unlock()
-	} else {
-		r.mu.Lock()
-		r.quoroms = append(r.quoroms, quorom{
-			VoterID: vote.response.GetPeerID(),
-		})
-		r.mu.Unlock()
-		r.Logger.Info().
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Str("peerAddress", vote.peer.address.String()).
-			Str("peerId", vote.peer.ID).
-			Msgf("Peer already voted for someone")
-	}
-
-	if vote.response.GetRequesterStepDown() {
-		r.setCurrentTerm(vote.response.GetCurrentTerm())
-		r.switchState(Follower, false, vote.response.GetCurrentTerm())
-		if err := r.persistMetadata(); err != nil {
-			r.Logger.Fatal().Err(err).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Msgf("Fail to persist metadata")
-		}
-		return
-	}
-
-	votes := 1 // voting for myself
-	r.mu.Lock()
-	quoroms := r.quoroms
-	totalPrecandidates := len(r.configuration.preCandidatePeers) + 1
-	r.mu.Unlock()
-	for _, q := range quoroms {
-		if q.VoteGranted {
-			votes += 1
-		}
-	}
-	totalVotes := votes * 2
-	if totalVotes > totalPrecandidates && r.getState() == Candidate {
-		currentTerm := r.getCurrentTerm()
-		r.Logger.Info().
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Str("term", fmt.Sprintf("%d", vote.savedCurrentTerm)).
-			Msgf("I won the election %d > %d", totalVotes, totalPrecandidates)
-		r.switchState(Leader, true, currentTerm)
-	}
-}
-
-func (r *Rafty) handleGetLeaderReader(reader *raftypb.GetLeaderRequest) {
-	if r.getState() == Leader {
-		go r.connectToPeer(reader.GetPeerAddress())
-		r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
-			LeaderID:      r.id,
-			LeaderAddress: r.Address.String(),
-			PeerID:        r.id,
-		}
-		return
-	}
-
-	leader := r.getLeader()
-	r.rpcGetLeaderChanWritter <- &raftypb.GetLeaderResponse{
-		LeaderID:      leader.id,
-		LeaderAddress: leader.address,
-		PeerID:        r.id,
-	}
-	r.Logger.Info().
-		Str("address", r.Address.String()).
-		Str("id", r.id).
-		Str("state", r.getState().String()).
-		Str("peerAddress", reader.PeerAddress).
-		Str("peerId", reader.PeerID).
-		Msgf("Peer is looking for the leader")
-}
-
-func (r *Rafty) handleClientGetLeaderReader() {
-	if r.getState() == Leader {
-		r.rpcClientGetLeaderChanWritter <- &raftypb.ClientGetLeaderResponse{
-			LeaderID:      r.id,
-			LeaderAddress: r.Address.String(),
-		}
-		return
-	}
-
-	leader := r.getLeader()
-	r.rpcClientGetLeaderChanWritter <- &raftypb.ClientGetLeaderResponse{
-		LeaderID:      leader.id,
-		LeaderAddress: leader.address,
-	}
-}
-
-func (r *Rafty) handleSendAppendEntriesRequestReader(reader *raftypb.AppendEntryRequest) {
+func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper) {
 	// if our local term is greater than leader term
 	// reply false §5.1
-	state := r.getState()
+	currentTerm := r.currentTerm.Load()
+	lastLogIndex := r.lastLogIndex.Load()
+	lastLogTerm := r.lastLogTerm.Load()
+	response := &raftypb.AppendEntryResponse{
+		Term:         currentTerm,
+		LastLogIndex: lastLogIndex,
+		LastLogTerm:  lastLogTerm,
+	}
 
 	if !r.options.ReadOnlyNode {
-		currentTerm := r.getCurrentTerm()
-		if currentTerm > reader.Term {
-			r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{
-				Term: currentTerm,
-			}
-			r.Logger.Error().Err(errTermTooOld).
+		if currentTerm > data.request.Term {
+			data.responseChan <- response
+
+			r.Logger.Warn().Err(ErrTermTooOld).
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
-				Str("peerAddress", reader.LeaderAddress).
-				Str("peerId", reader.LeaderID).
-				Str("peerTerm", fmt.Sprintf("%d", reader.Term)).
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("leaderAddress", data.request.LeaderAddress).
+				Str("leaderId", data.request.LeaderID).
+				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
 				Msgf("My term is higher than peer")
 			return
 		}
 
-		switch state {
-		case Follower:
-			r.setCurrentTerm(reader.GetTerm())
-		case Candidate:
-			r.setCurrentTerm(reader.GetTerm())
-			r.switchState(Follower, false, reader.GetTerm())
-		case Leader:
-			r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{
-				Term: currentTerm,
-			}
-			r.Logger.Error().Err(errAppendEntriesToLeader).
+		if data.request.Term > currentTerm {
+			r.Logger.Warn().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
-				Str("peerAddress", reader.LeaderAddress).
-				Str("peerId", reader.LeaderID).
-				Str("peerTerm", fmt.Sprintf("%d", reader.Term)).
-				Msgf("Cannot receive append entries from peer")
-			return
-		}
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("leaderAddress", data.request.LeaderAddress).
+				Str("leaderId", data.request.LeaderID).
+				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+				Msgf("My term is lower than peer")
 
-		r.resetElectionTimer()
-		r.stopElectionTimer()
+			r.switchState(Follower, stepDown, true, data.request.Term)
+		}
 	}
 
-	totalLogs := uint64(len(r.log))
-	if totalLogs > 0 && !reader.GetHeartbeat() {
-		// reader.GetPrevLogIndex() == 0 is the induction step: the initial empty state of logs that satisfy the Log Matching Property
-		matchingLog := reader.GetPrevLogIndex() == 0 || (reader.GetPrevLogIndex() < totalLogs && r.log[reader.PrevLogIndex].Term == reader.GetPrevLogTerm())
+	r.currentTerm.Store(data.request.Term)
+	if err := r.storage.metadata.store(); err != nil {
+		r.Logger.Fatal().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Msgf("Fail to persist metadata")
+	}
 
-		// if we do not find any log that match previous log index
-		// reply false
-		if !matchingLog {
-			r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{}
-			r.Logger.Error().Err(errTermTooOld).
+	totalLogs := r.logs.total().total
+	if data.request.PrevLogIndex > 0 && !data.request.Catchup {
+		if data.request.PrevLogTerm != int64(lastLogTerm) {
+			response.LogNotFound = true
+			data.responseChan <- response
+
+			r.Logger.Warn().Err(ErrLogNotFound).
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
-				Str("peerAddress", reader.LeaderAddress).
-				Str("peerId", reader.LeaderID).
-				Str("peerTerm", fmt.Sprintf("%d", reader.Term)).
-				Msgf("No log matching with the leader")
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
+				Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
+				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
+				Str("leaderAddress", data.request.LeaderAddress).
+				Str("leaderId", data.request.LeaderID).
+				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+				Str("leaderPrevLogIndex", fmt.Sprintf("%d", data.request.PrevLogIndex)).
+				Str("leaderPrevLogTerm", fmt.Sprintf("%d", data.request.PrevLogTerm)).
+				Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
+				Msgf("Previous log not found")
 			return
 		}
+	}
 
-		nextIndex := reader.GetPrevLogIndex() + 1
-		newEntries := 0
-		for index := nextIndex; index < nextIndex+totalLogs; index++ {
-			if index > uint64(cap(r.log)) {
-				totalOfEntries := nextIndex + totalLogs
-				newLog := make([]*raftypb.LogEntry, index, totalOfEntries*2)
-				copy(newLog, r.log)
-				r.log = newLog
+	if !data.request.Heartbeat {
+		var newEntries []*raftypb.LogEntry
+		for index, entry := range data.request.Entries {
+			r.Logger.Trace().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+				Str("leaderAddress", data.request.LeaderAddress).
+				Str("leaderId", data.request.LeaderID).
+				Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
+				Str("leaderPrevLogIndex", fmt.Sprintf("%d", data.request.PrevLogIndex)).
+				Str("leaderNewTotalLogs", fmt.Sprintf("%d", len(data.request.Entries))).
+				Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
+				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
+				Str("index", fmt.Sprintf("%d", index)).
+				Str("entryIndex", fmt.Sprintf("%d", entry.Index)).
+				Msgf("debug data received append entries")
+
+			if entry.Index > lastLogIndex || totalLogs == 0 {
+				newEntries = data.request.Entries[index:]
+				break
 			}
 
-			previousEntry := reader.GetEntries()[index-nextIndex]
-			if index < totalLogs && r.log[index].Term != previousEntry.Term {
-				// conflicting entries in follower logs will be overwritten with entries from the leader's log
-				r.log = r.log[:index]
-				r.Logger.Debug().
+			if totalLogs > 0 {
+				lastLog := r.logs.fromIndex(entry.Index)
+				if entry.Term != lastLog.logs[0].Term {
+					wipe := r.logs.wipeEntries(entry.Index, lastLogIndex)
+					if wipe.err != nil {
+						r.Logger.Error().Err(wipe.err).
+							Str("address", r.Address.String()).
+							Str("id", r.id).
+							Str("state", r.getState().String()).
+							Str("term", fmt.Sprintf("%d", currentTerm)).
+							Str("rangeFrom", fmt.Sprintf("%d", entry.Index)).
+							Str("rangeTo", fmt.Sprintf("%d", lastLogIndex)).
+							Str("leaderAddress", data.request.LeaderAddress).
+							Str("leaderId", data.request.LeaderID).
+							Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+							Msgf("Fail to remove conflicting log from range")
+						data.responseChan <- response
+						return
+					}
+
+					newEntries = data.request.Entries[index:]
+					break
+				}
+			}
+		}
+
+		if lenEntries := len(newEntries); lenEntries > 0 {
+			var (
+				newPeers []peer
+				err      error
+			)
+			respLog := r.logs.appendEntries(newEntries)
+			totalLogs = respLog.total
+			peers, _ := r.getPeers()
+			for index := range newEntries {
+				entryIndex := 0
+				if totalLogs > 0 {
+					entryIndex = int(totalLogs) - 1 + index
+				}
+				r.Logger.Trace().
 					Str("address", r.Address.String()).
 					Str("id", r.id).
 					Str("state", r.getState().String()).
-					Str("peerAddress", reader.LeaderAddress).
-					Str("peerId", reader.LeaderID).
-					Str("peerTerm", fmt.Sprintf("%d", reader.Term)).
-					Msgf("Removed log entry %d from my logs due to conflicts with leader", index)
+					Str("term", fmt.Sprintf("%d", currentTerm)).
+					Str("entryIndex", fmt.Sprintf("%d", entryIndex)).
+					Str("index", fmt.Sprintf("%d", index)).
+					Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+					Msgf("debug data persistance")
+
+				if newPeers, err = r.logs.applyConfigEntry(newEntries[index], peers); err != nil {
+					r.Logger.Warn().Err(err).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("leaderAddress", data.request.LeaderAddress).
+						Str("leaderId", data.request.LeaderID).
+						Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+						Msgf("Fail to apply config entry")
+				}
+				if newPeers != nil {
+					r.lastAppliedConfig.Add(1)
+				}
+
+				if err := r.storage.data.store(newEntries[index]); err != nil {
+					r.Logger.Fatal().Err(err).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Msgf("Fail to persist data")
+				}
 			}
 
-			if index > totalLogs {
-				r.log = append(r.log, previousEntry)
-				newEntries++
+			if data.request.LeaderCommitIndex > r.commitIndex.Load() {
+				r.commitIndex.Store(min(data.request.LeaderCommitIndex, uint64(totalLogs)))
 			}
-		}
-		if reader.LeaderCommitIndex > r.commitIndex {
-			r.commitIndex = min(reader.LeaderCommitIndex, totalLogs-1)
+			r.lastApplied.Store(uint64(totalLogs - 1))
+
+			r.Logger.Debug().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+				Str("leaderAddress", data.request.LeaderAddress).
+				Str("leaderId", data.request.LeaderID).
+				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+				Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
+				Str("leaderPrevLogIndex", fmt.Sprintf("%d", data.request.PrevLogIndex)).
+				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
+				Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
+				Str("matchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+				Str("lastApplied", fmt.Sprintf("%d", r.lastApplied.Load())).
+				Str("lastAppliedConfig", fmt.Sprintf("%d", r.lastAppliedConfig.Load())).
+				Msgf("Node state index updated")
+
+			if err := r.storage.metadata.store(); err != nil {
+				r.Logger.Fatal().Err(err).
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Msgf("Fail to persist metadata")
+			}
 		}
 	}
+	response.Term = data.request.Term
+	response.Success = true
+	data.responseChan <- response
 
 	r.setLeader(leaderMap{
-		id:      reader.GetLeaderID(),
-		address: reader.GetLeaderAddress(),
+		id:      data.request.LeaderID,
+		address: data.request.LeaderAddress,
 	})
 	r.leaderLost.Store(false)
-	r.switchState(Follower, false, reader.GetTerm())
-	r.setLeaderLastContactDate()
-
-	r.rpcSendAppendEntriesRequestChanWritter <- &raftypb.AppendEntryResponse{Term: reader.GetTerm(), Success: true}
+	r.leaderLastContactDate.Store(time.Now())
+	r.timer.Reset(r.heartbeatTimeout())
 
 	r.Logger.Trace().
 		Str("address", r.Address.String()).
 		Str("id", r.id).
 		Str("state", r.getState().String()).
-		Str("term", fmt.Sprintf("%d", reader.Term)).
-		Str("leaderAddress", reader.LeaderAddress).
-		Str("leaderId", reader.LeaderID).
-		Str("peerTerm", fmt.Sprintf("%d", reader.Term)).
-		Msgf("Received heartbeat from leader")
+		Str("term", fmt.Sprintf("%d", data.request.Term)).
+		Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+		Str("leaderAddress", data.request.LeaderAddress).
+		Str("leaderId", data.request.LeaderID).
+		Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+		Str("heartbeat", fmt.Sprintf("%t", data.request.Heartbeat)).
+		Msgf("Received append entries from leader")
 }

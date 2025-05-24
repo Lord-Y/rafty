@@ -1,8 +1,11 @@
 package rafty
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"testing"
 	"time"
 
@@ -10,622 +13,691 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHandleSendPreVoteRequestReader(t *testing.T) {
+func TestHandleSendPreVoteRequest(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
 	err := s.parsePeers()
 	assert.Nil(err)
-	s.CurrentTerm = 1
 
-	go s.handleSendPreVoteRequestReader()
-	data := <-s.rpcPreVoteRequestChanWritter
-	assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
-	assert.Equal(s.id, data.GetPeerID())
-}
+	t.Run("granted_false", func(t *testing.T) {
+		s.currentTerm.Store(2)
+		responseChan := make(chan *raftypb.PreVoteResponse, 1)
+		request := preVoteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.PreVoteRequest{
+				Id:          s.id,
+				CurrentTerm: 1,
+			},
+		}
 
-func TestHandlePreVoteResponse(t *testing.T) {
-	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-	s.CurrentTerm = 1
-	s.State = Follower
-	s.options.MinimumClusterSize = 3
-
-	s.handlePreVoteResponse(preVoteResponseWrapper{
-		peer: s.configuration.ServerMembers[0],
-		response: &raftypb.PreVoteResponse{
-			PeerID:      s.configuration.ServerMembers[0].ID,
-			State:       Follower.String(),
-			CurrentTerm: 2,
-		},
+		go s.handleSendPreVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(false, data.Granted)
 	})
-	assert.Equal(uint64(2), s.CurrentTerm)
-	assert.Equal(Follower, s.getState())
 
-	// reset pre candidate peers
-	s.configuration.preCandidatePeers = nil
-	s.CurrentTerm = 1
-	s.State = Follower
-	for i := range len(s.configuration.ServerMembers) {
-		s.handlePreVoteResponse(preVoteResponseWrapper{
-			peer: s.configuration.ServerMembers[i],
-			response: &raftypb.PreVoteResponse{
-				PeerID:      s.configuration.ServerMembers[i].ID,
-				State:       Follower.String(),
+	t.Run("granted", func(t *testing.T) {
+		s.currentTerm.Store(1)
+		responseChan := make(chan *raftypb.PreVoteResponse, 1)
+		request := preVoteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.PreVoteRequest{
+				Id:          s.id,
 				CurrentTerm: 1,
 			},
-		})
-		assert.Equal(uint64(1), s.CurrentTerm)
-	}
+		}
 
-	// leader lost
-	s.leaderLost.Store(true)
-	s.configuration.preCandidatePeers = nil
-	s.CurrentTerm = 1
-	s.State = Follower
-	for i := range len(s.configuration.ServerMembers) {
-		s.handlePreVoteResponse(preVoteResponseWrapper{
-			peer: s.configuration.ServerMembers[i],
-			response: &raftypb.PreVoteResponse{
-				PeerID:      s.configuration.ServerMembers[i].ID,
-				State:       Follower.String(),
+		go s.handleSendPreVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(true, data.Granted)
+	})
+
+	t.Run("leader", func(t *testing.T) {
+		s.currentTerm.Store(1)
+		s.setLeader(leaderMap{
+			address: s.Address.String(),
+			id:      s.id,
+		})
+
+		responseChan := make(chan *raftypb.PreVoteResponse, 1)
+		request := preVoteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.PreVoteRequest{
+				Id:          s.id,
 				CurrentTerm: 1,
 			},
-		})
-		assert.Equal(uint64(1), s.CurrentTerm)
-	}
+		}
+
+		go s.handleSendPreVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(false, data.Granted)
+	})
 }
 
-func TestHandleSendVoteRequestReader(t *testing.T) {
+func TestHandleSendVoteRequest(t *testing.T) {
 	assert := assert.New(t)
 	id := 0
 	candidateId := fmt.Sprintf("%d", id)
-	t.Run("basic", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-		s.CurrentTerm = 4
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+
+	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	s.wg.Add(1)
+	go s.wg.Wait()
+	go s.logsLoop()
+
+	t.Run("lower", func(t *testing.T) {
+		s.currentTerm.Store(1)
 		s.State = Follower
 
-		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
-			CandidateId:      candidateId,
-			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
-			State:            Candidate.String(),
-			CurrentTerm:      2,
-		})
-		data := <-s.rpcSendVoteRequestChanWritter
-		assert.Equal(s.id, data.GetPeerID())
-		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
+		responseChan := make(chan *raftypb.VoteResponse, 1)
+		request := voteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.VoteRequest{
+				CandidateId:      candidateId,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      2,
+			},
+		}
+
+		go s.handleSendVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
+		assert.Equal(true, data.Granted)
 	})
 
 	t.Run("candidate", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
 		s.votedFor = ""
-		s.votedForTerm = 0
+		s.votedForTerm.Store(0)
 		s.State = Candidate
-		s.CurrentTerm = 1
+		s.currentTerm.Store(1)
 
-		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
-			CandidateId:      candidateId,
-			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
-			State:            Candidate.String(),
-			CurrentTerm:      2,
-		})
-		data := <-s.rpcSendVoteRequestChanWritter
-		time.Sleep(3 * time.Second)
-		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
-		assert.Equal(s.id, data.GetPeerID())
+		responseChan := make(chan *raftypb.VoteResponse, 1)
+		request := voteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.VoteRequest{
+				CandidateId:      candidateId,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      2,
+			},
+		}
+
+		go s.handleSendVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
 		assert.Equal(Follower, s.getState())
+		assert.Equal(true, data.Granted)
 	})
 
 	t.Run("already_voted", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-		// already voted
 		s.votedFor = "1"
-		s.votedForTerm = 1
+		s.votedForTerm.Store(1)
 		s.State = Follower
-		s.CurrentTerm = 1
+		s.currentTerm.Store(1)
 
-		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
-			CandidateId:      candidateId,
-			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
-			State:            Candidate.String(),
-			CurrentTerm:      1,
-		})
-		data := <-s.rpcSendVoteRequestChanWritter
-		time.Sleep(3 * time.Second)
-		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
-		assert.Equal(s.id, data.GetPeerID())
+		responseChan := make(chan *raftypb.VoteResponse, 1)
+		request := voteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.VoteRequest{
+				CandidateId:      candidateId,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      1,
+			},
+		}
+
+		go s.handleSendVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
 		assert.Equal(Follower, s.getState())
+		assert.Equal(false, data.Granted)
 	})
 
-	t.Run("candidate_0", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
+	t.Run("candidate_with_equal_logs", func(t *testing.T) {
 		// I'm candidate and the other server too
 		// so let's compare logs
 		s.votedFor = "1"
-		s.votedForTerm = 2
+		s.votedForTerm.Store(2)
 		s.State = Follower
-		s.CurrentTerm = 1
-		s.lastLogIndex = 1
-		s.log = nil
-		s.log = append(s.log, &raftypb.LogEntry{Term: 2})
+		s.currentTerm.Store(1)
+		s.lastLogIndex.Store(1)
+		s.logs.log = nil
+		s.logs.log = append(s.logs.log, &raftypb.LogEntry{Term: 2})
 
-		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
-			CandidateId:      candidateId,
-			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
-			State:            Candidate.String(),
-			CurrentTerm:      2,
-		})
-		data := <-s.rpcSendVoteRequestChanWritter
-		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
-		assert.Equal(s.id, data.GetPeerID())
+		responseChan := make(chan *raftypb.VoteResponse, 1)
+		request := voteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.VoteRequest{
+				CandidateId:      candidateId,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      2,
+			},
+		}
+
+		go s.handleSendVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
+		assert.Equal(s.id, data.PeerID)
 		assert.Equal(Follower, s.getState())
-		assert.Equal(true, data.GetVoteGranted())
+		assert.Equal(true, data.Granted)
 	})
 
-	t.Run("candidate_1", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
+	t.Run("candidate_with_more_logs", func(t *testing.T) {
 		// I'm candidate and the other server too
 		// with same current term but more logs
 		// let's fill other server lastLogIndex etc
 		s.votedFor = candidateId
-		s.votedForTerm = 2
+		s.votedForTerm.Store(2)
 		s.State = Candidate
-		s.CurrentTerm = 3
-		s.lastLogIndex = 1
-		s.log = nil
-		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
+		s.currentTerm.Store(3)
+		s.lastLogIndex.Store(1)
+		s.logs.log = nil
+		s.logs.log = append(s.logs.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
 
-		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
-			CandidateId:      candidateId,
-			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
-			State:            Candidate.String(),
-			CurrentTerm:      3,
-			LastLogTerm:      3,
-			LastLogIndex:     2,
-		})
-		data := <-s.rpcSendVoteRequestChanWritter
-		time.Sleep(3 * time.Second)
-		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
-		assert.Equal(s.id, data.GetPeerID())
-		assert.Equal(true, data.GetVoteGranted())
+		responseChan := make(chan *raftypb.VoteResponse, 1)
+		request := voteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.VoteRequest{
+				CandidateId:      candidateId,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      3,
+				LastLogTerm:      3,
+				LastLogIndex:     2,
+			},
+		}
+
+		go s.handleSendVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
+		assert.Equal(true, data.Granted)
 	})
 
-	t.Run("candidate_2", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
+	t.Run("candidate_with_more_logs2", func(t *testing.T) {
 		// I'm candidate and the other server too
 		// with same current term but I have more logs
 		// let's fill other server lastLogIndex etc
 		s.votedFor = candidateId
-		s.votedForTerm = 2
+		s.votedForTerm.Store(2)
 		s.State = Candidate
-		s.CurrentTerm = 3
-		s.lastLogIndex = 2
-		s.log = nil
-		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2}, &raftypb.LogEntry{Term: 3})
+		s.currentTerm.Store(3)
+		s.lastLogIndex.Store(2)
+		s.logs.log = nil
+		s.logs.log = append(s.logs.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2}, &raftypb.LogEntry{Term: 3})
 
-		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
-			CandidateId:      candidateId,
-			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
-			State:            Candidate.String(),
-			CurrentTerm:      3,
-			LastLogTerm:      3,
-			LastLogIndex:     1,
-		})
-		data := <-s.rpcSendVoteRequestChanWritter
-		time.Sleep(3 * time.Second)
-		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
-		assert.Equal(s.id, data.GetPeerID())
-		assert.Equal(false, data.GetVoteGranted())
+		responseChan := make(chan *raftypb.VoteResponse, 1)
+		request := voteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.VoteRequest{
+				CandidateId:      candidateId,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      3,
+				LastLogTerm:      3,
+				LastLogIndex:     1,
+			},
+		}
+
+		go s.handleSendVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
+		assert.Equal(false, data.Granted)
 	})
 
 	t.Run("candidate_4", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
 		// I'm candidate and the other server too
 		// with same current term but 0 logs
 		s.votedFor = candidateId
-		s.votedForTerm = 1
+		s.votedForTerm.Store(1)
 		s.State = Candidate
-		s.CurrentTerm = 1
-		s.log = nil
+		s.currentTerm.Store(1)
+		s.logs.log = nil
 
-		go s.handleSendVoteRequestReader(&raftypb.VoteRequest{
-			CandidateId:      candidateId,
-			CandidateAddress: s.configuration.ServerMembers[id].address.String(),
-			State:            Candidate.String(),
-			CurrentTerm:      1,
-		})
-		data := <-s.rpcSendVoteRequestChanWritter
-		time.Sleep(3 * time.Second)
-		assert.Equal(s.CurrentTerm, data.GetCurrentTerm())
-		assert.Equal(s.id, data.GetPeerID())
-		assert.Equal(true, data.GetVoteGranted())
+		responseChan := make(chan *raftypb.VoteResponse, 1)
+		request := voteResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.VoteRequest{
+				CandidateId:      candidateId,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      1,
+			},
+		}
+
+		go s.handleSendVoteRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
+		assert.Equal(true, data.Granted)
 	})
 }
 
-func TestHandleVoteResponse(t *testing.T) {
+func TestHandleSendAppendEntriesRequest(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-	s.State = Follower
 
-	// my term is lower this other node term
-	s.quoroms = nil
-	s.configuration.preCandidatePeers = nil
-	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.configuration.ServerMembers[0],
-		savedCurrentTerm: 1,
-		response: &raftypb.VoteResponse{
-			CurrentTerm: 2,
-		},
-	})
-
-	// my term is greater this other node term
-	// but it detected a new leader
-	s.quoroms = nil
-	s.configuration.preCandidatePeers = nil
-	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.configuration.ServerMembers[0],
-		savedCurrentTerm: 2,
-		response: &raftypb.VoteResponse{
-			CurrentTerm:       1,
-			NewLeaderDetected: true,
-		},
-	})
-
-	// my term is greater this other node term
-	// but it granted my vote
-	s.quoroms = nil
-	s.configuration.preCandidatePeers = nil
-	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.configuration.ServerMembers[0],
-		savedCurrentTerm: 2,
-		response: &raftypb.VoteResponse{
-			CurrentTerm: 1,
-			VoteGranted: true,
-		},
-	})
-
-	// my term is greater this other node term
-	// but it didn't granted my vote
-	s.quoroms = nil
-	s.configuration.preCandidatePeers = nil
-	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.configuration.ServerMembers[0],
-		savedCurrentTerm: 2,
-		response: &raftypb.VoteResponse{
-			CurrentTerm: 1,
-		},
-	})
-
-	// my term is greater this other node term
-	// but it asked me to step down
-	s.quoroms = nil
-	s.configuration.preCandidatePeers = nil
-	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.configuration.ServerMembers[0],
-		savedCurrentTerm: 2,
-		response: &raftypb.VoteResponse{
-			CurrentTerm:       1,
-			RequesterStepDown: true,
-		},
-	})
-
-	// my term is greater this other node term
-	// and I'm a candidate
-	s.quoroms = nil
-	s.configuration.preCandidatePeers = nil
-	s.State = Candidate
-	s.handleVoteResponse(voteResponseWrapper{
-		peer:             s.configuration.ServerMembers[1],
-		savedCurrentTerm: 2,
-		response: &raftypb.VoteResponse{
-			CurrentTerm: 1,
-		},
-	})
-}
-
-func TestHandleClientGetLeaderReader(t *testing.T) {
-	assert := assert.New(t)
-	t.Run("no_leader", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-		s.CurrentTerm = 2
-
-		// no leader
-		go s.handleClientGetLeaderReader()
-		time.Sleep(time.Second)
-		data := <-s.rpcClientGetLeaderChanWritter
-		assert.Equal("", data.GetLeaderID())
-		assert.Equal("", data.GetLeaderAddress())
-	})
-
-	t.Run("leader", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-		// I am the leader
-		s.State = Leader
-		go s.handleClientGetLeaderReader()
-		time.Sleep(time.Second)
-		data := <-s.rpcClientGetLeaderChanWritter
-		assert.Equal(s.id, data.GetLeaderID())
-		assert.Equal(s.Address.String(), data.GetLeaderAddress())
-	})
-
-	t.Run("we_have_a_leader", func(t *testing.T) {
-		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-		// we have a leader
-		s.State = Follower
-		time.Sleep(2 * time.Second)
-		s.setLeader(leaderMap{
-			address: s.configuration.ServerMembers[0].address.String(),
-			id:      s.configuration.ServerMembers[0].ID,
-		})
-		go s.handleClientGetLeaderReader()
-		time.Sleep(time.Second)
-		data := <-s.rpcClientGetLeaderChanWritter
-		assert.Equal(s.configuration.ServerMembers[0].ID, data.GetLeaderID())
-		assert.Equal(s.configuration.ServerMembers[0].address.String(), data.GetLeaderAddress())
-	})
-}
-
-func TestHandleSendAppendEntriesRequestReader(t *testing.T) {
-	assert := assert.New(t)
 	t.Run("my_current_term_greater", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Follower
-		s.CurrentTerm = 2
+		s.currentTerm.Store(2)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:      idx,
-			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
-			Term:          1,
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(s.getCurrentTerm(), data.GetTerm())
+		s.logs.log = nil
+
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:      idx,
+				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
+				Term:          1,
+			},
+		}
+
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
 	})
 
 	t.Run("i_am_a_candidate", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Candidate
-		s.CurrentTerm = 1
+		s.currentTerm.Store(1)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:      idx,
-			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
-			Term:          2,
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(s.getCurrentTerm(), data.GetTerm())
+		s.logs.log = nil
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:      idx,
+				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
+				Term:          2,
+			},
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
+		assert.Equal(s.State, Follower)
 	})
 
-	t.Run("he_is_a_leader", func(t *testing.T) {
+	t.Run("he_is_a_leader_only", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Follower
-		s.CurrentTerm = 2
+		s.currentTerm.Store(2)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:      idx,
-			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
-			Term:          2,
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(s.getCurrentTerm(), data.GetTerm())
+		s.logs.log = nil
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:      idx,
+				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
+				Term:          2,
+			},
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
 	})
 
 	t.Run("we_are_both_leaders", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Leader
-		s.CurrentTerm = 2
+		s.currentTerm.Store(2)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:      idx,
-			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
-			Term:          2,
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(s.getCurrentTerm(), data.GetTerm())
+		s.logs.log = nil
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:      idx,
+				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
+				Term:          2,
+			},
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
 	})
 
 	t.Run("he_is_a_leader_with_heartbeat_logs", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Follower
-		s.CurrentTerm = 1
+		s.currentTerm.Store(1)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		s.log = append(s.log, &raftypb.LogEntry{Term: 1})
+		s.logs.log = nil
+		entries := []*raftypb.LogEntry{{Term: 1}}
+		_ = s.logs.appendEntries(entries)
 		s.setLeader(leaderMap{
 			address: s.configuration.ServerMembers[id].address.String(),
 			id:      s.configuration.ServerMembers[id].ID,
 		})
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:      idx,
-			LeaderAddress: s.configuration.ServerMembers[id].address.String(),
-			Term:          1,
-			Heartbeat:     true,
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(s.getCurrentTerm(), data.GetTerm())
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:      idx,
+				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
+				Term:          2,
+				Heartbeat:     true,
+			},
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
 	})
 
-	t.Run("he_is_a_leader_with_logs_0", func(t *testing.T) {
+	t.Run("conflicted_logs_index_out_of_range", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Follower
-		s.CurrentTerm = 1
+		s.currentTerm.Store(1)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		s.log = append(s.log, &raftypb.LogEntry{Term: 1})
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:          idx,
-			LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
-			Term:              2,
-			PrevLogIndex:      0,
-			PrevLogTerm:       1,
-			LeaderCommitIndex: 2,
-			Entries: []*raftypb.LogEntry{
-				{
-					Term:      2,
-					Timestamp: uint32(time.Now().Unix()),
+		s.logs.log = nil
+		entries := []*raftypb.LogEntry{{Term: 1}}
+		_ = s.logs.appendEntries(entries)
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:          idx,
+				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
+				Term:              2,
+				PrevLogIndex:      0,
+				PrevLogTerm:       1,
+				LeaderCommitIndex: 2,
+				Entries: []*raftypb.LogEntry{
+					{
+						Term:      2,
+						Timestamp: uint32(time.Now().Unix()),
+					},
 				},
 			},
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(s.getCurrentTerm(), data.GetTerm())
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
 	})
 
 	t.Run("he_is_a_leader_but_no_matching_logs", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Follower
-		s.CurrentTerm = 2
+		s.currentTerm.Store(2)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:          idx,
-			LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
-			Term:              2,
-			PrevLogIndex:      1,
-			PrevLogTerm:       1,
-			LeaderCommitIndex: 2,
-			Entries: []*raftypb.LogEntry{
-				{
-					Term:      2,
-					Timestamp: uint32(time.Now().Unix()),
+		s.logs.log = nil
+		entries := []*raftypb.LogEntry{{Term: 1}, {Term: 2}}
+		_ = s.logs.appendEntries(entries)
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:          idx,
+				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
+				Term:              2,
+				PrevLogIndex:      1,
+				PrevLogTerm:       1,
+				LeaderCommitIndex: 2,
+				Entries: []*raftypb.LogEntry{
+					{
+						Term:      2,
+						Timestamp: uint32(time.Now().Unix()),
+					},
 				},
 			},
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(false, data.GetSuccess())
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(false, data.Success)
 	})
 
-	t.Run("he_is_a_leader_with_matching_logs", func(t *testing.T) {
+	t.Run("he_is_a_leader_with_matching_logs_only", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Follower
-		s.CurrentTerm = 1
+		s.currentTerm.Store(1)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 1})
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:          idx,
-			LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
-			Term:              1,
-			PrevLogIndex:      1,
-			PrevLogTerm:       1,
-			LeaderCommitIndex: 2,
-			Entries: []*raftypb.LogEntry{
-				{
-					Term:      1,
-					Timestamp: uint32(time.Now().Unix()),
-				},
-				{
-					Term:      1,
-					Timestamp: uint32(time.Now().Unix()),
+		s.logs.log = nil
+		now := time.Now().Unix()
+		entries := []*raftypb.LogEntry{{Term: 1, Timestamp: uint32(now)}, {Term: 1, Timestamp: uint32(now), Index: 1}}
+		_ = s.logs.appendEntries(entries)
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:          idx,
+				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
+				Term:              1,
+				PrevLogIndex:      1,
+				PrevLogTerm:       1,
+				LeaderCommitIndex: 2,
+				Entries: []*raftypb.LogEntry{
+					{
+						Term:      1,
+						Timestamp: uint32(now),
+					},
+					{
+						Term:      1,
+						Timestamp: uint32(now),
+						Index:     1,
+					},
 				},
 			},
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(s.getCurrentTerm(), data.GetTerm())
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
+		assert.Equal(true, data.Success)
 	})
 
 	t.Run("he_is_a_leader_with_matching_logs_conflict", func(t *testing.T) {
-		os.Setenv("RAFTY_LOG_LEVEL", "trace")
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
 		s.State = Follower
-		s.CurrentTerm = 1
+		s.currentTerm.Store(1)
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		s.electionTimer = time.NewTimer(s.randomElectionTimeout())
-		s.log = append(s.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
-		go s.handleSendAppendEntriesRequestReader(&raftypb.AppendEntryRequest{
-			LeaderID:          idx,
-			LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
-			Term:              2,
-			PrevLogIndex:      1,
-			PrevLogTerm:       1,
-			LeaderCommitIndex: 4,
-			Entries: []*raftypb.LogEntry{
-				{
-					Term:      1,
-					Timestamp: uint32(time.Now().Unix()),
-				},
-				{
-					Term:      1,
-					Timestamp: uint32(time.Now().Unix()),
-				},
-				{
-					Term:      2,
-					Timestamp: uint32(time.Now().Unix()),
-				},
-				{
-					Term:      2,
-					Timestamp: uint32(time.Now().Unix()),
-				},
-				{
-					Term:      2,
-					Timestamp: uint32(time.Now().Unix()),
+		s.logs.log = nil
+		entries := []*raftypb.LogEntry{{Term: 1}, {Term: 1}, {Term: 2}}
+		_ = s.logs.appendEntries(entries)
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+		peers, _ := s.getPeers()
+		peers = append(peers, peer{Address: "127.0.0.1:6000", ID: "xyz"})
+		encodedPeers, err := encodePeers(peers)
+		assert.Nil(err)
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:          idx,
+				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
+				Term:              2,
+				PrevLogIndex:      3,
+				PrevLogTerm:       2,
+				LeaderCommitIndex: 5,
+				Entries: []*raftypb.LogEntry{
+					{
+						Term:      1,
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      1,
+						Index:     1,
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     2,
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     3,
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     4,
+						LogType:   uint32(logConfiguration),
+						Timestamp: uint32(time.Now().Unix()),
+						Command:   encodedPeers,
+					},
 				},
 			},
-		})
-		time.Sleep(time.Second)
-		data := <-s.rpcSendAppendEntriesRequestChanWritter
-		assert.Equal(s.getCurrentTerm(), data.GetTerm())
-		os.Unsetenv("RAFTY_LOG_LEVEL")
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
+		assert.Equal(true, data.Success)
+		assert.Equal(s.commitIndex.Load(), request.request.LeaderCommitIndex)
+	})
+
+	t.Run("he_is_a_leader_with_fake_peers", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.wg.Add(1)
+		go s.wg.Wait()
+		go s.logsLoop()
+
+		s.State = Follower
+		s.currentTerm.Store(1)
+		id := 0
+		idx := fmt.Sprintf("%d", id)
+		s.logs.log = nil
+		entries := []*raftypb.LogEntry{{Term: 1}, {Term: 1}, {Term: 2}}
+		_ = s.logs.appendEntries(entries)
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+		assert.Nil(err)
+		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+		request := appendEntriesResquestWrapper{
+			responseChan: responseChan,
+			request: &raftypb.AppendEntryRequest{
+				LeaderID:          idx,
+				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
+				Term:              2,
+				PrevLogIndex:      3,
+				PrevLogTerm:       2,
+				LeaderCommitIndex: 5,
+				Entries: []*raftypb.LogEntry{
+					{
+						Term:      1,
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      1,
+						Index:     1,
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     2,
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     3,
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     4,
+						LogType:   uint32(logConfiguration),
+						Timestamp: uint32(time.Now().Unix()),
+						Command:   []byte(`a=b`),
+					},
+				},
+			},
+		}
+		go s.handleSendAppendEntriesRequest(request)
+		data := <-responseChan
+		assert.Equal(s.currentTerm.Load(), data.Term)
+		assert.Equal(true, data.Success)
+		assert.Equal(s.commitIndex.Load(), request.request.LeaderCommitIndex)
 	})
 }

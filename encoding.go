@@ -3,155 +3,175 @@ package rafty
 import (
 	"bytes"
 	"encoding/binary"
-	"io"
+	"encoding/json"
 
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
 // encodeCommand permits to transform command receive from clients to binary language machine
-func (r *Rafty) encodeCommand(cmd command) []byte {
-	buffer := bytes.NewBuffer(nil)
+func encodeCommand(cmd Command) ([]byte, error) {
+	buffer := new(bytes.Buffer)
 
-	// disabling error checking because in our case
-	// it will always works
-	_ = buffer.WriteByte(byte(cmd.kind))
+	if err := binary.Write(buffer, binary.LittleEndian, uint32(cmd.Kind)); err != nil {
+		return nil, err
+	}
 
-	// disabling error checking because in our case
-	// it will always works
-	_ = binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.key)))
-	buffer.WriteString(cmd.key)
+	if err := binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.Key))); err != nil {
+		return nil, err
+	}
 
-	// disabling error checking because in our case
-	// it will always works
-	_ = binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.value)))
-	buffer.WriteString(cmd.value)
+	if _, err := buffer.WriteString(cmd.Key); err != nil {
+		return nil, err
+	}
 
-	return buffer.Bytes()
+	if err := binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.Value))); err != nil {
+		return nil, err
+	}
+
+	if _, err := buffer.WriteString(cmd.Value); err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }
 
 // decodeCommand permits to transform back command from binary language machine to clients
-func (r *Rafty) decodeCommand(data []byte) command {
-	var cmd command
+func decodeCommand(data []byte) (Command, error) {
+	var cmd Command
+	buffer := bytes.NewBuffer(data)
 
-	// here are some useful links to understand binary encoding/decoding
-	// https://nakabonne.dev/posts/binary-encoding-go/
-	// https://www.gobeyond.dev/encoding-binary/
-	// uint32 = 4 bytes
-	// uint64 = 8 bytes
-	// kind   0 4 should be 4 bytes but cast to 1 bit in our purpose with byte(cmd.kind)
-	// key    4 12
-	// value 12 20
-	cmd.kind = commandKind(data[0])
-	// 9 = 1 bit + 8 bytes
-	keyLen := binary.LittleEndian.Uint64(data[1:9])
-	maxKeyLen := 9 + keyLen
-	cmd.key = string(data[9:maxKeyLen])
+	var kind uint32
+	if err := binary.Read(buffer, binary.LittleEndian, &kind); err != nil {
+		return cmd, err
+	}
+	cmd.Kind = CommandKind(kind)
 
-	switch cmd.kind {
-	case commandSet, commandGet:
-		// 9+keyLen+8 means 9 bytes + len(key) + 8 bytes
-		valueLen := binary.LittleEndian.Uint64(data[maxKeyLen : 9+keyLen+8])
-		// can be written string(data[9+keyLen+8:])
-		cmd.value = string(data[9+keyLen+8 : 9+keyLen+8+valueLen])
+	var keyLen uint64
+	if err := binary.Read(buffer, binary.LittleEndian, &keyLen); err != nil {
+		return cmd, err
 	}
 
-	return cmd
+	key := make([]byte, keyLen)
+	if _, err := buffer.Read(key); err != nil {
+		return cmd, err
+	}
+	cmd.Key = string(key)
+
+	var valueLen uint64
+	if err := binary.Read(buffer, binary.LittleEndian, &valueLen); err != nil {
+		return cmd, err
+	}
+	value := make([]byte, valueLen)
+	if _, err := buffer.Read(value); err != nil {
+		return cmd, err
+	}
+	cmd.Value = string(value)
+
+	return cmd, nil
 }
 
-// marshalBinary permit to encode data in binary formary format
-func (r *Rafty) marshalBinary(entry *logEntry) []byte {
+// marshalBinary permit to encode data in binary format
+func marshalBinary(entry *logEntry) ([]byte, error) {
 	buffer := bytes.NewBuffer(nil)
 
-	err := binary.Write(buffer, binary.LittleEndian, entry.FileFormat)
-	if err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
+	if err := binary.Write(buffer, binary.LittleEndian, entry.FileFormat); err != nil {
+		return nil, err
 	}
 
-	err = binary.Write(buffer, binary.LittleEndian, entry.Tombstone)
-	if err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
+	if err := binary.Write(buffer, binary.LittleEndian, entry.Tombstone); err != nil {
+		return nil, err
 	}
 
-	err = binary.Write(buffer, binary.LittleEndian, entry.Timestamp)
-	if err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
+	if err := binary.Write(buffer, binary.LittleEndian, entry.LogType); err != nil {
+		return nil, err
 	}
 
-	err = binary.Write(buffer, binary.LittleEndian, entry.Term)
-	if err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
+	if err := binary.Write(buffer, binary.LittleEndian, entry.Timestamp); err != nil {
+		return nil, err
 	}
 
-	err = binary.Write(buffer, binary.LittleEndian, uint64(len(entry.Command)))
-	if err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
+	if err := binary.Write(buffer, binary.LittleEndian, entry.Term); err != nil {
+		return nil, err
 	}
 
-	_, err = buffer.Write(entry.Command)
-	if err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
+	if err := binary.Write(buffer, binary.LittleEndian, entry.Index); err != nil {
+		return nil, err
 	}
 
-	_, err = buffer.WriteString("\n")
-	if err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to encode log entry")
+	if err := binary.Write(buffer, binary.LittleEndian, uint64(len(entry.Command))); err != nil {
+		return nil, err
 	}
 
-	return buffer.Bytes()
+	if _, err := buffer.Write(entry.Command); err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }
 
-// unmarshalBinary permit to decode data in binary formary format
-func (r *Rafty) unmarshalBinary(data []byte) *raftypb.LogEntry {
+// unmarshalBinary permit to decode data in binary format
+func unmarshalBinary(data []byte) (*raftypb.LogEntry, error) {
 	var entry logEntry
 	buffer := bytes.NewBuffer(data)
+
 	if err := binary.Read(buffer, binary.LittleEndian, &entry.FileFormat); err != nil {
-		if err != io.EOF {
-			r.Logger.Fatal().Err(err).Msgf("Fail to decode data")
-		}
+		return nil, err
 	}
 
 	if err := binary.Read(buffer, binary.LittleEndian, &entry.Tombstone); err != nil {
-		if err != io.EOF {
-			r.Logger.Fatal().Err(err).Msgf("Fail to decode data")
-		}
+		return nil, err
+	}
+
+	if err := binary.Read(buffer, binary.LittleEndian, &entry.LogType); err != nil {
+		return nil, err
 	}
 
 	if err := binary.Read(buffer, binary.LittleEndian, &entry.Timestamp); err != nil {
-		if err != io.EOF {
-			r.Logger.Fatal().Err(err).Msgf("Fail to decode data")
-		}
+		return nil, err
 	}
 
 	if err := binary.Read(buffer, binary.LittleEndian, &entry.Term); err != nil {
-		if err != io.EOF {
-			r.Logger.Fatal().Err(err).Msgf("Fail to decode data")
-		}
+		return nil, err
 	}
 
-	// Limit the reader to the bytes of last field only
-	var commandByte uint64
-	if err := binary.Read(buffer, binary.LittleEndian, &commandByte); err != nil {
-		if err != io.EOF {
-			r.Logger.Fatal().Err(err).Msgf("Fail to decode data")
-		}
+	if err := binary.Read(buffer, binary.LittleEndian, &entry.Index); err != nil {
+		return nil, err
 	}
 
-	limitReader := io.LimitReader(buffer, int64(len(data)-10))
-	if commandByte > 0 {
-		entry.Command = make([]byte, commandByte)
-		if _, err := limitReader.Read(entry.Command); err != nil {
-			if err != io.EOF {
-				r.Logger.Fatal().Err(err).Msgf("Fail to decode data")
-			}
-		}
+	var commandLen uint64
+	if err := binary.Read(buffer, binary.LittleEndian, &commandLen); err != nil {
+		return nil, err
+	}
+
+	entry.Command = make([]byte, commandLen)
+	if _, err := buffer.Read(entry.Command); err != nil {
+		return nil, err
 	}
 
 	logEntry := raftypb.LogEntry{
 		FileFormat: uint32(entry.FileFormat),
 		Tombstone:  uint32(entry.Tombstone),
+		LogType:    uint32(entry.LogType),
 		Timestamp:  entry.Timestamp,
 		Term:       entry.Term,
+		Index:      entry.Index,
 		Command:    entry.Command,
 	}
-	return &logEntry
+	return &logEntry, nil
+}
+
+// encodePeers permits to encode peers and return bytes
+func encodePeers(data []peer) (result []byte, err error) {
+	if result, err = json.Marshal(data); err != nil {
+		return
+	}
+	return
+}
+
+// decodePeers permits to decode peers and return bytes
+func decodePeers(data []byte) (result []peer, err error) {
+	if err = json.Unmarshal(data, &result); err != nil {
+		return
+	}
+	return
 }

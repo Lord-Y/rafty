@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// basicNodeSetup is only a helper for other unit testing.
+// It MUST NOT be used to start a cluster
 func basicNodeSetup() *Rafty {
 	addr := net.TCPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
@@ -33,7 +35,6 @@ func basicNodeSetup() *Rafty {
 	for _, v := range s.options.Peers {
 		s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
 	}
-	s.configuration.preCandidatePeers = s.configuration.ServerMembers
 	return s
 }
 
@@ -96,7 +97,6 @@ func TestParsePeers(t *testing.T) {
 		for _, v := range peers {
 			s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
 		}
-		s.configuration.preCandidatePeers = s.configuration.ServerMembers
 	}
 
 	mergePeers(s.options.Peers)
@@ -113,43 +113,6 @@ func TestParsePeers(t *testing.T) {
 	mergePeers(s.options.Peers)
 	err = s.parsePeers()
 	assert.Error(err)
-}
-
-func TestGetPeerSliceIndex(t *testing.T) {
-	assert := assert.New(t)
-
-	s := basicNodeSetup()
-	peer := s.configuration.ServerMembers[0].address.String()
-	index := s.getPeerSliceIndex(peer)
-	assert.Equal(0, index)
-
-	fake := net.TCPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: int(GRPCPort),
-	}
-
-	index = s.getPeerSliceIndex(fake.String())
-	assert.Equal(-1, index)
-}
-
-func TestCheckIfPeerInSliceIndex(t *testing.T) {
-	assert := assert.New(t)
-
-	s := basicNodeSetup()
-	peer := s.configuration.ServerMembers[0].address.String()
-	index := s.checkIfPeerInSliceIndex(false, peer)
-	assert.Equal(true, index)
-
-	index = s.checkIfPeerInSliceIndex(true, peer)
-	assert.Equal(true, index)
-
-	fake := net.TCPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: int(GRPCPort),
-	}
-
-	index = s.checkIfPeerInSliceIndex(false, fake.String())
-	assert.Equal(false, index)
 }
 
 func TestSwitchStateAndLogState(t *testing.T) {
@@ -210,11 +173,9 @@ func TestSwitchStateAndLogState(t *testing.T) {
 
 	s.State = Down
 	for _, tc := range tests {
-		s.logState(tc.expectedState, tc.niceMessage, tc.currentTerm)
-		s.switchState(tc.state, tc.niceMessage, tc.currentTerm)
+		s.switchState(tc.state, stepUp, tc.niceMessage, tc.currentTerm)
 		assert.Equal(tc.expectedState, s.State)
-		assert.Equal(tc.expectedCurrentTerm, s.CurrentTerm)
-		s.logState(tc.expectedState, tc.niceMessage, tc.currentTerm)
+		assert.Equal(tc.expectedCurrentTerm, s.currentTerm.Load())
 	}
 }
 
@@ -261,11 +222,11 @@ func TestSaveLeaderInformations(t *testing.T) {
 
 	s.State = Candidate
 	for _, tc := range tests {
-		s.setCurrentTerm(tc.currentTerm)
+		s.currentTerm.Store(tc.currentTerm)
 		if tc.switchState {
-			s.switchState(tc.state, tc.niceMessage, tc.currentTerm)
+			s.switchState(tc.state, stepUp, tc.niceMessage, tc.currentTerm)
 			assert.Equal(tc.expectedState, s.State)
-			assert.Equal(tc.expectedCurrentTerm, s.CurrentTerm)
+			assert.Equal(tc.expectedCurrentTerm, s.currentTerm.Load())
 			s.setLeader(tc.newLeader)
 		} else {
 			s.State = Candidate
@@ -331,14 +292,42 @@ func TestMax(t *testing.T) {
 	}
 }
 
-func TestGetPeerClient(t *testing.T) {
+func TestCalculateMaxRangeLogIndex(t *testing.T) {
 	assert := assert.New(t)
 
-	s := basicNodeSetup()
-	server := s.configuration.ServerMembers[0]
-	index := s.getPeerClient(server.ID)
-	assert.Equal(server, index)
+	tests := []struct {
+		totalLogs        uint
+		maxAppendEntries uint
+		initialIndex     uint
+		limit            uint
+		snapshot         bool
+	}{
+		{
+			totalLogs:        50,
+			maxAppendEntries: 64,
+			initialIndex:     0,
+			limit:            50,
+			snapshot:         false,
+		},
+		{
+			totalLogs:        100,
+			maxAppendEntries: 64,
+			initialIndex:     0,
+			limit:            64,
+			snapshot:         true,
+		},
+		{
+			totalLogs:        100,
+			maxAppendEntries: 1,
+			initialIndex:     4,
+			limit:            5,
+			snapshot:         false,
+		},
+	}
 
-	index = s.getPeerClient("xxxxx")
-	assert.Equal(peer{}, index)
+	for _, tc := range tests {
+		limit, snapshot := calculateMaxRangeLogIndex(tc.totalLogs, tc.maxAppendEntries, tc.initialIndex)
+		assert.Equal(tc.limit, limit)
+		assert.Equal(tc.snapshot, snapshot)
+	}
 }
