@@ -39,13 +39,13 @@ func main() {
 			IP:   net.ParseIP(*ipAddress),
 			Port: 50053,
 		}
-		id = "229fc9de-a8f7-4d21-964f-f23a2cc20eff"
+		id = "775c0bce-f3ed-47d0-9b44-0e0909d48e1a"
 	case 1:
 		addr = net.TCPAddr{
 			IP:   net.ParseIP(*ipAddress),
 			Port: 50052,
 		}
-		id = "abe35d4f-787e-4262-9894-f6475ed81028"
+		id = "229fc9de-a8f7-4d21-964f-f23a2cc20eff"
 	default:
 		addr = net.TCPAddr{
 			IP:   net.ParseIP(*ipAddress),
