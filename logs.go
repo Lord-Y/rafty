@@ -119,6 +119,12 @@ type logOperationReadLastLogResponse struct {
 	// instead of catchup logs
 	sendSnapshot bool
 
+	// lastLogIndex is the last log index to use when sending the catchup entries
+	lastLogIndex uint64
+
+	// lastLogTerm is the last log term of the logs from lastLogIndex
+	lastLogTerm uint64
+
 	// err return an error if there is one
 	err error
 }

@@ -147,6 +147,10 @@ type onAppendEntriesRequest struct {
 	// entries are logs to use when
 	// followerReplication.catchup is set to true
 	entries []*raftypb.LogEntry
+
+	// catchup tell us if the follower is currently catching up entries.
+	// It will also be used when a new leader is promoted with term > 1
+	catchup bool
 }
 
 // startFollowerReplication is instanciate for every
@@ -196,7 +200,7 @@ func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, requ
 			Entries:           request.entries,
 			LeaderCommitIndex: request.commitIndex,
 			Heartbeat:         request.heartbeat,
-			Catchup:           r.catchup.Load(),
+			Catchup:           request.catchup,
 		},
 	)
 	return
@@ -207,6 +211,19 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 	defer r.wg.Done()
 	// if the node need to catchup and an append hearbeat is sent, skip
 	if r.catchup.Load() && request.heartbeat {
+		r.rafty.Logger.Trace().
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("term", fmt.Sprintf("%d", request.term)).
+			Str("peerAddress", r.address.String()).
+			Str("peerId", r.ID).
+			Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
+			Str("catchup", fmt.Sprintf("%t", r.catchup.Load())).
+			Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+			Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
+			Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
+			Msgf("Catching up")
 		return
 	}
 	client := r.rafty.connectionManager.getClient(r.address.String(), r.ID)
@@ -221,6 +238,7 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 			Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
 			Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 			Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
+			Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
 			Msgf("Send append entries")
 
 		for retry := range replicationMaxRetry {
@@ -261,8 +279,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 				r.lastContactDate.Store(time.Now())
 				switch {
 				case response.Term > request.term:
-					r.replicationStopped.Store(true)
-					r.replicationStopChan <- struct{}{}
 					r.rafty.switchState(Follower, stepDown, true, response.Term)
 					return
 
@@ -307,19 +323,16 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 							}
 
 							if request.committed.Load() && !r.replicationStopped.Load() {
-								if request.totalLogs == 1 {
-									r.nextIndex.Store(1)
-									r.matchIndex.Store(1)
-								} else {
-									r.nextIndex.Store(request.totalLogs + 1)
-									r.matchIndex.Store(max(request.prevLogIndex+uint64(request.totalLogs)+1, 1))
-								}
+								r.nextIndex.Add(1)
+								r.matchIndex.Add(1)
 
 								r.rafty.Logger.Trace().
 									Str("address", r.rafty.Address.String()).
 									Str("id", r.rafty.id).
 									Str("state", r.rafty.getState().String()).
 									Str("term", fmt.Sprintf("%d", response.Term)).
+									Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+									Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
 									Str("peerAddress", r.address.String()).
 									Str("peerId", r.ID).
 									Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
@@ -345,8 +358,12 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 							Str("term", fmt.Sprintf("%d", request.term)).
 							Str("index", fmt.Sprintf("%d", request.entryIndex)).
 							Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
+							Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+							Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
 							Str("peerAddress", r.address.String()).
 							Str("peerId", r.ID).
+							Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
+							Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
 							Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
 							Msgf("Successfully append entries to the majority of servers %d >= %d", request.majority.Load()+1, request.quorum)
 					}
@@ -357,7 +374,7 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 						r.nextIndex.Store(r.nextIndex.Load() - 1)
 
 					// if log not found and no ongoing catchup
-					case response.LogNotFound && !r.catchup.Load():
+					case response.LogNotFound && !r.catchup.Load() && !r.replicationStopped.Load():
 						r.catchup.Store(true)
 						r.wg.Add(1)
 						go func() {
@@ -387,6 +404,7 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 // sendCatchupAppendEntries allow leader to send entries to the follower
 // in order to catchup leader state
 func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClient, oldRequest *onAppendEntriesRequest, oldResponse *raftypb.AppendEntryResponse) {
+	defer r.catchup.Store(false)
 	logsResponse := r.rafty.logs.fromLastLogParameters(
 		oldResponse.LastLogIndex,
 		oldResponse.LastLogTerm,
@@ -406,19 +424,36 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		return
 	}
 
+	if logsResponse.total == 0 {
+		r.rafty.Logger.Warn().
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("term", fmt.Sprintf("%d", oldRequest.term)).
+			Str("lastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
+			Str("lastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
+			Str("totalLogs", fmt.Sprintf("%d", logsResponse.total)).
+			Str("peerAddress", r.address.String()).
+			Str("peerId", r.ID).
+			Str("peerLastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
+			Str("peerLastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
+			Msg("Fail to prepare catchup append entries request")
+		return
+	}
+
 	r.rafty.Logger.Trace().
 		Str("address", r.rafty.Address.String()).
 		Str("id", r.rafty.id).
 		Str("state", r.rafty.getState().String()).
-		Str("lastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
-		Str("lastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
+		Str("term", fmt.Sprintf("%d", oldRequest.term)).
+		Str("lastLogIndex", fmt.Sprintf("%d", logsResponse.lastLogIndex)).
+		Str("lastLogTerm", fmt.Sprintf("%d", logsResponse.lastLogTerm)).
 		Str("totalLogs", fmt.Sprintf("%d", logsResponse.total)).
 		Str("peerAddress", r.address.String()).
 		Str("peerId", r.ID).
 		Str("peerLastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
 		Str("peerLastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
 		Msg("Prepare catchup append entries request")
-
 	request := &onAppendEntriesRequest{
 		totalFollowers: 1,
 		quorum:         1,
@@ -430,9 +465,9 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		uuid:           uuid.NewString(),
 		commitIndex:    r.rafty.commitIndex.Load(),
 		entries:        logsResponse.logs,
+		catchup:        true,
 	}
 
-	defer r.catchup.Store(false)
 	response, err := r.sendAppendEntries(client, request)
 	if err != nil && r.rafty.getState() == Leader {
 		r.failures.Add(1)
@@ -444,19 +479,33 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 			Str("peerAddress", r.address.String()).
 			Str("peerId", r.ID).
 			Msgf("Fail to send catchup append entries to peer")
-	} else {
-		r.failures.Store(0)
+		return
+	}
 
-		// sometimes, during unit testing, response is nil
-		// so let's avoid failure
-		if response == nil {
-			return
-		}
+	r.failures.Store(0)
 
-		r.lastContactDate.Store(time.Now())
-		if response.Success {
-			r.nextIndex.Store(request.totalLogs + 1)
-			r.matchIndex.Store(max(request.prevLogIndex+uint64(request.totalLogs)+1, 1))
-		}
+	// sometimes, during unit testing, response is nil
+	// so let's avoid failure
+	if response == nil {
+		return
+	}
+
+	r.lastContactDate.Store(time.Now())
+	if response.Success {
+		r.nextIndex.Add(request.totalLogs)
+		r.matchIndex.Add(request.totalLogs - 1)
+
+		r.rafty.Logger.Trace().
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("term", fmt.Sprintf("%d", response.Term)).
+			Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+			Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
+			Str("peerAddress", r.address.String()).
+			Str("peerId", r.ID).
+			Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
+			Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+			Msgf("Follower nextIndex / matchIndex has been updated with catchup entries")
 	}
 }
