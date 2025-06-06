@@ -432,7 +432,7 @@ func (r *Rafty) Start() error {
 		return fmt.Errorf("fail to listen gRPC server %w", err)
 	}
 
-	r.grpcServer = grpc.NewServer()
+	r.grpcServer = grpc.NewServer(grpc.KeepaliveEnforcementPolicy(kaep), grpc.KeepaliveParams(kasp))
 	rpcManager := rpcManager{
 		rafty: r,
 	}
