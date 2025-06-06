@@ -24,9 +24,9 @@ func (r *Rafty) heartbeatTimeout() time.Duration {
 func (r *Rafty) randomRPCTimeout(leader bool) time.Duration {
 	var min, max int
 	if leader {
-		min, max = r.options.HeartbeatTimeout/4, r.options.HeartbeatTimeout/2
+		min, max = r.options.HeartbeatTimeout/3, r.options.HeartbeatTimeout/2
 	} else {
-		min, max = r.options.ElectionTimeout/4, r.options.ElectionTimeout/2
+		min, max = r.options.ElectionTimeout/3, r.options.ElectionTimeout/2
 	}
 	rd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return time.Duration(min+rd.Intn(max-min)) * time.Millisecond * time.Duration(r.options.TimeMultiplier)
