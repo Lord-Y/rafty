@@ -64,9 +64,9 @@ type RPCPreVoteRequest struct {
 }
 
 type RPCPreVoteResponse struct {
-	PeerID      string
-	CurrentTerm uint64
-	Granted     bool
+	PeerID                     string
+	RequesterTerm, CurrentTerm uint64
+	Granted                    bool
 }
 
 type RPCVoteRequest struct {
@@ -110,12 +110,13 @@ func (r *Rafty) sendRPC(request RPCRequest, client raftypb.RaftyClient, peer pee
 		request.ResponseChan <- RPCResponse{Response: makeRPCGetLeaderResponse(resp, req.TotalPeers), Error: err, TargetPeer: peer}
 
 	case PreVoteRequest:
+		req := request.Request.(RPCPreVoteRequest)
 		resp, err := client.SendPreVoteRequest(
 			ctx,
-			makeRPCPreVoteRequest(request.Request.(RPCPreVoteRequest)),
+			makeRPCPreVoteRequest(req),
 			options...,
 		)
-		request.ResponseChan <- RPCResponse{Response: makeRPCPreVoteResponse(resp), Error: err, TargetPeer: peer}
+		request.ResponseChan <- RPCResponse{Response: makeRPCPreVoteResponse(resp, req.CurrentTerm), Error: err, TargetPeer: peer}
 
 	case VoteRequest:
 		req := request.Request.(RPCVoteRequest)
@@ -184,13 +185,14 @@ func makeRPCPreVoteRequest(data RPCPreVoteRequest) *raftypb.PreVoteRequest {
 }
 
 // makeRPCPreVoteResponse build pre vote response
-func makeRPCPreVoteResponse(data *raftypb.PreVoteResponse) RPCPreVoteResponse {
+func makeRPCPreVoteResponse(data *raftypb.PreVoteResponse, term uint64) RPCPreVoteResponse {
 	if data == nil {
-		return RPCPreVoteResponse{}
+		return RPCPreVoteResponse{RequesterTerm: term}
 	}
 	return RPCPreVoteResponse{
-		CurrentTerm: data.CurrentTerm,
-		Granted:     data.Granted,
+		RequesterTerm: term,
+		CurrentTerm:   data.CurrentTerm,
+		Granted:       data.Granted,
 	}
 }
 
@@ -208,7 +210,7 @@ func makeRPCVoteRequest(data RPCVoteRequest) *raftypb.VoteRequest {
 // makeRPCVoteResponse build vote response
 func makeRPCVoteResponse(data *raftypb.VoteResponse, term uint64) RPCVoteResponse {
 	if data == nil {
-		return RPCVoteResponse{}
+		return RPCVoteResponse{RequesterTerm: term}
 	}
 	return RPCVoteResponse{
 		PeerID:        data.PeerID,
@@ -236,13 +238,6 @@ func (r *Rafty) sendAskNodeIDRequest() {
 		go func() {
 			client := r.connectionManager.getClient(peer.address.String(), peer.ID)
 			if client != nil && !r.leaderLost.Load() && r.getState() != Down {
-				r.Logger.Trace().
-					Str("address", r.Address.String()).
-					Str("id", r.id).
-					Str("state", r.getState().String()).
-					Str("peerAddress", peer.address.String()).
-					Msgf("Try to fetch peer id")
-
 				r.sendRPC(request, client, peer)
 			}
 		}()
@@ -292,14 +287,6 @@ func (r *Rafty) askNodeIDResult(resp RPCResponse) {
 	if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !response.ReadOnlyNode {
 		r.clusterSizeCounter.Add(1)
 	}
-
-	r.Logger.Trace().
-		Str("address", r.Address.String()).
-		Str("id", r.id).
-		Str("state", r.getState().String()).
-		Str("peerAddress", targetPeer.address.String()).
-		Str("peerId", response.PeerID).
-		Msgf("Peer id fetched")
 }
 
 // sendGetLeaderRequest allow the current node
@@ -325,14 +312,6 @@ func (r *Rafty) sendGetLeaderRequest() {
 		go func() {
 			client := r.connectionManager.getClient(peer.address.String(), peer.ID)
 			if client != nil && r.getState() != Down {
-				r.Logger.Trace().
-					Str("address", r.Address.String()).
-					Str("id", r.id).
-					Str("state", r.getState().String()).
-					Str("peerAddress", peer.address.String()).
-					Str("peerId", peer.ID).
-					Msgf("Ask who is the leader")
-
 				r.sendRPC(request, client, peer)
 			}
 		}()
