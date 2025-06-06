@@ -215,28 +215,26 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 	}
 
 	totalLogs := r.logs.total().total
-	if data.request.PrevLogIndex > 0 && !data.request.Catchup {
-		if data.request.PrevLogTerm != int64(lastLogTerm) {
-			response.LogNotFound = true
-			data.responseChan <- response
+	if (data.request.PrevLogIndex != lastLogIndex || data.request.PrevLogTerm != int64(lastLogTerm)) && !data.request.Catchup {
+		response.LogNotFound = true
+		data.responseChan <- response
 
-			r.Logger.Warn().Err(ErrLogNotFound).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
-				Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
-				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
-				Str("leaderAddress", data.request.LeaderAddress).
-				Str("leaderId", data.request.LeaderID).
-				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
-				Str("leaderPrevLogIndex", fmt.Sprintf("%d", data.request.PrevLogIndex)).
-				Str("leaderPrevLogTerm", fmt.Sprintf("%d", data.request.PrevLogTerm)).
-				Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
-				Msgf("Previous log not found")
-			return
-		}
+		r.Logger.Warn().Err(ErrLogNotFound).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
+			Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
+			Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
+			Str("leaderAddress", data.request.LeaderAddress).
+			Str("leaderId", data.request.LeaderID).
+			Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+			Str("leaderPrevLogIndex", fmt.Sprintf("%d", data.request.PrevLogIndex)).
+			Str("leaderPrevLogTerm", fmt.Sprintf("%d", data.request.PrevLogTerm)).
+			Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
+			Msgf("Previous log not found")
+		return
 	}
 
 	if !data.request.Heartbeat {
@@ -380,6 +378,10 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 	r.leaderLost.Store(false)
 	r.leaderLastContactDate.Store(time.Now())
 	r.timer.Reset(r.heartbeatTimeout())
+	// this is only temporary as we added more debug logs
+	if !r.options.ReadOnlyNode {
+		r.switchState(Follower, stepDown, false, data.request.Term)
+	}
 
 	r.Logger.Trace().
 		Str("address", r.Address.String()).
@@ -387,9 +389,15 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 		Str("state", r.getState().String()).
 		Str("term", fmt.Sprintf("%d", data.request.Term)).
 		Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+		Str("heartbeat", fmt.Sprintf("%t", data.request.Heartbeat)).
+		Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
+		Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
+		Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
 		Str("leaderAddress", data.request.LeaderAddress).
 		Str("leaderId", data.request.LeaderID).
 		Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
-		Str("heartbeat", fmt.Sprintf("%t", data.request.Heartbeat)).
+		Str("leaderPrevLogIndex", fmt.Sprintf("%d", data.request.PrevLogIndex)).
+		Str("leaderPrevLogTerm", fmt.Sprintf("%d", data.request.PrevLogTerm)).
+		Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
 		Msgf("Received append entries from leader")
 }

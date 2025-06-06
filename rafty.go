@@ -83,7 +83,7 @@ type Options struct {
 	// Unit is in milliseconds
 	ElectionTimeout int
 
-	// HeartbeatTimeout is use by follower without contact from the leader
+	// HeartbeatTimeout is used by follower without contact from the leader
 	// before starting new election campain.
 	// Unit is in milliseconds
 	HeartbeatTimeout int

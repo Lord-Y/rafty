@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
@@ -91,36 +92,79 @@ func (r *Rafty) logsLoop() {
 				totalLogs := len(r.logs.log)
 				var limit uint
 				response := logOperationReadLastLogResponse{}
+				if totalLogs == 1 {
+					response.logs = make([]*raftypb.LogEntry, 1)
+					copy(response.logs, r.logs.log)
+					response.total = len(response.logs)
+					response.lastLogIndex = r.logs.log[response.total-1].Index
+					response.lastLogTerm = r.logs.log[response.total-1].Term
+					return
+				}
+
 				if request.lastLogIndex == 0 && request.lastLogTerm == 0 {
 					limit, response.sendSnapshot = calculateMaxRangeLogIndex(uint(totalLogs), uint(r.options.MaxAppendEntries), 0)
 					response.logs = make([]*raftypb.LogEntry, limit)
 					copy(response.logs, r.logs.log[0:limit])
-				} else {
-					if index := slices.IndexFunc(r.logs.log, func(p *raftypb.LogEntry) bool {
-						return p.Index == request.lastLogIndex && p.Term == request.lastLogTerm
-					}); index != -1 {
-						limit, response.sendSnapshot = calculateMaxRangeLogIndex(uint(totalLogs), uint(r.options.MaxAppendEntries), uint(index))
-						for _, entry := range r.logs.log[index:limit] {
-							if entry.Term <= request.lastLogTerm {
-								response.logs = append(response.logs, entry)
-							}
-						}
-					} else {
-						// finding closest entry
-						if index := slices.IndexFunc(r.logs.log, func(p *raftypb.LogEntry) bool {
-							return p.Index > request.lastLogIndex
-						}); index != -1 {
-							limit, response.sendSnapshot = calculateMaxRangeLogIndex(uint(totalLogs), uint(r.options.MaxAppendEntries), uint(index))
-							response.logs = make([]*raftypb.LogEntry, limit)
-							copy(response.logs, r.logs.log[index:limit])
-						}
-					}
-				}
-				response.total = len(response.logs)
-				data.responseChan <- logOperationResponse{
-					response: response,
+					response.total = len(response.logs)
+					response.lastLogIndex = request.lastLogIndex
+					response.lastLogTerm = request.lastLogTerm
+					return
 				}
 
+				if index := slices.IndexFunc(r.logs.log, func(p *raftypb.LogEntry) bool {
+					return p.Index == request.lastLogIndex && p.Term == request.lastLogTerm
+				}); index != -1 {
+					limit, response.sendSnapshot = calculateMaxRangeLogIndex(uint(totalLogs), uint(r.options.MaxAppendEntries), uint(index))
+					for _, entry := range r.logs.log[index:limit] {
+						if entry.Term <= request.lastLogTerm {
+							response.logs = append(response.logs, entry)
+						}
+					}
+					response.total = len(response.logs)
+					if response.total > 0 {
+						response.lastLogIndex = r.logs.log[response.total-1].Index
+						response.lastLogTerm = r.logs.log[response.total-1].Term
+					}
+					data.responseChan <- logOperationResponse{
+						response: response,
+					}
+					return
+				}
+				// finding closest entry
+				if index := slices.IndexFunc(r.logs.log, func(p *raftypb.LogEntry) bool {
+					return p.Index > request.lastLogIndex
+				}); index != -1 {
+					limit, response.sendSnapshot = calculateMaxRangeLogIndex(uint(totalLogs), uint(r.options.MaxAppendEntries), uint(index))
+					r.Logger.Trace().
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", r.currentTerm.Load())).
+						Str("request_lastLogTerm", fmt.Sprintf("%d", request.lastLogTerm)).
+						Str("index", fmt.Sprintf("%d", index)).
+						Str("limit", fmt.Sprintf("%d", limit)).
+						Str("limitLastLogIndex", fmt.Sprintf("%d", r.logs.log[limit-1].Index)).
+						Str("limitLastLogTerm", fmt.Sprintf("%d", r.logs.log[limit-1].Term)).
+						Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+						Str("peerAddress", request.peerAddress).
+						Str("peerId", request.peerId).
+						Msg("Catchup append entries closest request")
+
+					// when we find the closest entry, we need to give back leader prev log index and term
+					// somehow, using make cause panic then calculation the final
+					// lastLogTerm and lastLogIndex response so we use for loop instead of copy
+					// response.logs = make([]*raftypb.LogEntry, limit)
+					// copy(response.logs, r.logs.log[index:limit])
+					response.logs = append(response.logs, r.logs.log[index:limit]...)
+					response.total = len(response.logs)
+					if response.total > 0 {
+						response.lastLogIndex = r.logs.log[response.total-1].Index
+						response.lastLogTerm = r.logs.log[response.total-1].Term
+					}
+					data.responseChan <- logOperationResponse{
+						response: response,
+					}
+				}
 			case logOperationGetTotal:
 				resp := logOperationReadResponse{total: len(r.logs.log)}
 				data.responseChan <- logOperationResponse{
