@@ -41,14 +41,13 @@ func (r *candidate) init() {
 	if r.rafty.getState() == Candidate && (leader == (leaderMap{}) || r.rafty.leaderLost.Load()) {
 		r.rafty.leaderLost.Store(true)
 		r.quorum = r.rafty.quorum()
-		r.preVotes = 1 // voted for myself
-		r.votes = 1    // voted for myself
+		r.votes = 1    // vote for myself
+		r.preVotes = 1 // vote for myself
 		if r.rafty.options.DisablePrevote {
 			r.startElection()
 			return
 		}
 		r.preVoteRequest()
-		return
 	}
 	r.rafty.switchState(Follower, stepDown, false, r.rafty.currentTerm.Load())
 }
@@ -59,8 +58,8 @@ func (r *candidate) onTimeout() {
 	if r.rafty.getState() != Candidate {
 		return
 	}
-	r.preVotes = 1 // voted for myself
-	r.votes = 1    // voted for myself
+	r.preVotes = 1 // vote for myself
+	r.votes = 1    // vote for myself
 	if r.rafty.options.DisablePrevote {
 		r.startElection()
 		return
@@ -131,14 +130,14 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 			Str("address", r.rafty.Address.String()).
 			Str("id", r.rafty.id).
 			Str("state", r.rafty.getState().String()).
+			Str("term", fmt.Sprintf("%d", response.RequesterTerm)).
 			Str("peerAddress", targetPeer.address.String()).
 			Str("peerId", targetPeer.ID).
 			Msgf("Fail to get pre vote request")
 		return
 	}
 
-	currentTerm := r.rafty.currentTerm.Load() + 1
-	if currentTerm < response.CurrentTerm {
+	if response.RequesterTerm < response.CurrentTerm {
 		return
 	}
 
@@ -157,7 +156,7 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 				Str("address", r.rafty.Address.String()).
 				Str("id", r.rafty.id).
 				Str("state", r.rafty.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("term", fmt.Sprintf("%d", response.RequesterTerm)).
 				Msgf("Pre vote quorum has been reach")
 
 			r.rafty.startElectionCampain.Store(true)
@@ -242,6 +241,7 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 			Str("address", r.rafty.Address.String()).
 			Str("id", r.rafty.id).
 			Str("state", r.rafty.getState().String()).
+			Str("term", fmt.Sprintf("%d", response.RequesterTerm)).
 			Str("peerAddress", targetPeer.address.String()).
 			Str("peerId", targetPeer.ID).
 			Msgf("Fail to send vote request to peer")
