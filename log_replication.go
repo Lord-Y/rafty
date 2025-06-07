@@ -9,6 +9,8 @@ import (
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -20,6 +22,14 @@ const (
 	replicationMaxRetry uint64 = 3
 )
 
+var (
+	// retryableStatusCodes is a mapping used to check if we should retry to
+	// send append entries
+	retryableStatusCodes = map[codes.Code]bool{
+		codes.Unavailable: true, // etc
+	}
+)
+
 // appendEntriesResponse is used to answer back to the client
 // when fetching or appling log entries
 type appendEntriesResponse struct {
@@ -27,6 +37,7 @@ type appendEntriesResponse struct {
 	Error error
 }
 
+// triggerAppendEntries will be used by triggerAppendEntriesChan
 type triggerAppendEntries struct {
 	command      []byte
 	responseChan chan appendEntriesResponse
@@ -258,6 +269,13 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 			response, err := r.sendAppendEntries(client, request)
 			if err != nil && r.rafty.getState() == Leader {
 				r.failures.Add(1)
+
+				var doNotRetry bool
+				if !retryableStatusCodes[status.Code(err)] {
+					// The RPC was successful or errored in a non-retryable way;
+					// do not retry.
+					doNotRetry = true
+				}
 				r.rafty.Logger.Error().Err(err).
 					Str("address", r.rafty.Address.String()).
 					Str("id", r.rafty.id).
@@ -265,9 +283,14 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 					Str("term", fmt.Sprintf("%d", request.term)).
 					Str("peerAddress", r.address.String()).
 					Str("peerId", r.ID).
+					Str("retryable", fmt.Sprintf("%t", doNotRetry)).
 					Str("attempt", fmt.Sprintf("%d", retry)).
 					Str("nextAttemptIn", nextAttemptIn.String()).
 					Msgf("Fail to send append entries to peer")
+
+				if doNotRetry {
+					return
+				}
 			} else {
 				r.failures.Store(0)
 
