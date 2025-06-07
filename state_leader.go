@@ -19,9 +19,19 @@ type leader struct {
 	// mu is used to ensure lock concurrency
 	mu sync.Mutex
 
+	// leaseTimer is how long the leader will still be the leader.
+	// If the quorum of voters is unreachable, the it will step down as follower
+	leaseTimer *time.Ticker
+
+	// leaseDuration is used to set leaseTimer ticker
+	leaseDuration time.Duration
+
 	// followerReplication hold all requirements that will
 	// be used by the leader to replicate append entries
 	followerReplication map[string]*followerReplication
+
+	// disableHeartBeat is set to true temporary while sending new entries
+	disableHeartBeat atomic.Bool
 }
 
 // init initialize all requirements needed by
@@ -31,7 +41,8 @@ func (r *leader) init() {
 	r.rafty.leaderLost.Store(false)
 	r.rafty.leaderLastContactDate.Store(time.Now())
 	r.rafty.nextIndex.Store(r.rafty.lastLogIndex.Load() + 1)
-	r.rafty.leaderLeaseTimer.Reset(r.rafty.leaderLeaseDuration)
+	r.leaseDuration = r.rafty.heartbeatTimeout()
+	r.leaseTimer = time.NewTicker(r.leaseDuration * 3)
 
 	r.setupFollowersReplicationStates()
 
@@ -53,9 +64,8 @@ func (r *leader) onTimeout() {
 // release permit to cancel or gracefully some actions
 // when the node change state
 func (r *leader) release() {
-	r.rafty.leaderLeaseTimer.Stop()
+	r.leaseTimer.Stop()
 	r.rafty.setLeader(leaderMap{})
-	r.wg.Add(1)
 	r.stopAllReplication()
 	r.wg.Wait()
 }
@@ -108,8 +118,11 @@ func (r *leader) setupFollowersReplicationStates() {
 		uuid:           uuid.NewString(),
 		commitIndex:    r.rafty.commitIndex.Load(),
 		entries:        entries,
+		catchup:        true,
 	}
 
+	r.disableHeartBeat.Store(true)
+	defer r.disableHeartBeat.Store(false)
 	for _, follower := range followers {
 		r.followerReplication[follower.ID].newEntryChan <- request
 	}
@@ -123,15 +136,13 @@ func (r *leader) addReplication(follower *followerReplication) {
 	go func() {
 		defer r.wg.Done()
 		follower.startFollowerReplication()
-		r.stopReplication(follower)
+		r.stopReplication(follower, true)
 	}()
 }
 
 func (r *leader) heartbeat() {
 	currentTerm := r.rafty.currentTerm.Load()
-	r.rafty.mu.Lock()
-	followers := r.rafty.configuration.ServerMembers
-	r.rafty.mu.Unlock()
+	followers, _ := r.rafty.getPeers()
 	totalFollowers := len(followers)
 	totalLogs := r.rafty.logs.total().total
 
@@ -148,14 +159,20 @@ func (r *leader) heartbeat() {
 	}
 
 	for _, follower := range followers {
-		if r.followerReplication[follower.ID] != nil && !r.followerReplication[follower.ID].replicationStopped.Load() {
+		if r.followerReplication[follower.ID] != nil && (!r.followerReplication[follower.ID].replicationStopped.Load() || !r.disableHeartBeat.Load()) {
 			r.followerReplication[follower.ID].newEntryChan <- request
 		}
 	}
 }
 
-func (r *leader) stopReplication(follower *followerReplication) {
-	defer r.wg.Done()
+// stopReplication will stop ongoing follower replication. When deferred is set to true,
+// it will decrement waitGroup
+func (r *leader) stopReplication(follower *followerReplication, deferred bool) {
+	if deferred {
+		defer r.wg.Done()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	if !follower.replicationStopped.Load() {
 		follower.replicationStopped.Store(true)
@@ -167,28 +184,21 @@ func (r *leader) stopReplication(follower *followerReplication) {
 			Str("peerAddress", follower.address.String()).
 			Str("peerId", follower.ID).
 			Msgf("Replication stopped")
+
+		time.Sleep(time.Second)
+		close(follower.replicationStopChan)
+		close(follower.newEntryChan)
+		follower.newEntryChan = nil
 	}
+	r.rafty.Logger.Info().Str("state", r.rafty.getState().String()).Msgf("DONE stopReplication")
 }
 
+// stopAllReplication will stop or force stop all ongoing replication
+// and close related chans
 func (r *leader) stopAllReplication() {
-	defer r.wg.Done()
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	// sleeping a bit in order to avoid issues
-	// happening during unit testing
-	time.Sleep(time.Second)
 	for _, follower := range r.followerReplication {
-		if follower != nil && follower.replicationStopped.Load() {
-			close(follower.replicationStopChan)
-			close(follower.newEntryChan)
-			follower.newEntryChan = nil
-			r.rafty.Logger.Trace().
-				Str("address", r.rafty.Address.String()).
-				Str("id", r.rafty.id).
-				Str("state", r.rafty.getState().String()).
-				Str("peerAddress", follower.address.String()).
-				Str("peerId", follower.ID).
-				Msgf("Replication chan stopped")
+		if follower != nil {
+			r.stopReplication(follower, false)
 		}
 	}
 	r.followerReplication = nil
@@ -227,6 +237,7 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			replyToClientChan: data.responseChan,
 			commitIndex:       r.rafty.commitIndex.Load(),
 			entries:           entries,
+			catchup:           true,
 		}
 
 	case "forwardCommand":
@@ -253,9 +264,12 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			replyToForwardedCommandChan: data.responseChan,
 			commitIndex:                 r.rafty.commitIndex.Load(),
 			entries:                     entries,
+			catchup:                     true,
 		}
 	}
 
+	r.disableHeartBeat.Store(true)
+	defer r.disableHeartBeat.Store(false)
 	for _, follower := range followers {
 		if r.followerReplication[follower.ID] != nil && !r.followerReplication[follower.ID].replicationStopped.Load() {
 			r.followerReplication[follower.ID].newEntryChan <- request
@@ -277,7 +291,7 @@ func (r *leader) leasing() {
 				lastContact := follower.lastContactDate.Load()
 				if lastContact != nil {
 					since := now.Sub(lastContact.(time.Time))
-					if r.rafty.leaderLeaseDuration*3 > since {
+					if r.leaseDuration*3 > since {
 						if since > newLease {
 							newLease = since
 						}
@@ -299,12 +313,6 @@ func (r *leader) leasing() {
 				Str("quorum", fmt.Sprintf("%d", quorum)).
 				Msgf("Quorum unreachable")
 
-			for _, follower := range r.followerReplication {
-				if follower != nil {
-					follower.replicationStopped.Store(true)
-					follower.replicationStopChan <- struct{}{}
-				}
-			}
 			r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
 			return
 		}
@@ -315,7 +323,7 @@ func (r *leader) leasing() {
 		if newLease > max || newLease < 50*time.Millisecond {
 			newLease = max
 		}
-		r.rafty.leaderLeaseDuration = newLease
-		r.rafty.leaderLeaseTimer.Reset(newLease)
+		r.leaseDuration = newLease
+		r.leaseTimer.Reset(newLease)
 	}
 }

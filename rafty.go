@@ -157,13 +157,13 @@ type Rafty struct {
 	// need to step up as a Candidate to then becoming a Leader
 	timer *time.Ticker
 
-	// rpcPreVoteRequestChan will be use to handle rpc call
+	// rpcPreVoteRequestChan will be used to handle rpc call
 	rpcPreVoteRequestChan chan preVoteResquestWrapper
 
-	// rpcVoteRequestChan will be use to handle rpc call
+	// rpcVoteRequestChan will be used to handle rpc call
 	rpcVoteRequestChan chan voteResquestWrapper
 
-	// rpcSendAppendEntriesRequestChan will be use to handle rpc call
+	// rpcSendAppendEntriesRequestChan will be used to handle rpc call
 	rpcAppendEntriesRequestChan chan appendEntriesResquestWrapper
 
 	// triggerAppendEntriesChan is the chan that will trigger append entries
@@ -174,13 +174,13 @@ type Rafty struct {
 	// to read or write logs safely in memory
 	logOperationChan chan logOperationRequest
 
-	// rpcForwardCommandToLeaderRequestChan will be use to handle rpc client call to leader
+	// rpcForwardCommandToLeaderRequestChan will be used to handle rpc client call to leader
 	rpcForwardCommandToLeaderRequestChan chan forwardCommandToLeaderRequestWrapper
 
-	// rpcAskNodeIDChan will be use to handle rpc call
+	// rpcAskNodeIDChan will be used to handle rpc call
 	rpcAskNodeIDChan chan RPCResponse
 
-	// rpcClientGetLeaderChan will be use to handle rpc call
+	// rpcClientGetLeaderChan will be used to handle rpc call
 	rpcClientGetLeaderChan chan RPCResponse
 
 	// leaderFound is only related to rpc call GetLeader
@@ -198,13 +198,6 @@ type Rafty struct {
 
 	// leaderLastContactDate is the last date we heard the leader
 	leaderLastContactDate atomic.Value
-
-	// leaseTimer is how long the leader will still be the leader.
-	// If the quorum of voters is unreachable, the it will step down as follower
-	leaderLeaseTimer *time.Ticker
-
-	// leaderLeaseDuration is used to set leaderLeaseTimer ticker
-	leaderLeaseDuration time.Duration
 
 	// startElectionCampain permit to start election campain as
 	// pre vote quorum as been reached
@@ -501,7 +494,7 @@ func (r *Rafty) start() {
 		r.startClusterWithMinimumSize()
 	}
 
-	r.wg.Add(2)
+	r.wg.Add(1)
 	go r.logsLoop()
 	r.sendGetLeaderRequest()
 	r.stateLoop()
@@ -517,9 +510,9 @@ func (r *Rafty) Stop() {
 
 // stop permits to stop the gRPC server and Rafty with the provided configuration
 func (r *Rafty) stop() {
+	r.isRunning.Store(false)
 	// this is just a safe guard when invoking Stop function directly
 	r.switchState(Down, stepDown, true, r.currentTerm.Load())
-	r.isRunning.Store(false)
 	r.release()
 
 	timer := time.AfterFunc(60*time.Second, func() {

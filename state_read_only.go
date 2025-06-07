@@ -7,16 +7,13 @@ type readOnly struct {
 
 // init initialize all requirements needed by
 // the current node type
-func (r *readOnly) init() {
-	r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
-}
+func (r *readOnly) init() {}
 
 // onTimeout permit to reset election timer
 // and then perform some other actions
 func (r *readOnly) onTimeout() {
 	leader := r.rafty.getLeader()
 	if leader == (leaderMap{}) || r.rafty.leaderLost.Load() {
-		r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
 		r.rafty.sendGetLeaderRequest()
 	}
 }
