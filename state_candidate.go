@@ -41,15 +41,16 @@ func (r *candidate) init() {
 	if r.rafty.getState() == Candidate && (leader == (leaderMap{}) || r.rafty.leaderLost.Load()) {
 		r.rafty.leaderLost.Store(true)
 		r.quorum = r.rafty.quorum()
-		r.votes = 1    // vote for myself
 		r.preVotes = 1 // vote for myself
+		r.votes = 1    // vote for myself
 		if r.rafty.options.DisablePrevote {
 			r.startElection()
 			return
 		}
 		r.preVoteRequest()
+		return
 	}
-	r.rafty.switchState(Follower, stepDown, false, r.rafty.currentTerm.Load())
+	r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
 }
 
 // onTimeout permit to reset election timer
@@ -58,8 +59,10 @@ func (r *candidate) onTimeout() {
 	if r.rafty.getState() != Candidate {
 		return
 	}
+
 	r.preVotes = 1 // vote for myself
 	r.votes = 1    // vote for myself
+	r.rafty.leaderLost.Store(true)
 	if r.rafty.options.DisablePrevote {
 		r.startElection()
 		return
@@ -70,6 +73,8 @@ func (r *candidate) onTimeout() {
 // release permit to cancel or gracefully some actions
 // when the node change state
 func (r *candidate) release() {
+	r.preVotes = 0
+	r.votes = 0
 	r.rafty.startElectionCampain.Store(false)
 	r.responsePreVoteChan = nil
 	r.responseVoteChan = nil
@@ -100,22 +105,15 @@ func (r *candidate) preVoteRequest() {
 	for _, peer := range peers {
 		go func() {
 			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
-			if client != nil && !peer.ReadOnlyNode && r.rafty.leaderLost.Load() {
-				r.rafty.Logger.Trace().
-					Str("address", r.rafty.Address.String()).
-					Str("id", r.rafty.id).
-					Str("state", r.rafty.getState().String()).
-					Str("term", fmt.Sprintf("%d", currentTerm)).
-					Str("peerAddress", peer.address.String()).
-					Str("peerId", peer.ID).
-					Msgf("Send pre vote request")
-
+			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode && r.rafty.leaderLost.Load() {
 				r.rafty.sendRPC(request, client, peer)
 			}
 		}()
 	}
 }
 
+// handlePreVoteResponse will treat pre vote response and select nodes
+// that are suitable to start the election campain
 func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 	if r.rafty.getState() != Candidate {
 		return
@@ -152,13 +150,6 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 		r.mu.Unlock()
 
 		if r.preVotes >= r.quorum && !r.rafty.startElectionCampain.Load() {
-			r.rafty.Logger.Trace().
-				Str("address", r.rafty.Address.String()).
-				Str("id", r.rafty.id).
-				Str("state", r.rafty.getState().String()).
-				Str("term", fmt.Sprintf("%d", response.RequesterTerm)).
-				Msgf("Pre vote quorum has been reach")
-
 			r.rafty.startElectionCampain.Store(true)
 			r.startElection()
 		}
@@ -191,9 +182,6 @@ func (r *candidate) startElection() {
 		lastLogTerm = r.rafty.logs.fromIndex(lastLogIndex).logs[0].Term
 	}
 
-	// Reset must be kept to have the random timeout
-	r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
-
 	r.responseVoteChan = make(chan RPCResponse, len(peers))
 	request := RPCRequest{
 		RPCType: VoteRequest,
@@ -208,25 +196,20 @@ func (r *candidate) startElection() {
 		ResponseChan: r.responseVoteChan,
 	}
 
+	r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
+
 	for _, peer := range peers {
 		go func() {
 			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
-			if client != nil && !peer.ReadOnlyNode && r.rafty.leaderLost.Load() {
-				r.rafty.Logger.Trace().
-					Str("address", r.rafty.Address.String()).
-					Str("id", r.rafty.id).
-					Str("state", r.rafty.getState().String()).
-					Str("term", fmt.Sprintf("%d", currentTerm)).
-					Str("peerAddress", peer.address.String()).
-					Str("peerId", peer.ID).
-					Msgf("Send vote request")
-
+			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode && r.rafty.leaderLost.Load() {
 				r.rafty.sendRPC(request, client, peer)
 			}
 		}()
 	}
 }
 
+// handleVoteResponse will treat vote response and step up as leader
+// or step down as follower
 func (r *candidate) handleVoteResponse(resp RPCResponse) {
 	if r.rafty.getState() != Candidate {
 		return

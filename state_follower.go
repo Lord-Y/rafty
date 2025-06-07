@@ -11,12 +11,7 @@ type follower struct {
 
 // init initialize all requirements needed by
 // the current node type
-func (r *follower) init() {
-	if r.rafty.leaderLost.Load() {
-		r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
-		return
-	}
-}
+func (r *follower) init() {}
 
 // onTimeout permit to reset election timer
 // and then perform some other actions
