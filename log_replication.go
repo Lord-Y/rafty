@@ -159,6 +159,9 @@ type onAppendEntriesRequest struct {
 	// catchup tell us if the follower is currently catching up entries.
 	// It will also be used when a new leader is promoted with term > 1
 	catchup bool
+
+	// rpcTimeout is the timeout to use when sending append entries
+	rpcTimeout time.Duration
 }
 
 // startFollowerReplication is instanciate for every
@@ -175,18 +178,18 @@ func (r *followerReplication) startFollowerReplication() {
 
 		// append entries
 		case entry, ok := <-r.newEntryChan:
-			if ok {
-				// prevent excessive retry errors
-				if r.failures.Load() > 0 {
-					time.AfterFunc(backoff(replicationRetryTimeout, r.failures.Load(), replicationMaxRetry), func() {
-						if r.replicationStopped.Load() || r.rafty.getState() != Leader {
-							return
-						}
-					})
-				}
-				r.rafty.wg.Add(1)
-				r.appendEntries(entry)
+			if !ok {
+				return
 			}
+			// prevent excessive retry errors
+			if r.failures.Load() > 0 {
+				time.AfterFunc(backoff(replicationRetryTimeout, r.failures.Load(), replicationMaxRetry), func() {
+					if r.replicationStopped.Load() || r.rafty.getState() != Leader {
+						return
+					}
+				})
+			}
+			r.appendEntries(entry)
 		//nolint staticcheck
 		default:
 		}
@@ -195,7 +198,7 @@ func (r *followerReplication) startFollowerReplication() {
 
 // sendAppendEntries send append entries to the current follower
 func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, request *onAppendEntriesRequest) (response *raftypb.AppendEntryResponse, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), r.rafty.randomRPCTimeout(true))
+	ctx, cancel := context.WithTimeout(context.Background(), request.rpcTimeout)
 	defer cancel()
 	response, err = client.SendAppendEntriesRequest(
 		ctx,
@@ -216,6 +219,7 @@ func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, requ
 
 // appendEntries send append entries to the current follower
 func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
+	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 	// if the node need to catchup and an append hearbeat is sent, skip
 	if r.catchup.Load() && request.heartbeat {
@@ -236,18 +240,18 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 	}
 	client := r.rafty.connectionManager.getClient(r.address.String(), r.ID)
 	if client != nil && r.rafty.getState() == Leader {
-		r.rafty.Logger.Trace().
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Str("term", fmt.Sprintf("%d", request.term)).
-			Str("peerAddress", r.address.String()).
-			Str("peerId", r.ID).
-			Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
-			Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-			Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
-			Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
-			Msgf("Send append entries")
+		// r.rafty.Logger.Trace().
+		// 	Str("address", r.rafty.Address.String()).
+		// 	Str("id", r.rafty.id).
+		// 	Str("state", r.rafty.getState().String()).
+		// 	Str("term", fmt.Sprintf("%d", request.term)).
+		// 	Str("peerAddress", r.address.String()).
+		// 	Str("peerId", r.ID).
+		// 	Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
+		// 	Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+		// 	Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
+		// 	Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
+		// 	Msgf("Send append entries")
 
 		for retry := range replicationMaxRetry {
 			if r.replicationStopped.Load() || r.rafty.getState() != Leader {
@@ -281,8 +285,13 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 					Str("peerAddress", r.address.String()).
 					Str("peerId", r.ID).
 					Str("retryable", fmt.Sprintf("%t", doNotRetry)).
+					Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
 					Str("attempt", fmt.Sprintf("%d", retry)).
 					Str("nextAttemptIn", nextAttemptIn.String()).
+					Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+					Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
+					Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
+					Str("rpcTimeout", request.rpcTimeout.String()).
 					Msgf("Fail to send append entries to peer")
 
 				if doNotRetry {
@@ -486,6 +495,7 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		commitIndex:    r.rafty.commitIndex.Load(),
 		entries:        logsResponse.logs,
 		catchup:        true,
+		rpcTimeout:     oldRequest.rpcTimeout,
 	}
 
 	response, err := r.sendAppendEntries(client, request)
