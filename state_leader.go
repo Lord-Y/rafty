@@ -14,8 +14,6 @@ type leader struct {
 	// rafty holds rafty config
 	rafty *Rafty
 
-	wg sync.WaitGroup
-
 	// mu is used to ensure lock concurrency
 	mu sync.Mutex
 
@@ -38,7 +36,6 @@ type leader struct {
 // the current node type
 func (r *leader) init() {
 	r.rafty.setLeader(leaderMap{id: r.rafty.id, address: r.rafty.Address.String()})
-	r.rafty.leaderLost.Store(false)
 	r.rafty.leaderLastContactDate.Store(time.Now())
 	r.rafty.nextIndex.Store(r.rafty.lastLogIndex.Load() + 1)
 	r.leaseDuration = r.rafty.heartbeatTimeout()
@@ -67,7 +64,6 @@ func (r *leader) release() {
 	r.leaseTimer.Stop()
 	r.rafty.setLeader(leaderMap{})
 	r.stopAllReplication()
-	r.wg.Wait()
 }
 
 // setupFollowersReplicationStates is build by the leader
@@ -85,7 +81,6 @@ func (r *leader) setupFollowersReplicationStates() {
 			newEntryChan:           make(chan *onAppendEntriesRequest, 1),
 			replicationInitialized: replicationInitialized,
 			replicationStopChan:    make(chan struct{}, 1),
-			wg:                     &r.wg,
 		}
 		r.addReplication(followerRepl)
 	}
@@ -119,12 +114,15 @@ func (r *leader) setupFollowersReplicationStates() {
 		commitIndex:    r.rafty.commitIndex.Load(),
 		entries:        entries,
 		catchup:        true,
+		rpcTimeout:     r.rafty.randomRPCTimeout(true),
 	}
 
 	r.disableHeartBeat.Store(true)
 	defer r.disableHeartBeat.Store(false)
 	for _, follower := range followers {
-		r.followerReplication[follower.ID].newEntryChan <- request
+		if r.rafty.getState() == Leader && r.rafty.isRunning.Load() {
+			r.followerReplication[follower.ID].newEntryChan <- request
+		}
 	}
 }
 
@@ -132,9 +130,9 @@ func (r *leader) setupFollowersReplicationStates() {
 func (r *leader) addReplication(follower *followerReplication) {
 	follower.nextIndex.Store(1)
 	r.followerReplication[follower.ID] = follower
-	r.wg.Add(2)
+	r.rafty.wg.Add(2)
 	go func() {
-		defer r.wg.Done()
+		defer r.rafty.wg.Done()
 		follower.startFollowerReplication()
 		r.stopReplication(follower, true)
 	}()
@@ -156,10 +154,11 @@ func (r *leader) heartbeat() {
 		totalLogs:      uint64(totalLogs),
 		uuid:           uuid.NewString(),
 		commitIndex:    r.rafty.commitIndex.Load(),
+		rpcTimeout:     r.rafty.randomRPCTimeout(true),
 	}
 
 	for _, follower := range followers {
-		if r.followerReplication[follower.ID] != nil && (!r.followerReplication[follower.ID].replicationStopped.Load() || !r.disableHeartBeat.Load()) {
+		if r.rafty.getState() == Leader && r.followerReplication[follower.ID] != nil && (!r.followerReplication[follower.ID].replicationStopped.Load() || !r.disableHeartBeat.Load() || r.rafty.isRunning.Load()) {
 			r.followerReplication[follower.ID].newEntryChan <- request
 		}
 	}
@@ -169,7 +168,7 @@ func (r *leader) heartbeat() {
 // it will decrement waitGroup
 func (r *leader) stopReplication(follower *followerReplication, deferred bool) {
 	if deferred {
-		defer r.wg.Done()
+		defer r.rafty.wg.Done()
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -177,6 +176,7 @@ func (r *leader) stopReplication(follower *followerReplication, deferred bool) {
 	if !follower.replicationStopped.Load() {
 		follower.replicationStopped.Store(true)
 		follower.replicationStopChan <- struct{}{}
+
 		r.rafty.Logger.Trace().
 			Str("address", r.rafty.Address.String()).
 			Str("id", r.rafty.id).
@@ -185,12 +185,18 @@ func (r *leader) stopReplication(follower *followerReplication, deferred bool) {
 			Str("peerId", follower.ID).
 			Msgf("Replication stopped")
 
-		time.Sleep(time.Second)
-		close(follower.replicationStopChan)
-		close(follower.newEntryChan)
-		follower.newEntryChan = nil
+		// draining remaining calls
+		for {
+			select {
+			case <-follower.newEntryChan:
+			default:
+				close(follower.replicationStopChan)
+				close(follower.newEntryChan)
+				follower.newEntryChan = nil
+				return
+			}
+		}
 	}
-	r.rafty.Logger.Info().Str("state", r.rafty.getState().String()).Msgf("DONE stopReplication")
 }
 
 // stopAllReplication will stop or force stop all ongoing replication
@@ -238,6 +244,7 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			commitIndex:       r.rafty.commitIndex.Load(),
 			entries:           entries,
 			catchup:           true,
+			rpcTimeout:        r.rafty.randomRPCTimeout(true),
 		}
 
 	case "forwardCommand":
@@ -265,13 +272,14 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			commitIndex:                 r.rafty.commitIndex.Load(),
 			entries:                     entries,
 			catchup:                     true,
+			rpcTimeout:                  r.rafty.randomRPCTimeout(true),
 		}
 	}
 
 	r.disableHeartBeat.Store(true)
 	defer r.disableHeartBeat.Store(false)
 	for _, follower := range followers {
-		if r.followerReplication[follower.ID] != nil && !r.followerReplication[follower.ID].replicationStopped.Load() {
+		if r.rafty.getState() == Leader && r.followerReplication[follower.ID] != nil && (!r.followerReplication[follower.ID].replicationStopped.Load() || r.rafty.isRunning.Load()) {
 			r.followerReplication[follower.ID].newEntryChan <- request
 		}
 	}
@@ -291,7 +299,7 @@ func (r *leader) leasing() {
 				lastContact := follower.lastContactDate.Load()
 				if lastContact != nil {
 					since := now.Sub(lastContact.(time.Time))
-					if r.leaseDuration*3 > since {
+					if r.leaseDuration > since {
 						if since > newLease {
 							newLease = since
 						}
