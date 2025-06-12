@@ -189,10 +189,6 @@ type Rafty struct {
 	// leaderCount is only related to rpc call GetLeader
 	leaderCount atomic.Uint64
 
-	// leaderLost is a boolean that allow the node to properly
-	// restart pre election campain when leader is lost
-	leaderLost atomic.Bool
-
 	// leader hold informations about the leader
 	leader sync.Map
 
@@ -496,7 +492,6 @@ func (r *Rafty) start() {
 
 	r.wg.Add(1)
 	go r.logsLoop()
-	r.sendGetLeaderRequest()
 	r.stateLoop()
 }
 

@@ -38,8 +38,7 @@ type candidate struct {
 // the current node type
 func (r *candidate) init() {
 	leader := r.rafty.getLeader()
-	if r.rafty.getState() == Candidate && (leader == (leaderMap{}) || r.rafty.leaderLost.Load()) {
-		r.rafty.leaderLost.Store(true)
+	if r.rafty.getState() == Candidate && leader == (leaderMap{}) {
 		r.quorum = r.rafty.quorum()
 		r.preVotes = 1 // vote for myself
 		r.votes = 1    // vote for myself
@@ -62,7 +61,6 @@ func (r *candidate) onTimeout() {
 
 	r.preVotes = 1 // vote for myself
 	r.votes = 1    // vote for myself
-	r.rafty.leaderLost.Store(true)
 	if r.rafty.options.DisablePrevote {
 		r.startElection()
 		return
@@ -105,7 +103,7 @@ func (r *candidate) preVoteRequest() {
 	for _, peer := range peers {
 		go func() {
 			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
-			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode && r.rafty.leaderLost.Load() {
+			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode {
 				r.rafty.sendRPC(request, client, peer)
 			}
 		}()
@@ -135,7 +133,16 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 		return
 	}
 
-	if response.RequesterTerm < response.CurrentTerm {
+	if response.CurrentTerm > response.RequesterTerm {
+		r.rafty.currentTerm.Store(response.CurrentTerm)
+		r.rafty.switchState(Follower, stepDown, false, response.CurrentTerm)
+		if err := r.rafty.storage.metadata.store(); err != nil {
+			r.rafty.Logger.Fatal().Err(err).
+				Str("address", r.rafty.Address.String()).
+				Str("id", r.rafty.id).
+				Str("state", r.rafty.getState().String()).
+				Msgf("Fail to persist metadata")
+		}
 		return
 	}
 
@@ -201,7 +208,7 @@ func (r *candidate) startElection() {
 	for _, peer := range peers {
 		go func() {
 			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
-			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode && r.rafty.leaderLost.Load() {
+			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode {
 				r.rafty.sendRPC(request, client, peer)
 			}
 		}()

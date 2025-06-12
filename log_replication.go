@@ -3,7 +3,6 @@ package rafty
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -51,8 +50,6 @@ type followerReplication struct {
 
 	// rafty holds rafty config
 	rafty *Rafty
-
-	wg *sync.WaitGroup
 
 	// newEntry is used every the leader received
 	// a new log entry
@@ -187,7 +184,7 @@ func (r *followerReplication) startFollowerReplication() {
 						}
 					})
 				}
-				r.wg.Add(1)
+				r.rafty.wg.Add(1)
 				r.appendEntries(entry)
 			}
 		//nolint staticcheck
@@ -219,7 +216,7 @@ func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, requ
 
 // appendEntries send append entries to the current follower
 func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
-	defer r.wg.Done()
+	defer r.rafty.wg.Done()
 	// if the node need to catchup and an append hearbeat is sent, skip
 	if r.catchup.Load() && request.heartbeat {
 		r.rafty.Logger.Trace().
@@ -399,9 +396,9 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 					// if log not found and no ongoing catchup
 					case response.LogNotFound && !r.catchup.Load() && !r.replicationStopped.Load():
 						r.catchup.Store(true)
-						r.wg.Add(1)
+						r.rafty.wg.Add(1)
 						go func() {
-							defer r.wg.Done()
+							defer r.rafty.wg.Done()
 							r.sendCatchupAppendEntries(client, request, response)
 						}()
 
