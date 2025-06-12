@@ -436,7 +436,6 @@ func (r *Rafty) Start() error {
 	r.mu.Lock()
 	r.quitCtx, r.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	r.mu.Unlock()
-	defer r.stopCtx()
 
 	r.wg.Add(1)
 	errChan := make(chan error, 1)
@@ -464,7 +463,6 @@ func (r *Rafty) Start() error {
 			Msgf("Node successfully started")
 	}
 
-	r.wg.Add(1)
 	go r.start()
 	r.isRunning.Store(true)
 
@@ -481,16 +479,15 @@ func (r *Rafty) Start() error {
 
 // start run sub requirements from Start() func
 func (r *Rafty) start() {
+	r.wg.Add(1)
 	defer r.wg.Done()
 
-	r.wg.Add(1)
 	go r.commonLoop()
 	if !r.checkNodeIDs() {
 		r.sendAskNodeIDRequest()
 		r.startClusterWithMinimumSize()
 	}
 
-	r.wg.Add(1)
 	go r.logsLoop()
 	r.stateLoop()
 }
@@ -505,9 +502,10 @@ func (r *Rafty) Stop() {
 
 // stop permits to stop the gRPC server and Rafty with the provided configuration
 func (r *Rafty) stop() {
-	r.isRunning.Store(false)
+	r.stopCtx()
 	// this is just a safe guard when invoking Stop function directly
 	r.switchState(Down, stepDown, true, r.currentTerm.Load())
+	r.isRunning.Store(false)
 	r.release()
 
 	timer := time.AfterFunc(60*time.Second, func() {

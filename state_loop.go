@@ -11,7 +11,9 @@ import (
 // commonLoop handle all request that all
 // nodes have in common
 func (r *Rafty) commonLoop() {
+	r.wg.Add(1)
 	defer r.wg.Done()
+
 	for {
 		select {
 		// exiting for loop
@@ -31,11 +33,14 @@ func (r *Rafty) commonLoop() {
 
 // logsLoop handle all request related to logs
 func (r *Rafty) logsLoop() {
+	r.wg.Add(1)
 	defer r.wg.Done()
+
 	for {
 		select {
 		// exiting for loop
 		case <-r.quitCtx.Done():
+			r.drainLogs()
 			return
 
 		// this chan is used to read or write logs safely in memory
@@ -212,6 +217,9 @@ func (r *Rafty) stateLoop() {
 
 // runAsReadOnly will run node as readOnly
 func (r *Rafty) runAsReadOnly() {
+	r.wg.Add(1)
+	defer r.wg.Done()
+
 	state := readOnly{rafty: r}
 	defer state.release()
 	state.init()
@@ -220,6 +228,9 @@ func (r *Rafty) runAsReadOnly() {
 		select {
 		// exiting for loop
 		case <-r.quitCtx.Done():
+			r.drainPreVoteRequests()
+			r.drainVoteRequests()
+			r.drainAppendEntriesRequests()
 			return
 
 		// common state timer
@@ -237,6 +248,9 @@ func (r *Rafty) runAsReadOnly() {
 
 // runAsFollower will run node as follower
 func (r *Rafty) runAsFollower() {
+	r.wg.Add(1)
+	defer r.wg.Done()
+
 	state := follower{rafty: r}
 	defer state.release()
 	state.init()
@@ -245,6 +259,9 @@ func (r *Rafty) runAsFollower() {
 		select {
 		// exiting for loop
 		case <-r.quitCtx.Done():
+			r.drainPreVoteRequests()
+			r.drainVoteRequests()
+			r.drainAppendEntriesRequests()
 			return
 
 		// common state timer
@@ -274,6 +291,9 @@ func (r *Rafty) runAsFollower() {
 
 // runAsCandidate will run node as candidate
 func (r *Rafty) runAsCandidate() {
+	r.wg.Add(1)
+	defer r.wg.Done()
+
 	state := candidate{rafty: r}
 	defer state.release()
 	state.init()
@@ -282,6 +302,9 @@ func (r *Rafty) runAsCandidate() {
 		select {
 		// exiting for loop
 		case <-r.quitCtx.Done():
+			r.drainPreVoteRequests()
+			r.drainVoteRequests()
+			r.drainAppendEntriesRequests()
 			return
 
 		// common state timer
@@ -324,6 +347,9 @@ func (r *Rafty) runAsCandidate() {
 
 // runAsLeader will run node as leader
 func (r *Rafty) runAsLeader() {
+	r.wg.Add(1)
+	defer r.wg.Done()
+
 	state := leader{rafty: r}
 	defer state.release()
 	state.init()
@@ -332,6 +358,9 @@ func (r *Rafty) runAsLeader() {
 		select {
 		// exiting for loop
 		case <-r.quitCtx.Done():
+			r.drainPreVoteRequests()
+			r.drainVoteRequests()
+			r.drainAppendEntriesRequests()
 			return
 
 		// common state timer
