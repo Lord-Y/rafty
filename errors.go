@@ -12,4 +12,5 @@ var (
 	ErrLogMismatch           = errors.New("log mismatch")
 	ErrIndexOutOfRange       = errors.New("index out of range")
 	errUnkownRPCType         = errors.New("unknown rpcType")
+	errTimeoutSendingRequest = errors.New("timeout sending request")
 )

@@ -2,12 +2,13 @@ package rafty
 
 import (
 	"context"
+	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
-func (r *rpcManager) AskNodeID(_ context.Context, in *raftypb.AskNodeIDRequest) (*raftypb.AskNodeIDResponse, error) {
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+func (r *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest) (*raftypb.AskNodeIDResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
 
@@ -28,8 +29,8 @@ func (r *rpcManager) AskNodeID(_ context.Context, in *raftypb.AskNodeIDRequest) 
 	}, nil
 }
 
-func (r *rpcManager) GetLeader(_ context.Context, in *raftypb.GetLeaderRequest) (*raftypb.GetLeaderResponse, error) {
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+func (r *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest) (*raftypb.GetLeaderResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
 
@@ -58,50 +59,119 @@ func (r *rpcManager) GetLeader(_ context.Context, in *raftypb.GetLeaderRequest) 
 	return response, nil
 }
 
-func (r *rpcManager) SendPreVoteRequest(_ context.Context, in *raftypb.PreVoteRequest) (*raftypb.PreVoteResponse, error) {
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVoteRequest) (*raftypb.PreVoteResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
 
 	responseChan := make(chan *raftypb.PreVoteResponse, 1)
-	r.rafty.rpcPreVoteRequestChan <- preVoteResquestWrapper{
+	select {
+	case r.rafty.rpcPreVoteRequestChan <- preVoteResquestWrapper{
 		request:      in,
 		responseChan: responseChan,
+	}:
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(500 * time.Millisecond):
+		return nil, errTimeoutSendingRequest
 	}
-	response := <-responseChan
-	return response, nil
+
+	select {
+	case response := <-responseChan:
+		return response, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(time.Second):
+		return nil, errTimeoutSendingRequest
+	}
 }
 
-func (r *rpcManager) SendVoteRequest(_ context.Context, in *raftypb.VoteRequest) (*raftypb.VoteResponse, error) {
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteRequest) (*raftypb.VoteResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
 
 	responseChan := make(chan *raftypb.VoteResponse, 1)
-	r.rafty.rpcVoteRequestChan <- voteResquestWrapper{
+	select {
+	case r.rafty.rpcVoteRequestChan <- voteResquestWrapper{
 		request:      in,
 		responseChan: responseChan,
+	}:
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(500 * time.Millisecond):
+		return nil, errTimeoutSendingRequest
 	}
-	response := <-responseChan
-	return response, nil
+
+	select {
+	case response := <-responseChan:
+		return response, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(time.Second):
+		return nil, errTimeoutSendingRequest
+	}
 }
 
-func (r *rpcManager) SendAppendEntriesRequest(_ context.Context, in *raftypb.AppendEntryRequest) (*raftypb.AppendEntryResponse, error) {
+func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.AppendEntryRequest) (*raftypb.AppendEntryResponse, error) {
 	responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
 
-	r.rafty.rpcAppendEntriesRequestChan <- appendEntriesResquestWrapper{
+	select {
+	case r.rafty.rpcAppendEntriesRequestChan <- appendEntriesResquestWrapper{
 		request:      in,
 		responseChan: responseChan,
+	}:
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(500 * time.Millisecond):
+		return nil, errTimeoutSendingRequest
 	}
-	response := <-responseChan
-	return response, nil
+
+	select {
+	case response := <-responseChan:
+		return response, nil
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(time.Second):
+		return nil, errTimeoutSendingRequest
+	}
 }
 
-func (r *rpcManager) ClientGetLeader(_ context.Context, in *raftypb.ClientGetLeaderRequest) (*raftypb.ClientGetLeaderResponse, error) {
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+func (r *rpcManager) ClientGetLeader(ctx context.Context, in *raftypb.ClientGetLeaderRequest) (*raftypb.ClientGetLeaderResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
 
@@ -120,8 +190,8 @@ func (r *rpcManager) ClientGetLeader(_ context.Context, in *raftypb.ClientGetLea
 	}, nil
 }
 
-func (r *rpcManager) ForwardCommandToLeader(_ context.Context, in *raftypb.ForwardCommandToLeaderRequest) (*raftypb.ForwardCommandToLeaderResponse, error) {
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.ForwardCommandToLeaderRequest) (*raftypb.ForwardCommandToLeaderResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
 
@@ -131,12 +201,36 @@ func (r *rpcManager) ForwardCommandToLeader(_ context.Context, in *raftypb.Forwa
 	}
 	if cmd.Kind == CommandSet {
 		responseChan := make(chan *raftypb.ForwardCommandToLeaderResponse, 1)
-		r.rafty.rpcForwardCommandToLeaderRequestChan <- forwardCommandToLeaderRequestWrapper{
+
+		select {
+		case r.rafty.rpcForwardCommandToLeaderRequestChan <- forwardCommandToLeaderRequestWrapper{
 			request:      in,
 			responseChan: responseChan,
+		}:
+
+		case <-ctx.Done():
+			return nil, ctx.Err()
+
+		case <-r.rafty.quitCtx.Done():
+			return nil, ErrShutdown
+
+		case <-time.After(500 * time.Millisecond):
+			return nil, errTimeoutSendingRequest
 		}
-		response := <-responseChan
-		return response, nil
+
+		select {
+		case response := <-responseChan:
+			return response, nil
+
+		case <-ctx.Done():
+			return nil, ctx.Err()
+
+		case <-r.rafty.quitCtx.Done():
+			return nil, ErrShutdown
+
+		case <-time.After(time.Second):
+			return nil, errTimeoutSendingRequest
+		}
 	}
-	return &raftypb.ForwardCommandToLeaderResponse{}, nil
+	return nil, nil
 }
