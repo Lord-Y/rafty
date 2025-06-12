@@ -177,16 +177,12 @@ func (r *candidate) startElection() {
 	}
 
 	lastLogIndex := r.rafty.lastLogIndex.Load()
+	lastLogTerm := r.rafty.lastLogTerm.Load()
 	var peers []peer
 	if r.rafty.options.DisablePrevote {
 		peers, _ = r.rafty.getPeers()
 	} else {
 		peers = r.preCandidatePeers
-	}
-
-	var lastLogTerm uint64
-	if lastLogIndex > 1 {
-		lastLogTerm = r.rafty.logs.fromIndex(lastLogIndex).logs[0].Term
 	}
 
 	r.responseVoteChan = make(chan RPCResponse, len(peers))
