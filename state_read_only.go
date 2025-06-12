@@ -12,10 +12,7 @@ func (r *readOnly) init() {}
 // onTimeout permit to reset election timer
 // and then perform some other actions
 func (r *readOnly) onTimeout() {
-	leader := r.rafty.getLeader()
-	if leader == (leaderMap{}) || r.rafty.leaderLost.Load() {
-		r.rafty.sendGetLeaderRequest()
-	}
+	r.rafty.sendGetLeaderRequest()
 }
 
 // release permit to cancel or gracefully some actions

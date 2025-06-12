@@ -237,7 +237,7 @@ func (r *Rafty) sendAskNodeIDRequest() {
 	for _, peer := range peers {
 		go func() {
 			client := r.connectionManager.getClient(peer.address.String(), peer.ID)
-			if client != nil && !r.leaderLost.Load() && r.getState() != Down {
+			if client != nil && r.getState() != Down {
 				r.sendRPC(request, client, peer)
 			}
 		}()
@@ -349,7 +349,6 @@ func (r *Rafty) getLeaderResult(resp RPCResponse) {
 			address: response.LeaderAddress,
 			id:      response.LeaderID,
 		})
-		r.leaderLost.Store(false)
 
 		r.Logger.Info().
 			Str("address", r.Address.String()).
@@ -362,7 +361,6 @@ func (r *Rafty) getLeaderResult(resp RPCResponse) {
 	}
 
 	if !r.leaderFound.Load() && int(r.leaderCount.Load()) == response.TotalPeers {
-		r.leaderLost.Store(true)
 		r.Logger.Info().
 			Str("address", r.Address.String()).
 			Str("id", r.id).

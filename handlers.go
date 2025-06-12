@@ -214,6 +214,13 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 			Msgf("Fail to persist metadata")
 	}
 
+	r.setLeader(leaderMap{
+		id:      data.request.LeaderID,
+		address: data.request.LeaderAddress,
+	})
+	r.leaderLastContactDate.Store(time.Now())
+	r.timer.Reset(r.heartbeatTimeout())
+
 	totalLogs := r.logs.total().total
 	if (data.request.PrevLogIndex != lastLogIndex || data.request.PrevLogTerm != int64(lastLogTerm)) && !data.request.Catchup {
 		response.LogNotFound = true
@@ -371,13 +378,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 	response.Success = true
 	data.responseChan <- response
 
-	r.setLeader(leaderMap{
-		id:      data.request.LeaderID,
-		address: data.request.LeaderAddress,
-	})
-	r.leaderLost.Store(false)
-	r.leaderLastContactDate.Store(time.Now())
-	r.timer.Reset(r.heartbeatTimeout())
 	// this is only temporary as we added more debug logs
 	if !r.options.ReadOnlyNode {
 		r.switchState(Follower, stepDown, false, data.request.Term)

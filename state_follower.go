@@ -21,16 +21,10 @@ func (r *follower) onTimeout() {
 	}
 
 	leader := r.rafty.getLeader()
-	if leader == (leaderMap{}) {
-		r.rafty.switchState(Candidate, stepUp, false, r.rafty.currentTerm.Load())
-		return
-	}
-
 	leaderLastContactDate := r.rafty.leaderLastContactDate.Load()
 	if leaderLastContactDate != nil {
 		since := time.Since(leaderLastContactDate.(time.Time))
 		if since > r.rafty.heartbeatTimeout() {
-			r.rafty.leaderLost.Store(true)
 			r.rafty.Logger.Info().
 				Str("address", r.rafty.Address.String()).
 				Str("id", r.rafty.id).
@@ -42,9 +36,9 @@ func (r *follower) onTimeout() {
 			r.rafty.setLeader(leaderMap{})
 			r.rafty.votedFor = ""
 			r.rafty.startElectionCampain.Store(false)
-			r.rafty.switchState(Candidate, stepUp, false, r.rafty.currentTerm.Load())
 		}
 	}
+	r.rafty.switchState(Candidate, stepUp, false, r.rafty.currentTerm.Load())
 }
 
 // release permit to cancel or gracefully some actions
