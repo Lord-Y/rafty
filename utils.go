@@ -56,7 +56,7 @@ func (r *Rafty) parsePeers() error {
 
 // switchState permits to switch to the mentionned state
 // and print a nice message if needed
-func (r *Rafty) switchState(state State, upOrDown upOrDown, niceMessage bool, currentTerm uint64) {
+func (r *Rafty) switchState(newState State, upOrDown upOrDown, niceMessage bool, currentTerm uint64) {
 	// _, file, no, ok := runtime.Caller(1)
 	// if ok {
 	// 	r.Logger.Info().
@@ -64,37 +64,43 @@ func (r *Rafty) switchState(state State, upOrDown upOrDown, niceMessage bool, cu
 	// 		Str("newState", state.String()).
 	// 		Msgf("Called from %s#%d", file, no)
 	// }
-	if r.getState() == state || (r.isRunning.Load() && r.getState() == Down) {
+	addr := (*uint32)(&r.State)
+	currentState := State(atomic.LoadUint32(addr))
+
+	if currentState == Down && !r.isRunning.Load() && newState != Down {
 		return
 	}
-	addr := (*uint32)(&r.State)
-	atomic.StoreUint32(addr, uint32(state))
 
-	if state == Down {
+	if currentState == newState {
+		return
+	}
+	atomic.StoreUint32(addr, uint32(newState))
+
+	if newState == Down {
 		r.setLeader(leaderMap{})
 	}
 
 	if niceMessage {
-		switch state {
+		switch newState {
 		case ReadOnly:
 		case Down:
 			r.Logger.Info().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
-				Str("state", r.getState().String()).
+				Str("state", newState.String()).
 				Msgf("Shutting down with term %d", currentTerm)
 		case Candidate:
 			r.Logger.Info().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Stepping %s as %s with term %d", upOrDown.String(), state.String(), currentTerm+1)
+				Str("state", newState.String()).
+				Msgf("Stepping %s as %s with term %d", upOrDown.String(), newState.String(), currentTerm+1)
 		default:
 			r.Logger.Info().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
-				Msgf("Stepping %s as %s with term %d", upOrDown.String(), state.String(), currentTerm)
+				Msgf("Stepping %s as %s with term %d", upOrDown.String(), newState.String(), currentTerm)
 		}
 	}
 }
