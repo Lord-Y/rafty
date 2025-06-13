@@ -120,16 +120,17 @@ func TestSwitchStateAndLogState(t *testing.T) {
 
 	s := basicNodeSetup()
 	tests := []struct {
-		state               State
-		currentTerm         uint64
-		niceMessage         bool
-		expectedState       State
-		expectedCurrentTerm uint64
+		state                  State
+		currentTerm            uint64
+		niceMessage, isRunning bool
+		expectedState          State
+		expectedCurrentTerm    uint64
 	}{
 		{
 			state:               Leader,
 			currentTerm:         1,
 			niceMessage:         true,
+			isRunning:           true,
 			expectedState:       Leader,
 			expectedCurrentTerm: 0,
 		},
@@ -137,6 +138,7 @@ func TestSwitchStateAndLogState(t *testing.T) {
 			state:               Candidate,
 			currentTerm:         2,
 			niceMessage:         true,
+			isRunning:           true,
 			expectedState:       Candidate,
 			expectedCurrentTerm: 0,
 		},
@@ -144,6 +146,7 @@ func TestSwitchStateAndLogState(t *testing.T) {
 			state:               Follower,
 			currentTerm:         3,
 			niceMessage:         true,
+			isRunning:           true,
 			expectedState:       Follower,
 			expectedCurrentTerm: 0,
 		},
@@ -152,6 +155,7 @@ func TestSwitchStateAndLogState(t *testing.T) {
 			state:               Follower,
 			currentTerm:         3,
 			niceMessage:         true,
+			isRunning:           true,
 			expectedState:       Follower,
 			expectedCurrentTerm: 0,
 		},
@@ -159,6 +163,7 @@ func TestSwitchStateAndLogState(t *testing.T) {
 			state:               ReadOnly,
 			currentTerm:         3,
 			niceMessage:         true,
+			isRunning:           true,
 			expectedState:       ReadOnly,
 			expectedCurrentTerm: 0,
 		},
@@ -166,6 +171,15 @@ func TestSwitchStateAndLogState(t *testing.T) {
 			state:               Down,
 			currentTerm:         3,
 			niceMessage:         true,
+			isRunning:           true,
+			expectedState:       Down,
+			expectedCurrentTerm: 0,
+		},
+		{
+			state:               Follower,
+			currentTerm:         3,
+			niceMessage:         true,
+			isRunning:           false,
 			expectedState:       Down,
 			expectedCurrentTerm: 0,
 		},
@@ -173,6 +187,7 @@ func TestSwitchStateAndLogState(t *testing.T) {
 
 	s.State = Down
 	for _, tc := range tests {
+		s.isRunning.Store(tc.isRunning)
 		s.switchState(tc.state, stepUp, tc.niceMessage, tc.currentTerm)
 		assert.Equal(tc.expectedState, s.State)
 		assert.Equal(tc.expectedCurrentTerm, s.currentTerm.Load())
