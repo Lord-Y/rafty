@@ -19,9 +19,7 @@ func TestLogsLoop(t *testing.T) {
 	assert.Nil(err)
 
 	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	s.wg.Add(1)
 	go s.wg.Wait()
-	go s.logsLoop()
 
 	entries := []*raftypb.LogEntry{{Term: 1}}
 	_ = s.logs.appendEntries(entries)

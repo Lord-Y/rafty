@@ -170,10 +170,6 @@ type Rafty struct {
 	// without waiting leader hearbeat append entries
 	triggerAppendEntriesChan chan triggerAppendEntries
 
-	// logOperationChan is the chan that will be used
-	// to read or write logs safely in memory
-	logOperationChan chan logOperationRequest
-
 	// rpcForwardCommandToLeaderRequestChan will be used to handle rpc client call to leader
 	rpcForwardCommandToLeaderRequestChan chan forwardCommandToLeaderRequestWrapper
 
@@ -319,7 +315,6 @@ func NewRafty(address net.TCPAddr, id string, options Options) *Rafty {
 		rpcVoteRequestChan:                   make(chan voteResquestWrapper),
 		rpcAppendEntriesRequestChan:          make(chan appendEntriesResquestWrapper),
 		triggerAppendEntriesChan:             make(chan triggerAppendEntries),
-		logOperationChan:                     make(chan logOperationRequest),
 		rpcForwardCommandToLeaderRequestChan: make(chan forwardCommandToLeaderRequestWrapper),
 		rpcAskNodeIDChan:                     make(chan RPCResponse),
 		rpcClientGetLeaderChan:               make(chan RPCResponse),
@@ -450,6 +445,7 @@ func (r *Rafty) Start() error {
 	default:
 	}
 
+	r.isRunning.Store(true)
 	if r.getState() == Down {
 		if r.options.ReadOnlyNode {
 			r.switchState(ReadOnly, stepUp, false, r.currentTerm.Load())
@@ -464,7 +460,6 @@ func (r *Rafty) Start() error {
 	}
 
 	go r.start()
-	r.isRunning.Store(true)
 
 	r.wg.Add(1)
 	go func() {
@@ -488,7 +483,6 @@ func (r *Rafty) start() {
 		r.startClusterWithMinimumSize()
 	}
 
-	go r.logsLoop()
 	r.stateLoop()
 }
 
