@@ -25,7 +25,8 @@ var (
 	// retryableStatusCodes is a mapping used to check if we should retry to
 	// send append entries
 	retryableStatusCodes = map[codes.Code]bool{
-		codes.Unavailable: true, // etc
+		codes.Unavailable:      true,
+		codes.DeadlineExceeded: true,
 	}
 )
 
@@ -183,11 +184,18 @@ func (r *followerReplication) startFollowerReplication() {
 			}
 			// prevent excessive retry errors
 			if r.failures.Load() > 0 {
-				time.AfterFunc(backoff(replicationRetryTimeout, r.failures.Load(), replicationMaxRetry), func() {
-					if r.replicationStopped.Load() || r.rafty.getState() != Leader {
-						return
-					}
-				})
+				select {
+				case <-r.rafty.quitCtx.Done():
+					return
+
+				case <-r.replicationStopChan:
+					return
+
+				case <-time.After(backoff(replicationRetryTimeout, r.failures.Load(), replicationMaxRetry)):
+
+				//nolint staticcheck
+				default:
+				}
 			}
 			r.appendEntries(entry)
 		//nolint staticcheck
@@ -221,211 +229,165 @@ func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, requ
 func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
-	// if the node need to catchup and an append hearbeat is sent, skip
-	if r.catchup.Load() && request.heartbeat {
-		r.rafty.Logger.Trace().
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Str("term", fmt.Sprintf("%d", request.term)).
-			Str("peerAddress", r.address.String()).
-			Str("peerId", r.ID).
-			Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
-			Str("catchup", fmt.Sprintf("%t", r.catchup.Load())).
-			Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-			Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
-			Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
-			Msgf("Catching up")
-		return
-	}
 	client := r.rafty.connectionManager.getClient(r.address.String(), r.ID)
 	if client != nil && r.rafty.getState() == Leader {
-		// r.rafty.Logger.Trace().
-		// 	Str("address", r.rafty.Address.String()).
-		// 	Str("id", r.rafty.id).
-		// 	Str("state", r.rafty.getState().String()).
-		// 	Str("term", fmt.Sprintf("%d", request.term)).
-		// 	Str("peerAddress", r.address.String()).
-		// 	Str("peerId", r.ID).
-		// 	Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
-		// 	Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-		// 	Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
-		// 	Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
-		// 	Msgf("Send append entries")
+		if r.replicationStopped.Load() || r.rafty.getState() != Leader {
+			return
+		}
 
-		for retry := range replicationMaxRetry {
-			if r.replicationStopped.Load() || r.rafty.getState() != Leader {
+		response, err := r.sendAppendEntries(client, request)
+		if err != nil && r.rafty.getState() == Leader {
+			r.failures.Add(1)
+
+			var doNotRetry bool
+			if !retryableStatusCodes[status.Code(err)] {
+				// The RPC was successful or errored in a non-retryable way;
+				// do not retry.
+				doNotRetry = true
+			}
+			r.rafty.Logger.Error().Err(err).
+				Str("address", r.rafty.Address.String()).
+				Str("id", r.rafty.id).
+				Str("state", r.rafty.getState().String()).
+				Str("term", fmt.Sprintf("%d", request.term)).
+				Str("peerAddress", r.address.String()).
+				Str("peerId", r.ID).
+				Str("retryable", fmt.Sprintf("%t", doNotRetry)).
+				Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
+				Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+				Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
+				Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
+				Str("rpcTimeout", request.rpcTimeout.String()).
+				Msgf("Fail to send append entries to peer")
+
+			if doNotRetry {
+				return
+			}
+		} else {
+			r.failures.Store(0)
+
+			// must be keep with large cluster like 7+ nodes when leader is stepping down
+			if response == nil {
 				return
 			}
 
-			nextAttemptIn := backoff(replicationRetryTimeout, retry+1, replicationMaxRetry)
-			if retry > 0 {
-				time.AfterFunc(nextAttemptIn, func() {
-					if r.replicationStopped.Load() || r.rafty.getState() != Leader {
-						return
-					}
-				})
-			}
+			r.lastContactDate.Store(time.Now())
+			switch {
+			case response.Term > request.term:
+				r.rafty.switchState(Follower, stepDown, true, response.Term)
+				return
 
-			response, err := r.sendAppendEntries(client, request)
-			if err != nil && r.rafty.getState() == Leader {
-				r.failures.Add(1)
-
-				var doNotRetry bool
-				if !retryableStatusCodes[status.Code(err)] {
-					// The RPC was successful or errored in a non-retryable way;
-					// do not retry.
-					doNotRetry = true
-				}
-				r.rafty.Logger.Error().Err(err).
-					Str("address", r.rafty.Address.String()).
-					Str("id", r.rafty.id).
-					Str("state", r.rafty.getState().String()).
-					Str("term", fmt.Sprintf("%d", request.term)).
-					Str("peerAddress", r.address.String()).
-					Str("peerId", r.ID).
-					Str("retryable", fmt.Sprintf("%t", doNotRetry)).
-					Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
-					Str("attempt", fmt.Sprintf("%d", retry)).
-					Str("nextAttemptIn", nextAttemptIn.String()).
-					Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-					Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
-					Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
-					Str("rpcTimeout", request.rpcTimeout.String()).
-					Msgf("Fail to send append entries to peer")
-
-				if doNotRetry {
-					return
-				}
-			} else {
-				r.failures.Store(0)
-
-				// must be keep with large cluster like 7+ nodes when leader is stepping down
-				if response == nil {
-					return
+			case response.Success:
+				if !r.ReadOnlyNode {
+					request.majority.Add(1)
 				}
 
-				r.lastContactDate.Store(time.Now())
-				switch {
-				case response.Term > request.term:
-					r.rafty.switchState(Follower, stepDown, true, response.Term)
-					return
-
-				case response.Success:
-					if !r.ReadOnlyNode {
-						request.majority.Add(1)
-					}
-
-					if request.majority.Load()+1 >= request.quorum {
-						if !request.heartbeat {
-							if request.totalLogs > 0 && !request.committed.Load() {
-								if r.rafty.options.PersistDataOnDisk && !request.committed.Load() {
-									if err := r.rafty.storage.data.storeWithEntryIndex(request.entryIndex); err != nil {
-										r.rafty.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
-									}
-								}
-
-								// update leader volatile state
-								request.committed.Store(true)
-								if !request.leaderVolatileStateUpdated.Load() {
-									request.leaderVolatileStateUpdated.Store(true)
-									r.rafty.nextIndex.Add(1)
-									r.rafty.matchIndex.Add(1)
-									r.rafty.lastApplied.Add(1)
-									r.rafty.commitIndex.Add(1)
-
-									r.rafty.Logger.Trace().
-										Str("address", r.rafty.Address.String()).
-										Str("id", r.rafty.id).
-										Str("state", r.rafty.getState().String()).
-										Str("term", fmt.Sprintf("%d", response.Term)).
-										Str("peerAddress", r.address.String()).
-										Str("peerId", r.ID).
-										Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
-										Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-										Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
-										Str("commitIndex", fmt.Sprintf("%d", r.rafty.commitIndex.Load())).
-										Str("lastApplied", fmt.Sprintf("%d", r.rafty.lastApplied.Load())).
-										Str("requestUUID", request.uuid).
-										Msgf("Leader volatile state has been updated")
+				if request.majority.Load()+1 >= request.quorum {
+					if !request.heartbeat {
+						if request.totalLogs > 0 && !request.committed.Load() {
+							if r.rafty.options.PersistDataOnDisk && !request.committed.Load() {
+								if err := r.rafty.storage.data.storeWithEntryIndex(request.entryIndex); err != nil {
+									r.rafty.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
 								}
 							}
 
-							if request.committed.Load() && !r.replicationStopped.Load() {
-								r.nextIndex.Add(1)
-								r.matchIndex.Add(1)
+							// update leader volatile state
+							request.committed.Store(true)
+							if !request.leaderVolatileStateUpdated.Load() {
+								request.leaderVolatileStateUpdated.Store(true)
+								r.rafty.nextIndex.Add(1)
+								r.rafty.matchIndex.Add(1)
+								r.rafty.lastApplied.Add(1)
+								r.rafty.commitIndex.Add(1)
 
 								r.rafty.Logger.Trace().
 									Str("address", r.rafty.Address.String()).
 									Str("id", r.rafty.id).
 									Str("state", r.rafty.getState().String()).
 									Str("term", fmt.Sprintf("%d", response.Term)).
-									Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-									Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
 									Str("peerAddress", r.address.String()).
 									Str("peerId", r.ID).
-									Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
-									Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+									Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
+									Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+									Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
+									Str("commitIndex", fmt.Sprintf("%d", r.rafty.commitIndex.Load())).
+									Str("lastApplied", fmt.Sprintf("%d", r.rafty.lastApplied.Load())).
 									Str("requestUUID", request.uuid).
-									Msgf("Follower nextIndex / matchIndex has been updated")
-
-								// TODO: later on, we need prevent duplicate sent of data
-								//
-								// reply to clients if necessary
-								if request.replyToClient {
-									request.replyToClientChan <- appendEntriesResponse{}
-								}
-								if request.replyToForwardedCommand {
-									request.replyToForwardedCommandChan <- &raftypb.ForwardCommandToLeaderResponse{}
-								}
+									Msgf("Leader volatile state has been updated")
 							}
 						}
-						r.rafty.Logger.Trace().
-							Str("address", r.rafty.Address.String()).
-							Str("id", r.rafty.id).
-							Str("state", r.rafty.getState().String()).
-							Str("term", fmt.Sprintf("%d", request.term)).
-							Str("index", fmt.Sprintf("%d", request.entryIndex)).
-							Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
-							Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-							Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
-							Str("peerAddress", r.address.String()).
-							Str("peerId", r.ID).
-							Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
-							Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
-							Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
-							Msgf("Successfully append entries to the majority of servers %d >= %d", request.majority.Load()+1, request.quorum)
+
+						if request.committed.Load() && !r.replicationStopped.Load() {
+							r.nextIndex.Add(1)
+							r.matchIndex.Add(1)
+
+							r.rafty.Logger.Trace().
+								Str("address", r.rafty.Address.String()).
+								Str("id", r.rafty.id).
+								Str("state", r.rafty.getState().String()).
+								Str("term", fmt.Sprintf("%d", response.Term)).
+								Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+								Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
+								Str("peerAddress", r.address.String()).
+								Str("peerId", r.ID).
+								Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
+								Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+								Str("requestUUID", request.uuid).
+								Msgf("Follower nextIndex / matchIndex has been updated")
+
+							// TODO: later on, we need prevent duplicate sent of data
+							//
+							// reply to clients if necessary
+							if request.replyToClient {
+								request.replyToClientChan <- appendEntriesResponse{}
+							}
+							if request.replyToForwardedCommand {
+								request.replyToForwardedCommandChan <- &raftypb.ForwardCommandToLeaderResponse{}
+							}
+						}
 					}
+					r.rafty.Logger.Trace().
+						Str("address", r.rafty.Address.String()).
+						Str("id", r.rafty.id).
+						Str("state", r.rafty.getState().String()).
+						Str("term", fmt.Sprintf("%d", request.term)).
+						Str("index", fmt.Sprintf("%d", request.entryIndex)).
+						Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
+						Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+						Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
+						Str("peerAddress", r.address.String()).
+						Str("peerId", r.ID).
+						Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
+						Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+						Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
+						Msgf("Successfully append entries to the majority of servers %d >= %d", request.majority.Load()+1, request.quorum)
+				}
+
+			default:
+				switch {
+				case r.nextIndex.Load() > 0:
+					r.nextIndex.Store(r.nextIndex.Load() - 1)
+					fallthrough
+
+				// if log not found and no ongoing catchup
+				case response.LogNotFound && !r.catchup.Load() && !r.replicationStopped.Load():
+					r.catchup.Store(true)
+					go r.sendCatchupAppendEntries(client, request, response)
 
 				default:
-					switch {
-					case r.nextIndex.Load() > 0:
-						r.nextIndex.Store(r.nextIndex.Load() - 1)
-
-					// if log not found and no ongoing catchup
-					case response.LogNotFound && !r.catchup.Load() && !r.replicationStopped.Load():
-						r.catchup.Store(true)
-						r.rafty.wg.Add(1)
-						go func() {
-							defer r.rafty.wg.Done()
-							r.sendCatchupAppendEntries(client, request, response)
-						}()
-
-					default:
-						r.rafty.Logger.Error().Err(fmt.Errorf("fail to append entries to peer")).
-							Str("address", r.rafty.Address.String()).
-							Str("id", r.rafty.id).
-							Str("state", r.rafty.getState().String()).
-							Str("term", fmt.Sprintf("%d", request.term)).
-							Str("peerAddress", r.address.String()).
-							Str("peerId", r.ID).
-							Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
-							Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
-							Msgf("Failed to append entries because peer rejected it")
-					}
+					r.rafty.Logger.Error().Err(fmt.Errorf("fail to append entries to peer")).
+						Str("address", r.rafty.Address.String()).
+						Str("id", r.rafty.id).
+						Str("state", r.rafty.getState().String()).
+						Str("term", fmt.Sprintf("%d", request.term)).
+						Str("peerAddress", r.address.String()).
+						Str("peerId", r.ID).
+						Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
+						Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+						Msgf("Failed to append entries because peer rejected it")
 				}
-				return
 			}
+			return
 		}
 	}
 }
@@ -433,6 +395,8 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 // sendCatchupAppendEntries allow leader to send entries to the follower
 // in order to catchup leader state
 func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClient, oldRequest *onAppendEntriesRequest, oldResponse *raftypb.AppendEntryResponse) {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
 	defer r.catchup.Store(false)
 	logsResponse := r.rafty.logs.fromLastLogParameters(
 		oldResponse.LastLogIndex,

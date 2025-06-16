@@ -102,14 +102,14 @@ func (r *leader) setupFollowersReplicationStates() {
 		},
 	}
 
-	respLog := r.rafty.logs.appendEntries(entries)
+	totalLogs := r.rafty.logs.appendEntries(entries)
 	request := &onAppendEntriesRequest{
 		totalFollowers: uint64(totalFollowers),
 		quorum:         uint64(r.rafty.quorum()),
 		term:           currentTerm,
 		prevLogIndex:   r.rafty.lastLogIndex.Load(),
 		prevLogTerm:    r.rafty.lastLogTerm.Load(),
-		totalLogs:      uint64(respLog.total),
+		totalLogs:      uint64(totalLogs),
 		uuid:           uuid.NewString(),
 		commitIndex:    r.rafty.commitIndex.Load(),
 		entries:        entries,
@@ -230,14 +230,14 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			},
 		}
 
-		respLog := r.rafty.logs.appendEntries(entries)
+		totalLogs := r.rafty.logs.appendEntries(entries)
 		request = &onAppendEntriesRequest{
 			totalFollowers:    uint64(totalFollowers),
 			quorum:            uint64(r.rafty.quorum()),
 			term:              currentTerm,
 			prevLogIndex:      r.rafty.lastLogIndex.Load(),
 			prevLogTerm:       r.rafty.lastLogTerm.Load(),
-			totalLogs:         uint64(respLog.total),
+			totalLogs:         uint64(totalLogs),
 			uuid:              uuid.NewString(),
 			replyToClient:     true,
 			replyToClientChan: data.responseChan,
@@ -258,14 +258,14 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			},
 		}
 
-		respLog := r.rafty.logs.appendEntries(entries)
+		totalLogs := r.rafty.logs.appendEntries(entries)
 		request = &onAppendEntriesRequest{
 			totalFollowers:              uint64(totalFollowers),
 			quorum:                      uint64(r.rafty.quorum()),
 			term:                        currentTerm,
 			prevLogIndex:                r.rafty.lastLogIndex.Load(),
 			prevLogTerm:                 r.rafty.lastLogTerm.Load(),
-			totalLogs:                   uint64(respLog.total),
+			totalLogs:                   uint64(totalLogs),
 			uuid:                        uuid.NewString(),
 			replyToForwardedCommand:     true,
 			replyToForwardedCommandChan: data.responseChan,

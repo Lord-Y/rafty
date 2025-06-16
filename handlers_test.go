@@ -84,7 +84,6 @@ func TestHandleSendVoteRequest(t *testing.T) {
 	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	s.wg.Add(1)
 	go s.wg.Wait()
-	go s.logsLoop()
 
 	t.Run("lower", func(t *testing.T) {
 		s.currentTerm.Store(1)
@@ -278,7 +277,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Follower
 		s.currentTerm.Store(2)
@@ -309,7 +307,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Candidate
 		s.currentTerm.Store(1)
@@ -341,7 +338,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Follower
 		s.currentTerm.Store(2)
@@ -372,7 +368,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Leader
 		s.currentTerm.Store(2)
@@ -403,7 +398,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Follower
 		s.currentTerm.Store(1)
@@ -441,7 +435,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Follower
 		s.currentTerm.Store(1)
@@ -483,7 +476,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Follower
 		s.currentTerm.Store(2)
@@ -525,7 +517,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Follower
 		s.currentTerm.Store(1)
@@ -574,7 +565,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Follower
 		s.currentTerm.Store(1)
@@ -643,7 +633,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.wg.Add(1)
 		go s.wg.Wait()
-		go s.logsLoop()
 
 		s.State = Follower
 		s.currentTerm.Store(1)

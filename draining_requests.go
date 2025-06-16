@@ -70,29 +70,3 @@ func (r *Rafty) drainAppendEntriesRequests() {
 		}
 	}
 }
-
-// drainAppendEntriesRequests will drain all remaining requests in the chan
-func (r *Rafty) drainLogs() {
-	r.Logger.Trace().
-		Str("address", r.Address.String()).
-		Str("id", r.id).
-		Str("state", r.getState().String()).
-		Msgf("Draining logs chan")
-
-	for {
-		select {
-		case data, ok := <-r.logs.logOperationChan:
-			if ok {
-				select {
-				case data.responseChan <- logOperationResponse{}:
-				//nolint
-				default:
-				}
-			}
-			//nolint
-		default:
-			close(r.logs.logOperationChan)
-			return
-		}
-	}
-}

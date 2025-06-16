@@ -226,21 +226,23 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 		response.LogNotFound = true
 		data.responseChan <- response
 
-		r.Logger.Warn().Err(ErrLogNotFound).
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Str("term", fmt.Sprintf("%d", currentTerm)).
-			Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
-			Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
-			Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
-			Str("leaderAddress", data.request.LeaderAddress).
-			Str("leaderId", data.request.LeaderID).
-			Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
-			Str("leaderPrevLogIndex", fmt.Sprintf("%d", data.request.PrevLogIndex)).
-			Str("leaderPrevLogTerm", fmt.Sprintf("%d", data.request.PrevLogTerm)).
-			Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
-			Msgf("Previous log not found")
+		if r.getState() != Down {
+			r.Logger.Warn().Err(ErrLogNotFound).
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
+				Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
+				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
+				Str("leaderAddress", data.request.LeaderAddress).
+				Str("leaderId", data.request.LeaderID).
+				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+				Str("leaderPrevLogIndex", fmt.Sprintf("%d", data.request.PrevLogIndex)).
+				Str("leaderPrevLogTerm", fmt.Sprintf("%d", data.request.PrevLogTerm)).
+				Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
+				Msgf("Previous log not found")
+		}
 		return
 	}
 
@@ -300,8 +302,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 				newPeers []peer
 				err      error
 			)
-			respLog := r.logs.appendEntries(newEntries)
-			totalLogs = respLog.total
+			totalLogs = r.logs.appendEntries(newEntries)
 			peers, _ := r.getPeers()
 			for index := range newEntries {
 				entryIndex := 0
