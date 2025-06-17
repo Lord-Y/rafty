@@ -24,6 +24,9 @@ const (
 
 	// VoteRequest is used during PreVote
 	VoteRequest
+
+	// TimeoutNow is used during leadership transfer
+	TimeoutNowRequest
 )
 
 type RPCRequest struct {
@@ -72,12 +75,19 @@ type RPCPreVoteResponse struct {
 type RPCVoteRequest struct {
 	CandidateId, CandidateAddress          string
 	CurrentTerm, LastLogIndex, LastLogTerm uint64
+	CandidateForLeadershipTransfer         bool
 }
 
 type RPCVoteResponse struct {
 	PeerID                     string
 	RequesterTerm, CurrentTerm uint64
 	Granted                    bool
+}
+
+type RPCTimeoutNowRequest struct{}
+
+type RPCTimeoutNowResponse struct {
+	Success bool
 }
 
 // sendRPC is use to send rpc request
@@ -126,6 +136,14 @@ func (r *Rafty) sendRPC(request RPCRequest, client raftypb.RaftyClient, peer pee
 			options...,
 		)
 		request.ResponseChan <- RPCResponse{Response: makeRPCVoteResponse(resp, req.CurrentTerm), Error: err, TargetPeer: peer}
+
+	case TimeoutNowRequest:
+		resp, err := client.SendTimeoutNowRequest(
+			ctx,
+			&raftypb.TimeoutNowRequest{},
+			options...,
+		)
+		request.ResponseChan <- RPCResponse{Response: makeRPCTimeoutNowResponse(resp), Error: err, TargetPeer: peer}
 
 	default:
 		request.ResponseChan <- RPCResponse{Error: errUnkownRPCType, TargetPeer: peer}
@@ -217,6 +235,16 @@ func makeRPCVoteResponse(data *raftypb.VoteResponse, term uint64) RPCVoteRespons
 		RequesterTerm: term,
 		CurrentTerm:   data.CurrentTerm,
 		Granted:       data.Granted,
+	}
+}
+
+// makeRPCTimeoutNowResponse build timeout now response
+func makeRPCTimeoutNowResponse(data *raftypb.TimeoutNowResponse) RPCTimeoutNowResponse {
+	if data == nil {
+		return RPCTimeoutNowResponse{}
+	}
+	return RPCTimeoutNowResponse{
+		Success: data.Success,
 	}
 }
 

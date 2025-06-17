@@ -38,11 +38,11 @@ type candidate struct {
 // the current node type
 func (r *candidate) init() {
 	leader := r.rafty.getLeader()
-	if r.rafty.getState() == Candidate && leader == (leaderMap{}) {
+	if r.rafty.getState() == Candidate && (leader == (leaderMap{}) || r.rafty.candidateForLeadershipTransfer.Load()) {
 		r.quorum = r.rafty.quorum()
 		r.preVotes = 1 // vote for myself
 		r.votes = 1    // vote for myself
-		if r.rafty.options.DisablePrevote {
+		if r.rafty.options.DisablePrevote || r.rafty.candidateForLeadershipTransfer.Load() {
 			r.startElection()
 			return
 		}
@@ -59,9 +59,13 @@ func (r *candidate) onTimeout() {
 		return
 	}
 
+	defer func() {
+		_ = r.rafty.candidateForLeadershipTransfer.CompareAndSwap(true, false)
+	}()
+
 	r.preVotes = 1 // vote for myself
 	r.votes = 1    // vote for myself
-	if r.rafty.options.DisablePrevote {
+	if r.rafty.options.DisablePrevote || r.rafty.candidateForLeadershipTransfer.Load() {
 		r.startElection()
 		return
 	}
@@ -113,7 +117,7 @@ func (r *candidate) preVoteRequest() {
 // handlePreVoteResponse will treat pre vote response and select nodes
 // that are suitable to start the election campain
 func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
-	if r.rafty.getState() != Candidate {
+	if r.rafty.getState() != Candidate || r.rafty.candidateForLeadershipTransfer.Load() {
 		return
 	}
 
@@ -156,7 +160,7 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 		r.preVotes++
 		r.mu.Unlock()
 
-		if r.preVotes >= r.quorum && !r.rafty.startElectionCampain.Load() {
+		if r.preVotes >= r.quorum && (!r.rafty.startElectionCampain.Load() || !r.rafty.candidateForLeadershipTransfer.Load()) {
 			r.rafty.startElectionCampain.Store(true)
 			r.startElection()
 		}
@@ -179,7 +183,7 @@ func (r *candidate) startElection() {
 	lastLogIndex := r.rafty.lastLogIndex.Load()
 	lastLogTerm := r.rafty.lastLogTerm.Load()
 	var peers []peer
-	if r.rafty.options.DisablePrevote {
+	if r.rafty.options.DisablePrevote || r.rafty.candidateForLeadershipTransfer.Load() {
 		peers, _ = r.rafty.getPeers()
 	} else {
 		peers = r.preCandidatePeers
@@ -189,11 +193,12 @@ func (r *candidate) startElection() {
 	request := RPCRequest{
 		RPCType: VoteRequest,
 		Request: RPCVoteRequest{
-			CandidateId:      r.rafty.id,
-			CandidateAddress: r.rafty.Address.String(),
-			CurrentTerm:      currentTerm,
-			LastLogIndex:     lastLogIndex,
-			LastLogTerm:      lastLogTerm,
+			CandidateId:                    r.rafty.id,
+			CandidateAddress:               r.rafty.Address.String(),
+			CurrentTerm:                    currentTerm,
+			LastLogIndex:                   lastLogIndex,
+			LastLogTerm:                    lastLogTerm,
+			CandidateForLeadershipTransfer: r.rafty.candidateForLeadershipTransfer.Load(),
 		},
 		Timeout:      r.rafty.randomRPCTimeout(false),
 		ResponseChan: r.responseVoteChan,
@@ -214,6 +219,7 @@ func (r *candidate) startElection() {
 // handleVoteResponse will treat vote response and step up as leader
 // or step down as follower
 func (r *candidate) handleVoteResponse(resp RPCResponse) {
+	defer r.rafty.candidateForLeadershipTransfer.Store(false)
 	if r.rafty.getState() != Candidate {
 		return
 	}

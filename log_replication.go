@@ -274,6 +274,7 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 			r.lastContactDate.Store(time.Now())
 			switch {
 			case response.Term > request.term:
+				r.rafty.leadershipTransferDisabled.Store(true)
 				r.rafty.switchState(Follower, stepDown, true, response.Term)
 				return
 

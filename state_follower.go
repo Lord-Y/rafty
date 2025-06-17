@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -11,7 +12,9 @@ type follower struct {
 
 // init initialize all requirements needed by
 // the current node type
-func (r *follower) init() {}
+func (r *follower) init() {
+	r.rafty.leadershipTransferDisabled.Store(false)
+}
 
 // onTimeout permit to reset election timer
 // and then perform some other actions
@@ -32,6 +35,7 @@ func (r *follower) onTimeout() {
 				Str("oldLeaderAddress", leader.address).
 				Str("oldLeaderId", leader.id).
 				Str("leaderHeartbeat", (r.rafty.heartbeatTimeout()/2).String()).
+				Str("candidateForLeadershipTransfer", fmt.Sprintf("%t", r.rafty.candidateForLeadershipTransfer.Load())).
 				Msgf("Leader has been lost for term %d since %s", r.rafty.currentTerm.Load(), since)
 			r.rafty.setLeader(leaderMap{})
 			r.rafty.votedFor = ""

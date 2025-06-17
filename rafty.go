@@ -191,6 +191,19 @@ type Rafty struct {
 	// leaderLastContactDate is the last date we heard the leader
 	leaderLastContactDate atomic.Value
 
+	// leadershipTransferInProgress  is set to true we the actual leader is stepping down
+	// for maintenance for example. It's used with TimeoutNow rpc request
+	leadershipTransferInProgress atomic.Bool
+
+	// leadershipTransferDisabled is only used when the actual node is forced to step down
+	// as follower when it's term is lower then other node or when it loose leader lease
+	leadershipTransferDisabled atomic.Bool
+
+	// candidateForLeadershipTransfer is set to true when the actual node receive
+	// a TimeoutNow rpc request from the leader and will start to initiate
+	// a new election campain
+	candidateForLeadershipTransfer atomic.Bool
+
 	// startElectionCampain permit to start election campain as
 	// pre vote quorum as been reached
 	startElectionCampain atomic.Bool
@@ -371,11 +384,12 @@ func NewRafty(address net.TCPAddr, id string, options Options) *Rafty {
 	r.Logger = options.Logger
 
 	r.connectionManager = connectionManager{
-		id:          id,
-		address:     address.String(),
-		logger:      options.Logger,
-		connections: make(map[string]*grpc.ClientConn),
-		clients:     make(map[string]raftypb.RaftyClient),
+		id:                           id,
+		address:                      address.String(),
+		logger:                       options.Logger,
+		connections:                  make(map[string]*grpc.ClientConn),
+		clients:                      make(map[string]raftypb.RaftyClient),
+		leadershipTransferInProgress: &r.leadershipTransferInProgress,
 	}
 
 	metaFile, dataFile := r.newStorage()
