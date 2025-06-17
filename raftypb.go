@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -233,4 +234,20 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		}
 	}
 	return nil, nil
+}
+
+func (r *rpcManager) SendTimeoutNowRequest(_ context.Context, in *raftypb.TimeoutNowRequest) (*raftypb.TimeoutNowResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+		return nil, ErrShutdown
+	}
+
+	r.rafty.candidateForLeadershipTransfer.Store(true)
+	r.rafty.switchState(Candidate, stepUp, false, r.rafty.currentTerm.Load()+1)
+	r.rafty.Logger.Trace().
+		Str("address", r.rafty.Address.String()).
+		Str("id", r.rafty.id).
+		Str("state", r.rafty.getState().String()).
+		Str("candidateForLeadershipTransfer", fmt.Sprintf("%t", r.rafty.candidateForLeadershipTransfer.Load())).
+		Msg("LeadershipTransfer received")
+	return &raftypb.TimeoutNowResponse{Success: true}, nil
 }

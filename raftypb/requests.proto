@@ -5,28 +5,29 @@ option go_package = "github.com/Lord-Y/rafty/raftypb";
 package raftypb;
 
 message PreVoteRequest {
-  string id = 1;
+  string id          = 1;
   uint64 currentTerm = 2;
 }
 
 message PreVoteResponse {
-  string peerID = 1;
+  string peerID      = 1;
   uint64 currentTerm = 2;
-  bool granted = 3;
+  bool granted       = 3;
 }
 
 message VoteRequest {
-  string candidateId = 1;
-  string candidateAddress = 2;
-  uint64 currentTerm = 3;
-  uint64 lastLogIndex = 4;
-  uint64 lastLogTerm = 5;
+  string candidateId                    = 1;
+  string candidateAddress               = 2;
+  uint64 currentTerm                    = 3;
+  uint64 lastLogIndex                   = 4;
+  uint64 lastLogTerm                    = 5;
+  bool   candidateForleadershipTransfer = 6;
 }
 
 message VoteResponse {
-  bool granted = 1;
+  bool granted       = 1;
   uint64 currentTerm = 2;
-  string peerID = 3;
+  string peerID      = 3;
 }
 
 message LogEntry {
@@ -68,14 +69,14 @@ message AppendEntryResponse {
 }
 
 message AskNodeIDRequest {
-  string id = 1;
+  string id      = 1;
   string address = 2;
 }
 
 message AskNodeIDResponse {
-  string peerID = 1;
-  bool   readOnlyNode = 2;
-  string leaderID = 3;
+  string peerID        = 1;
+  bool   readOnlyNode  = 2;
+  string leaderID      = 3;
   string leaderAddress = 4;
 }
 
@@ -84,19 +85,19 @@ message ClientGetLeaderRequest {
 }
 
 message ClientGetLeaderResponse {
-  string leaderID = 1;
+  string leaderID      = 1;
   string leaderAddress = 2;
 }
 
 message GetLeaderRequest {
-  string peerID = 1;
+  string peerID      = 1;
   string peerAddress = 2;
 }
 
 message GetLeaderResponse {
-  string leaderID = 1;
+  string leaderID      = 1;
   string leaderAddress = 2;
-  string peerID = 3;
+  string peerID        = 3;
 }
 
 message ForwardCommandToLeaderRequest {
@@ -104,14 +105,20 @@ message ForwardCommandToLeaderRequest {
 }
 
 message ForwardCommandToLeaderResponse {
-  bytes data = 1;
+  bytes data   = 1;
   string error = 2;
 }
 
 message PersistMetadata {
-  string id = 1;
+  string id          = 1;
   uint64 currentTerm = 2;
-  string votedFor = 3;
+  string votedFor    = 3;
+}
+
+message TimeoutNowRequest {}
+
+message TimeoutNowResponse {
+  bool   success = 1;
 }
 
 service Rafty {
@@ -122,4 +129,5 @@ service Rafty {
   rpc SendAppendEntriesRequest(AppendEntryRequest) returns (AppendEntryResponse) {}
   rpc AskNodeID(AskNodeIDRequest) returns (AskNodeIDResponse) {}
   rpc ForwardCommandToLeader(ForwardCommandToLeaderRequest) returns (ForwardCommandToLeaderResponse) {}
+  rpc SendTimeoutNowRequest(TimeoutNowRequest) returns (TimeoutNowResponse) {}
 }

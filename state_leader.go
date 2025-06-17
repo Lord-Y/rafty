@@ -30,6 +30,24 @@ type leader struct {
 
 	// disableHeartBeat is set to true temporary while sending new entries
 	disableHeartBeat atomic.Bool
+
+	// leadershipTransferTimer is used for leadership transfer
+	leadershipTransferTimer *time.Ticker
+
+	// leadershipTransferDuration is a helper used by leadershipTransferTimer
+	leadershipTransferDuration time.Duration
+
+	// leadershipTransferChan will receive rpc response
+	leadershipTransferChan chan RPCResponse
+
+	// leadershipTransferChanClosed is a helper telling us if leadershipTransferChan is closed
+	// to stop leadershipTransferLoop func
+	leadershipTransferChanClosed atomic.Bool
+
+	// leadershipTransferInProgress is used to check if a leadership transfer is in progress
+	// an is set to true when leadershipTransferTimer is resetted.
+	// When leadershipTransferTimer times out, the leadership transfer will be stopped
+	leadershipTransferInProgress atomic.Bool
 }
 
 // init initialize all requirements needed by
@@ -40,6 +58,11 @@ func (r *leader) init() {
 	r.rafty.nextIndex.Store(r.rafty.lastLogIndex.Load() + 1)
 	r.leaseDuration = r.rafty.heartbeatTimeout()
 	r.leaseTimer = time.NewTicker(r.leaseDuration * 3)
+
+	r.leadershipTransferDuration = r.rafty.heartbeatTimeout()
+	r.leadershipTransferTimer = time.NewTicker(r.leadershipTransferDuration)
+	r.leadershipTransferChan = make(chan RPCResponse, 1)
+	go r.leadershipTransferLoop()
 
 	r.setupFollowersReplicationStates()
 
@@ -61,6 +84,7 @@ func (r *leader) onTimeout() {
 // release permit to cancel or gracefully some actions
 // when the node change state
 func (r *leader) release() {
+	r.timeoutNowRequest()
 	r.leaseTimer.Stop()
 	r.rafty.setLeader(leaderMap{})
 	r.stopAllReplication()
@@ -321,6 +345,7 @@ func (r *leader) leasing() {
 				Str("quorum", fmt.Sprintf("%d", quorum)).
 				Msgf("Quorum unreachable")
 
+			r.rafty.leadershipTransferDisabled.Store(true)
 			r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
 			return
 		}
@@ -333,5 +358,126 @@ func (r *leader) leasing() {
 		}
 		r.leaseDuration = newLease
 		r.leaseTimer.Reset(newLease)
+	}
+}
+
+// selectNodeForLeadershipTransfer will return a node that is in sync
+// with leader logs
+func (r *leader) selectNodeForLeadershipTransfer() (p peer, found bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, follower := range r.followerReplication {
+		if follower != nil && !follower.ReadOnlyNode {
+			r.rafty.Logger.Trace().
+				Str("address", r.rafty.Address.String()).
+				Str("id", r.rafty.id).
+				Str("state", r.rafty.getState().String()).
+				Str("peerAddress", follower.peer.address.String()).
+				Str("peerId", follower.peer.ID).
+				Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+				Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
+				Str("peerNextIndex", fmt.Sprintf("%d", follower.nextIndex.Load())).
+				Str("peerMatchIndex", fmt.Sprintf("%d", follower.matchIndex.Load())).
+				Str("leadershipTransferDisabled", fmt.Sprintf("%t", r.rafty.leadershipTransferDisabled.Load())).
+				Msgf("LeadershipTransfer select suitable node")
+
+			if r.rafty.matchIndex.Load() == follower.matchIndex.Load() {
+				p = follower.peer
+				found = true
+				break
+			}
+		}
+	}
+	return
+}
+
+func (r *leader) timeoutNowRequest() {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
+
+	if !r.rafty.leadershipTransferDisabled.Load() {
+		r.rafty.leadershipTransferInProgress.Store(true)
+		defer r.rafty.leadershipTransferInProgress.Store(false)
+		request := RPCRequest{
+			RPCType:      TimeoutNowRequest,
+			Request:      RPCTimeoutNowRequest{},
+			Timeout:      r.rafty.randomRPCTimeout(false),
+			ResponseChan: r.leadershipTransferChan,
+		}
+
+		peer, found := r.selectNodeForLeadershipTransfer()
+		if found {
+			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
+			if client != nil {
+				r.leadershipTransferTimer.Reset(r.leadershipTransferDuration)
+				r.rafty.sendRPC(request, client, peer)
+				r.rafty.Logger.Trace().
+					Str("address", r.rafty.Address.String()).
+					Str("id", r.rafty.id).
+					Str("state", r.rafty.getState().String()).
+					Str("peerAddress", peer.address.String()).
+					Str("peerId", peer.ID).
+					Msgf("LeadershipTransfer initiated")
+				close(r.leadershipTransferChan)
+				r.leadershipTransferChanClosed.Store(true)
+				return
+			}
+		}
+	}
+	close(r.leadershipTransferChan)
+	r.leadershipTransferChanClosed.Store(true)
+}
+
+// leadershipTransferLoop is used to handle leadership transfer
+// It will wait for TimeoutNowResponse and then check if the transfer was successful
+// If the transfer was successful, it will stop the leadership transfer timer
+// If the transfer was not successful, it will close the leadershipTransferChan
+// and stop the leadership transfer loop
+// If the leadership transfer timer times out, it will close the leadershipTransferChan
+// and stop the leadership transfer loop
+func (r *leader) leadershipTransferLoop() {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
+
+	for !r.leadershipTransferChanClosed.Load() {
+		select {
+		case resp := <-r.leadershipTransferChan:
+			r.leadershipTransferTimer.Stop()
+			if resp.Response != nil {
+				response := resp.Response.(RPCTimeoutNowResponse)
+				err := resp.Error
+				targetPeer := resp.TargetPeer
+
+				if err != nil {
+					r.rafty.Logger.Error().Err(err).
+						Str("address", r.rafty.Address.String()).
+						Str("id", r.rafty.id).
+						Str("state", r.rafty.getState().String()).
+						Str("peerAddress", targetPeer.address.String()).
+						Str("peerId", targetPeer.ID).
+						Msgf("Fail to perform leadership transfer to peer")
+					return
+				}
+
+				if !response.Success {
+					r.rafty.Logger.Trace().
+						Str("address", r.rafty.Address.String()).
+						Str("id", r.rafty.id).
+						Str("state", r.rafty.getState().String()).
+						Str("peerAddress", targetPeer.address.String()).
+						Str("peerId", targetPeer.ID).
+						Msgf("Fail to perform leadership transfer to peer")
+					return
+				}
+			}
+
+		case <-r.leadershipTransferTimer.C:
+			if r.leadershipTransferInProgress.Load() {
+				r.leadershipTransferChanClosed.Store(true)
+			}
+		//nolint staticcheck
+		default:
+		}
 	}
 }

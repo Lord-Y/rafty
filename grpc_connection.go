@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/rs/zerolog"
@@ -27,6 +28,9 @@ type connectionManager struct {
 
 	// address is the current address of the raft server
 	address string
+
+	// leadershipTransferInProgress is set to true we the actual leader is stepping down for maintenance for example. It's used with TimeoutNow rpc request
+	leadershipTransferInProgress *atomic.Bool
 }
 
 // getClient return rafty connection client
@@ -57,10 +61,12 @@ func (r *connectionManager) getClient(address, id string) raftypb.RaftyClient {
 		return nil
 	}
 
-	// sometimes, during unit testing, the map is nil
-	// so let's avoid failure
 	if r.connections == nil {
-		return nil
+		if !r.leadershipTransferInProgress.Load() {
+			return nil
+		}
+		r.connections = make(map[string]*grpc.ClientConn)
+		r.clients = make(map[string]raftypb.RaftyClient)
 	}
 
 	r.connections[address] = conn

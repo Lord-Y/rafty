@@ -66,6 +66,22 @@ func (r *Rafty) handleSendVoteRequest(data voteResquestWrapper) {
 		return
 	}
 
+	if r.candidateForLeadershipTransfer.Load() {
+		response.Granted = false
+		data.responseChan <- response
+
+		r.Logger.Warn().Err(ErrLeadershipTransferInProgress).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("peerAddress", data.request.CandidateAddress).
+			Str("peerId", data.request.CandidateId).
+			Str("peerTerm", fmt.Sprintf("%d", data.request.CurrentTerm)).
+			Msgf("Rejecting vote request because of leadership transfer")
+		return
+	}
+
 	// need to be reevaluated, not sure it's necessary anymore
 	if votedFor != "" && votedFor != data.request.CandidateId {
 		response.CurrentTerm = currentTerm
@@ -187,6 +203,21 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 				Str("leaderId", data.request.LeaderID).
 				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
 				Msgf("My term is higher than peer")
+			return
+		}
+
+		if r.candidateForLeadershipTransfer.Load() {
+			data.responseChan <- response
+
+			r.Logger.Warn().Err(ErrLeadershipTransferInProgress).
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("leaderAddress", data.request.LeaderAddress).
+				Str("leaderId", data.request.LeaderID).
+				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+				Msgf("Rejecting append entries because of leadership transfer")
 			return
 		}
 
