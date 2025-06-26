@@ -62,8 +62,7 @@ type storage struct {
 // and create it if not. An error will be return if there is any
 func createDirectoryIfNotExist(d string, perm fs.FileMode) error {
 	if _, err := os.Stat(d); os.IsNotExist(err) {
-		err := os.MkdirAll(d, perm)
-		if err != nil {
+		if err := os.MkdirAll(d, perm); err != nil {
 			return err
 		}
 		return nil
@@ -122,6 +121,7 @@ func (r metaFile) restore() error {
 		return nil
 	}
 
+	_, _ = r.file.Seek(0, 0)
 	result, err := io.ReadAll(r.file)
 	if err != nil {
 		return err
@@ -228,17 +228,15 @@ func (r dataFile) restore() error {
 	}
 
 	scanner := bufio.NewScanner(r.file)
-	r.rafty.mu.Lock()
 	for scanner.Scan() {
 		if len(scanner.Bytes()) > 0 {
 			data, err := unmarshalBinary(scanner.Bytes())
 			if err != nil && err != io.EOF {
 				return err
 			}
-			r.rafty.logs.log = append(r.rafty.logs.log, data)
+			r.rafty.logs.appendEntries([]*raftypb.LogEntry{data}, true)
 		}
 	}
-	r.rafty.mu.Unlock()
 
 	// Check for scanning errors
 	if err := scanner.Err(); err != nil && err != io.EOF {

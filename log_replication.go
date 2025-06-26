@@ -179,25 +179,24 @@ func (r *followerReplication) startFollowerReplication() {
 
 		// append entries
 		case entry, ok := <-r.newEntryChan:
-			if !ok {
-				return
-			}
-			// prevent excessive retry errors
-			if r.failures.Load() > 0 {
-				select {
-				case <-r.rafty.quitCtx.Done():
-					return
+			if ok {
+				// prevent excessive retry errors
+				if r.failures.Load() > 0 {
+					select {
+					case <-r.rafty.quitCtx.Done():
+						return
 
-				case <-r.replicationStopChan:
-					return
+					case <-r.replicationStopChan:
+						return
 
-				case <-time.After(backoff(replicationRetryTimeout, r.failures.Load(), replicationMaxRetry)):
+					case <-time.After(backoff(replicationRetryTimeout, r.failures.Load(), replicationMaxRetry)):
 
-				//nolint staticcheck
-				default:
+					//nolint staticcheck
+					default:
+					}
 				}
+				r.appendEntries(entry)
 			}
-			r.appendEntries(entry)
 		//nolint staticcheck
 		default:
 		}
@@ -231,10 +230,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 	defer r.rafty.wg.Done()
 	client := r.rafty.connectionManager.getClient(r.address.String(), r.ID)
 	if client != nil && r.rafty.getState() == Leader {
-		if r.replicationStopped.Load() || r.rafty.getState() != Leader {
-			return
-		}
-
 		response, err := r.sendAppendEntries(client, request)
 		if err != nil && r.rafty.getState() == Leader {
 			r.failures.Add(1)
@@ -405,18 +400,6 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		r.address.String(),
 		r.ID,
 	)
-	if logsResponse.err != nil {
-		r.rafty.Logger.Error().Err(logsResponse.err).
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Str("peerAddress", r.address.String()).
-			Str("peerId", r.ID).
-			Str("triedLastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
-			Str("triedLastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
-			Msgf("Failed to get catchup entries")
-		return
-	}
 
 	if logsResponse.total == 0 {
 		r.rafty.Logger.Warn().
@@ -448,6 +431,7 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		Str("peerLastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
 		Str("peerLastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
 		Msg("Prepare catchup append entries request")
+
 	request := &onAppendEntriesRequest{
 		totalFollowers: 1,
 		quorum:         1,

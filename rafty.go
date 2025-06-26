@@ -474,15 +474,8 @@ func (r *Rafty) Start() error {
 	}
 
 	go r.start()
-
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
-		// stop go routine when os signal is receive or ctrl+c
-		<-r.quitCtx.Done()
-		r.stop()
-	}()
-	r.wg.Wait()
+	<-r.quitCtx.Done()
+	r.Stop()
 	return nil
 }
 
@@ -504,16 +497,16 @@ func (r *Rafty) start() {
 func (r *Rafty) Stop() {
 	// if statement is need otherwise some tests panics
 	if r.isRunning.Load() {
-		r.stopCtx()
+		r.stop()
 	}
 }
 
 // stop permits to stop the gRPC server and Rafty with the provided configuration
 func (r *Rafty) stop() {
+	r.isRunning.Store(false)
 	r.stopCtx()
 	// this is just a safe guard when invoking Stop function directly
 	r.switchState(Down, stepDown, true, r.currentTerm.Load())
-	r.isRunning.Store(false)
 	r.release()
 
 	timer := time.AfterFunc(60*time.Second, func() {
@@ -532,6 +525,7 @@ func (r *Rafty) stop() {
 		Str("state", r.getState().String()).
 		Msgf("Node successfully stopped with term %d", r.currentTerm.Load())
 	r.storage.close()
+	r.wg.Wait()
 }
 
 // checkNodeIDs check if we gather all node ids.

@@ -15,10 +15,10 @@ func (r *Rafty) drainPreVoteRequests() {
 		case data := <-r.rpcPreVoteRequestChan:
 			select {
 			case data.responseChan <- &raftypb.PreVoteResponse{PeerID: r.id, Granted: false, CurrentTerm: r.currentTerm.Load()}:
-			//nolint
+			//nolint staticcheck
 			default:
 			}
-			//nolint
+		//nolint staticcheck
 		default:
 			return
 		}
@@ -38,10 +38,10 @@ func (r *Rafty) drainVoteRequests() {
 		case data := <-r.rpcVoteRequestChan:
 			select {
 			case data.responseChan <- &raftypb.VoteResponse{PeerID: r.id, Granted: false, CurrentTerm: r.currentTerm.Load()}:
-			//nolint
+			//nolint staticcheck
 			default:
 			}
-			//nolint
+		//nolint staticcheck
 		default:
 			return
 		}
@@ -61,10 +61,10 @@ func (r *Rafty) drainAppendEntriesRequests() {
 		case data := <-r.rpcAppendEntriesRequestChan:
 			select {
 			case data.responseChan <- &raftypb.AppendEntryResponse{Success: false}:
-			//nolint
+			//nolint staticcheck
 			default:
 			}
-			//nolint
+		//nolint staticcheck
 		default:
 			return
 		}

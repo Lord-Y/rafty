@@ -77,6 +77,7 @@ func (r *Rafty) switchState(newState State, upOrDown upOrDown, niceMessage bool,
 	atomic.StoreUint32(addr, uint32(newState))
 
 	if newState == Down {
+		r.isRunning.Store(false)
 		r.setLeader(leaderMap{})
 	}
 

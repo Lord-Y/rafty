@@ -10,6 +10,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// connectionManager is used to manage all grpc connections to rafty peers
+// and to provide clients to the rafty rpc methods
+// It is used to ensure that we have only one connection per peer
+// and to handle the lifecycle of these connections.
+// It is also used to handle the leadership transfer process
+// when the current leader is stepping down for maintenance or other reasons.
 type connectionManager struct {
 	// mu is used to ensure lock concurrency
 	mu sync.Mutex

@@ -48,7 +48,6 @@ func (r *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest
 		Msgf("Peer is looking for the leader")
 
 	if r.rafty.getState() == Leader {
-		// go r.rafty.connectionManager.getClient(in.PeerAddress, in.PeerID)
 		response.LeaderID = r.rafty.id
 		response.LeaderAddress = r.rafty.Address.String()
 		return response, nil
@@ -236,8 +235,8 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 	return nil, nil
 }
 
-func (r *rpcManager) SendTimeoutNowRequest(_ context.Context, in *raftypb.TimeoutNowRequest) (*raftypb.TimeoutNowResponse, error) {
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() {
+func (r *rpcManager) SendTimeoutNowRequest(ctx context.Context, in *raftypb.TimeoutNowRequest) (*raftypb.TimeoutNowResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil || ctx.Done() != nil {
 		return nil, ErrShutdown
 	}
 
