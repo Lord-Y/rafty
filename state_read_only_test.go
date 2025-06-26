@@ -12,9 +12,19 @@ func TestStateReadOnly(t *testing.T) {
 	err := s.parsePeers()
 	assert.Nil(err)
 
+	s.isRunning.Store(true)
+	s.State = ReadOnly
 	state := readOnly{rafty: s}
 
-	state.init()
-	state.onTimeout()
-	state.release()
+	t.Run("init", func(t *testing.T) {
+		state.init()
+	})
+
+	t.Run("onTimeout", func(t *testing.T) {
+		state.onTimeout()
+	})
+
+	t.Run("release", func(t *testing.T) {
+		state.release()
+	})
 }

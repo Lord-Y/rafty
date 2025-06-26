@@ -82,7 +82,6 @@ func (r *Rafty) handleSendVoteRequest(data voteResquestWrapper) {
 		return
 	}
 
-	// need to be reevaluated, not sure it's necessary anymore
 	if votedFor != "" && votedFor != data.request.CandidateId {
 		response.CurrentTerm = currentTerm
 		r.Logger.Trace().
@@ -109,8 +108,22 @@ func (r *Rafty) handleSendVoteRequest(data voteResquestWrapper) {
 			Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
 			Msgf("debug data lastLogTerm")
 
-		lastLogTerm := r.logs.fromIndex(r.lastLogIndex.Load()).logs[0].Term
-		if data.request.LastLogTerm > lastLogTerm || (lastLogTerm == data.request.LastLogTerm && data.request.LastLogIndex >= lastLogIndex) {
+		lastLogTerm := r.logs.fromIndex(r.lastLogIndex.Load())
+		if lastLogTerm.err != nil {
+			r.Logger.Error().Err(lastLogTerm.err).
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
+				Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
+				Msgf("Fail to get last log term")
+			response.Granted = false
+			data.responseChan <- response
+			return
+		}
+
+		lastLogTermData := r.logs.fromIndex(r.lastLogIndex.Load()).logs[0].Term
+		if data.request.LastLogTerm > lastLogTermData || (lastLogTermData == data.request.LastLogTerm && data.request.LastLogIndex >= lastLogIndex) {
 			r.setVotedFor(data.request.CandidateId, data.request.CurrentTerm)
 			response.CurrentTerm = data.request.CurrentTerm
 			response.Granted = true
@@ -231,9 +244,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 				Str("leaderId", data.request.LeaderID).
 				Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
 				Msgf("My term is lower than peer")
-
-			r.switchState(Follower, stepDown, true, data.request.Term)
 		}
+		r.switchState(Follower, stepDown, true, data.request.Term)
 	}
 
 	r.currentTerm.Store(data.request.Term)
@@ -333,7 +345,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 				newPeers []peer
 				err      error
 			)
-			totalLogs = r.logs.appendEntries(newEntries)
+			totalLogs = r.logs.appendEntries(newEntries, false)
 			peers, _ := r.getPeers()
 			for index := range newEntries {
 				entryIndex := 0

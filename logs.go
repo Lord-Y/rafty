@@ -11,8 +11,13 @@ import (
 type logKind uint8
 
 const (
+	// logNoop is a log type used only by the leader
+	// to keep the log index and term in sync with followers
+	// when stepping up as leader
+	logNoop logKind = iota
+
 	// logCommand is a log type used by clients
-	logCommand logKind = iota
+	logCommand = iota
 
 	// logConfiguration is a log type used between nodes
 	// when configuration need to change
@@ -90,6 +95,10 @@ func (r *Rafty) newLogs() logs {
 	}
 }
 
+// /!\ DO NOT USE MAKE AND COPY IN THE FOLLOWING FUNCTIONS
+// THIS WILL CREATE NIL OBJECT AND GENERATE NIL POINTER
+// EXCEPTION
+
 // total will return the total number of logs
 func (r *logs) total() logOperationReadResponse {
 	r.rafty.wg.Add(1)
@@ -108,9 +117,8 @@ func (r *logs) all() logOperationReadResponse {
 
 	totalLogs := len(r.rafty.logs.log)
 	response := logOperationReadResponse{}
-	response.logs = make([]*raftypb.LogEntry, totalLogs)
+	response.logs = r.rafty.logs.log
 	response.total = totalLogs
-	copy(response.logs, r.rafty.logs.log)
 	return response
 }
 
@@ -124,12 +132,11 @@ func (r *logs) fromIndex(index uint64) logOperationReadResponse {
 	response := logOperationReadResponse{}
 	totalLogs := len(r.rafty.logs.log)
 	if totalLogs > 0 && totalLogs > int(index) {
-		response.logs = make([]*raftypb.LogEntry, 1)
-		copy(response.logs, []*raftypb.LogEntry{r.rafty.logs.log[index]})
+		response.logs = []*raftypb.LogEntry{r.rafty.logs.log[index]}
 		response.total = 1
-	} else {
-		response.err = ErrIndexOutOfRange
+		return response
 	}
+	response.err = ErrIndexOutOfRange
 	return response
 }
 
@@ -145,22 +152,20 @@ func (r *logs) fromLastLogParameters(lastLogIndex, lastLogTerm uint64, peerAddre
 	totalLogs := len(r.rafty.logs.log)
 	var limit uint
 
-	if totalLogs == 1 {
-		response.logs = make([]*raftypb.LogEntry, 1)
-		copy(response.logs, r.rafty.logs.log)
+	if lastLogIndex == 0 && lastLogTerm == 0 {
+		limit, response.sendSnapshot = calculateMaxRangeLogIndex(uint(totalLogs), uint(r.rafty.options.MaxAppendEntries), 0)
+		response.logs = r.rafty.logs.log[0:limit]
 		response.total = len(response.logs)
 		response.lastLogIndex = r.rafty.logs.log[response.total-1].Index
 		response.lastLogTerm = r.rafty.logs.log[response.total-1].Term
 		return
 	}
 
-	if lastLogIndex == 0 && lastLogTerm == 0 {
-		limit, response.sendSnapshot = calculateMaxRangeLogIndex(uint(totalLogs), uint(r.rafty.options.MaxAppendEntries), 0)
-		response.logs = make([]*raftypb.LogEntry, limit)
-		copy(response.logs, r.rafty.logs.log[0:limit])
+	if totalLogs == 1 {
+		response.logs = r.rafty.logs.log
 		response.total = len(response.logs)
-		response.lastLogIndex = lastLogIndex
-		response.lastLogTerm = lastLogTerm
+		response.lastLogIndex = r.rafty.logs.log[response.total-1].Index
+		response.lastLogTerm = r.rafty.logs.log[response.total-1].Term
 		return
 	}
 
@@ -200,11 +205,6 @@ func (r *logs) fromLastLogParameters(lastLogIndex, lastLogTerm uint64, peerAddre
 			Str("peerId", peerId).
 			Msg("Catchup append entries closest request")
 
-		// when we find the closest entry, we need to give back leader prev log index and term
-		// somehow, using make cause panic then calculation the final
-		// lastLogTerm and lastLogIndex response so we use for loop instead of copy
-		// response.logs = make([]*raftypb.LogEntry, limit)
-		// copy(response.logs, r.rafty.logs.log[index:limit])
 		response.logs = append(response.logs, r.rafty.logs.log[index:limit]...)
 		response.total = len(response.logs)
 		if response.total > 0 {
@@ -212,14 +212,13 @@ func (r *logs) fromLastLogParameters(lastLogIndex, lastLogTerm uint64, peerAddre
 			response.lastLogTerm = r.rafty.logs.log[response.total-1].Term
 		}
 	}
-
 	return response
 }
 
 // appendEntries will safely append entries to log.
 // Entry index will be updated for later use.
 // It will also set lastLogIndex and lastLogTerm
-func (r *logs) appendEntries(entries []*raftypb.LogEntry) int {
+func (r *logs) appendEntries(entries []*raftypb.LogEntry, restore bool) int {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 	r.rafty.mu.Lock()
@@ -227,7 +226,9 @@ func (r *logs) appendEntries(entries []*raftypb.LogEntry) int {
 
 	totalLogs := len(r.rafty.logs.log)
 	for index, entry := range entries {
-		entry.Index = uint64(totalLogs + index)
+		if !restore {
+			entry.Index = uint64(totalLogs + index)
+		}
 		r.rafty.logs.log = append(r.rafty.logs.log, entry)
 	}
 	totalLogs = len(r.rafty.logs.log)
@@ -237,7 +238,8 @@ func (r *logs) appendEntries(entries []*raftypb.LogEntry) int {
 }
 
 // wipeEntries will safely remove log entries on followers
-// from provided range
+// from provided range.
+// When from and to both equal, all logs will be wiped out
 func (r *logs) wipeEntries(from, to uint64) logOperationWipeResponse {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
@@ -246,15 +248,19 @@ func (r *logs) wipeEntries(from, to uint64) logOperationWipeResponse {
 
 	response := logOperationWipeResponse{}
 	totalLogs := len(r.rafty.logs.log)
-	if totalLogs > int(from) && totalLogs > int(to) {
+	switch {
+	case from == to:
+		r.rafty.logs.log = nil
+	case totalLogs > int(from) && totalLogs > int(to):
 		r.rafty.logs.log = slices.Delete(r.rafty.logs.log, int(from), int(to))
 		totalLogs = len(r.rafty.logs.log)
 		r.rafty.lastLogIndex.Store(uint64(totalLogs - 1))
 		r.rafty.lastLogTerm.Store(uint64(r.rafty.logs.log[r.rafty.lastLogIndex.Load()].Term))
 		response.total = totalLogs
-	} else {
+	default:
 		response.err = ErrIndexOutOfRange
 	}
+	response.total = len(r.rafty.logs.log)
 	return response
 }
 

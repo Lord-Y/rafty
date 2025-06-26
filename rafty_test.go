@@ -2,6 +2,8 @@ package rafty
 
 import (
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -100,6 +102,7 @@ func TestStart1Nodes_down_minimumSize(t *testing.T) {
 	cc.cluster = cc.makeCluster()
 	id := 0
 	node := cc.cluster[id]
+	dataDir := filepath.Dir(node.options.DataDir)
 
 	time.AfterFunc(20*time.Second, func() {
 		node.Stop()
@@ -112,6 +115,12 @@ func TestStart1Nodes_down_minimumSize(t *testing.T) {
 	// double start to get error
 	err := node.Start()
 	cc.assert.NotNil(err)
+	t.Cleanup(func() {
+		if shouldBeRemoved(dataDir) {
+			_ = os.RemoveAll(dataDir)
+		}
+		_ = os.Unsetenv("RAFTY_LOG_LEVEL")
+	})
 }
 
 func TestStart3Nodes_PrevoteDisabled(t *testing.T) {

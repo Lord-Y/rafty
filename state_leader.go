@@ -119,14 +119,14 @@ func (r *leader) setupFollowersReplicationStates() {
 	currentTerm := r.rafty.currentTerm.Load()
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logCommand),
+			LogType:   uint32(logNoop),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      currentTerm,
 			Command:   nil,
 		},
 	}
 
-	totalLogs := r.rafty.logs.appendEntries(entries)
+	totalLogs := r.rafty.logs.appendEntries(entries, false)
 	request := &onAppendEntriesRequest{
 		totalFollowers: uint64(totalFollowers),
 		quorum:         uint64(r.rafty.quorum()),
@@ -254,7 +254,7 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			},
 		}
 
-		totalLogs := r.rafty.logs.appendEntries(entries)
+		totalLogs := r.rafty.logs.appendEntries(entries, false)
 		request = &onAppendEntriesRequest{
 			totalFollowers:    uint64(totalFollowers),
 			quorum:            uint64(r.rafty.quorum()),
@@ -282,7 +282,7 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			},
 		}
 
-		totalLogs := r.rafty.logs.appendEntries(entries)
+		totalLogs := r.rafty.logs.appendEntries(entries, false)
 		request = &onAppendEntriesRequest{
 			totalFollowers:              uint64(totalFollowers),
 			quorum:                      uint64(r.rafty.quorum()),
@@ -456,6 +456,7 @@ func (r *leader) leadershipTransferLoop() {
 						Str("state", r.rafty.getState().String()).
 						Str("peerAddress", targetPeer.address.String()).
 						Str("peerId", targetPeer.ID).
+						Str("leadershipTransferChanClosed", fmt.Sprintf("%t", r.leadershipTransferChanClosed.Load())).
 						Msgf("Fail to perform leadership transfer to peer")
 					return
 				}
@@ -467,6 +468,7 @@ func (r *leader) leadershipTransferLoop() {
 						Str("state", r.rafty.getState().String()).
 						Str("peerAddress", targetPeer.address.String()).
 						Str("peerId", targetPeer.ID).
+						Str("leadershipTransferChanClosed", fmt.Sprintf("%t", r.leadershipTransferChanClosed.Load())).
 						Msgf("Fail to perform leadership transfer to peer")
 					return
 				}

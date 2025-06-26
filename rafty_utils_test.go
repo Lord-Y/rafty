@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -129,36 +130,41 @@ func (cc *clusterConfig) startCluster() {
 	}
 }
 
-func (cc *clusterConfig) stopCluster() {
-	_ = os.Unsetenv("RAFTY_LOG_LEVEL")
-	for i, node := range cc.cluster {
+func (cc *clusterConfig) stopCluster(wg *sync.WaitGroup) {
+	for _, node := range cc.cluster {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			node.Stop()
-			if !node.isRunning.Load() {
-				err := os.RemoveAll(node.options.DataDir)
-				cc.assert.Nil(err)
-				cc.cluster[i] = nil
-			}
+			// this sleep make sure all processings are done
+			// and nothing remain before nillify the node
+			time.Sleep(10 * time.Second)
+			node = nil
 		}()
 	}
-	time.Sleep(10 * time.Second)
 }
 
-func (cc *clusterConfig) restartNode(nodeId int) {
+func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
 	cc.t.Run(fmt.Sprintf("restart_%d", nodeId), func(t *testing.T) {
 		node := cc.cluster[nodeId]
 		node.Stop()
 
 		var stop bool
 		for !stop {
-			<-time.After(5 * time.Second)
+			<-time.After(time.Second)
 			if !node.isRunning.Load() {
 				stop = true
-				id := node.id
-				options := node.options
-				addr := node.Address
-				node = nil
-				node = NewRafty(addr, id, options)
+				// reset this part to prevent errors
+				metaFile, dataFile := node.newStorage()
+				node.storage = storage{
+					metadata: metaFile,
+					data:     dataFile,
+				}
+				node.storage.metadata.rafty = node
+				node.storage.data.rafty = node
+				node.logs = node.newLogs()
 				go func() {
 					node.Logger.Info().Msgf("Restart node %s / %d", node.Address.String(), nodeId)
 					if err := node.Start(); err != nil {
@@ -177,13 +183,17 @@ func (cc *clusterConfig) restartNode(nodeId int) {
 	})
 }
 
-func (cc *clusterConfig) submitCommandOnAllNodes() (count atomic.Uint64) {
-	var wg sync.WaitGroup
+func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup) (count atomic.Uint64) {
+	// it will look weird to have 2 synchronizations but the first defer
+	// make sure that all subtests will finish properly before nillify cc variable
+	defer wg.Done()
+	var wgi sync.WaitGroup
 	for i, node := range cc.cluster {
-		wg.Add(1)
+		wgi.Add(1)
 		go func() {
-			defer wg.Done()
+			defer wgi.Done()
 			cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d", cc.testName, i), func(t *testing.T) {
+				node.Logger.Info().Msgf("Submitting command to node %d", i)
 				_, err := node.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)})
 				if err != nil {
 					node.Logger.Error().Err(err).
@@ -197,7 +207,7 @@ func (cc *clusterConfig) submitCommandOnAllNodes() (count atomic.Uint64) {
 			})
 		}()
 	}
-	wg.Wait()
+	wgi.Wait()
 	return
 }
 
@@ -235,8 +245,8 @@ func (cc *clusterConfig) submitFakeCommandOnAllNodes() {
 
 func (cc *clusterConfig) waitForLeader() (leader leaderMap) {
 	round := 0
-	for round != 50 {
-		<-time.After(5 * time.Second)
+	for {
+		<-time.After(3 * time.Second)
 		nodeId := rand.IntN(int(cc.clusterSize))
 		node := cc.cluster[nodeId]
 
@@ -265,12 +275,12 @@ func (cc *clusterConfig) waitForLeader() (leader leaderMap) {
 			node.Logger.Info().Msgf("Node %d reports that %s / %s is the leader", nodeId, response.LeaderAddress, response.LeaderID)
 			return
 		}
-
 		node.Logger.Info().Msgf("Node %d reports no leader found", nodeId)
 		round++
+		if round >= 5 {
+			return leaderMap{}
+		}
 	}
-
-	return leaderMap{}
 }
 
 func (cc *clusterConfig) testClustering(t *testing.T) {
@@ -280,26 +290,48 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 
 	_ = os.Setenv("RAFTY_LOG_LEVEL", "trace")
 	cc.startCluster()
+	dataDir := filepath.Dir(cc.cluster[0].options.DataDir)
+	var wg sync.WaitGroup
 
-	if leader := cc.waitForLeader(); leader != (leaderMap{}) {
-		go cc.submitCommandOnAllNodes()
-	}
+	go func() {
+		if leader := cc.waitForLeader(); leader != (leaderMap{}) {
+			wg.Add(1)
+			go cc.submitCommandOnAllNodes(&wg)
+		}
+	}()
 
 	done, nodeId := false, 0
 	for !done {
-		<-time.After(15 * time.Second)
-		go cc.restartNode(nodeId)
-		nodeId++
-		if nodeId > 2 {
+		<-time.After(10 * time.Second)
+		go cc.restartNode(nodeId, &wg)
+		if nodeId >= 2 {
 			done = true
 		}
+		nodeId++
 	}
+	time.Sleep(5 * time.Second)
 
-	if leader := cc.waitForLeader(); leader != (leaderMap{}) {
-		go cc.submitCommandOnAllNodes()
-	}
+	go func() {
+		if leader := cc.waitForLeader(); leader != (leaderMap{}) {
+			wg.Add(1)
+			go func() {
+				_ = cc.submitCommandOnAllNodes(&wg)
+			}()
+		}
+	}()
 
-	time.Sleep(60 * time.Second)
-	cc.stopCluster()
-	cc = nil
+	time.AfterFunc(70*time.Second, func() {
+		cc.stopCluster(&wg)
+	})
+	wg.Wait()
+	t.Cleanup(func() {
+		if shouldBeRemoved(dataDir) {
+			_ = os.RemoveAll(dataDir)
+		}
+		_ = os.Unsetenv("RAFTY_LOG_LEVEL")
+	})
+}
+
+func shouldBeRemoved(dir string) bool {
+	return strings.Contains(filepath.Dir(dir), "rafty")
 }
