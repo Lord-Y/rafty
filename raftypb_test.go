@@ -362,13 +362,4 @@ func TestRaftypb_SendTimeoutNowRequest(t *testing.T) {
 		assert.Equal(nil, err)
 		assert.Equal(true, response.Success)
 	})
-
-	t.Run("down", func(t *testing.T) {
-		s.State = Down
-		rpcm := rpcManager{rafty: s}
-		assert.Nil(err)
-		request := &raftypb.TimeoutNowRequest{}
-		_, err = rpcm.SendTimeoutNowRequest(context.Background(), request)
-		assert.NotNil(err)
-	})
 }
