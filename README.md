@@ -24,6 +24,7 @@ So let's try to redo the wheel with more explanations.
 Here is a list of the supported features of `rafty`:
 - [x] PreVote election
 - [x] Leader election
+- [x] Leadership transfer
 - [] Logs
   - [x] Log replication
   - [x] Submit write commands
