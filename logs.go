@@ -17,7 +17,7 @@ const (
 	logNoop logKind = iota
 
 	// logCommand is a log type used by clients
-	logCommand = iota
+	logCommand
 
 	// logConfiguration is a log type used between nodes
 	// when configuration need to change
