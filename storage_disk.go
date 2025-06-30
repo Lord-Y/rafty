@@ -41,18 +41,21 @@ type metadata struct {
 	Configuration configuration `json:"configuration"`
 }
 
+// metaFile hold all requirements to manage file metadata
 type metaFile struct {
 	rafty        *Rafty
 	fullFilename string
 	file         *os.File
 }
 
+// dataFile hold all requirements to manage file data
 type dataFile struct {
 	rafty        *Rafty
 	fullFilename string
 	file         *os.File
 }
 
+// storage hold both metaFile and dataFile
 type storage struct {
 	metadata metaFile
 	data     dataFile
