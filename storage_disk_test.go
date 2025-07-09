@@ -222,13 +222,14 @@ func TestStorageDisk(t *testing.T) {
 		cc.cluster = cc.makeCluster()
 		node := cc.cluster[0]
 		node.Logger = &logger
+		makeStorage(node, false)
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
 		encoded, err := encodeCommand(userCommand)
 		assert.Nil(err)
 		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: encoded}
-		node.logs.log = append(node.logs.log, &entry)
+		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		err = node.storage.data.store(&entry)
 		assert.Nil(err)
 
@@ -281,7 +282,7 @@ func TestStorageDisk(t *testing.T) {
 		encoded, err := encodeCommand(userCommand)
 		assert.Nil(err)
 		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: encoded}
-		node.logs.log = append(node.logs.log, &entry)
+		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		assert.Equal(1, len(node.logs.log))
 		err = node.storage.data.store(&entry)
 		assert.Nil(err)
@@ -292,13 +293,16 @@ func TestStorageDisk(t *testing.T) {
 		assert.Equal(1, len(node.logs.log))
 		assert.Equal(now, node.logs.log[0].Timestamp)
 
-		node.logs.log = append(node.logs.log, &entry)
+		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		assert.Equal(2, len(node.logs.log))
 		err = node.storage.data.store(&entry)
 		assert.Nil(err)
 		node.logs.log = nil
 		err = node.storage.data.restore()
 		assert.Nil(err)
+		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		assert.GreaterOrEqual(node.logs.log[0].Index, uint64(0))
+		assert.Greater(node.logs.log[1].Index, uint64(0))
 
 		node.storage.data.close()
 
@@ -335,7 +339,7 @@ func TestStorageDisk(t *testing.T) {
 		err = node.storage.data.storeWithEntryIndex(0)
 		assert.Nil(err)
 
-		node.logs.log = append(node.logs.log, &entry)
+		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		assert.Equal(2, len(node.logs.log))
 		err = node.storage.data.store(&entry)
 		assert.Nil(err)
@@ -365,7 +369,7 @@ func TestStorageDisk(t *testing.T) {
 		err = node.storage.data.storeWithEntryIndex(0)
 		assert.Nil(err)
 
-		node.logs.log = append(node.logs.log, &entry)
+		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		assert.Equal(2, len(node.logs.log))
 		err = node.storage.data.store(&entry)
 		assert.Nil(err)

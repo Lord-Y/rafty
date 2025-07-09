@@ -24,10 +24,10 @@ type metadata struct {
 	// Id of the current raft server
 	Id string `json:"id"`
 
-	// CurrentTerm is latest term seen during the voting campain
+	// CurrentTerm is latest term seen during the voting campaign
 	CurrentTerm uint64 `json:"currentTerm"`
 
-	// VotedFor is the node the current node voted for during the election campain
+	// VotedFor is the node the current node voted for during the election campaign
 	VotedFor string `json:"votedFor"`
 
 	// LastApplied is the index of the highest log entry applied to the current raft server
@@ -258,8 +258,10 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 	logEntry := &logEntry{
 		FileFormat: uint8(entry.FileFormat),
 		Tombstone:  uint8(entry.Tombstone),
+		LogType:    uint8(entry.LogType),
 		Timestamp:  entry.Timestamp,
 		Term:       entry.Term,
+		Index:      entry.Index,
 		Command:    entry.Command,
 	}
 
