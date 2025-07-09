@@ -107,6 +107,8 @@ func main() {
 					time.Sleep(time.Duration(*restartNodeAfterN) * time.Minute)
 					s.Stop()
 					time.Sleep(30 * time.Second)
+					s = nil
+					s = rafty.NewRafty(addr, id, options)
 					if err := s.Start(); err != nil {
 						s.Logger.Fatal().Err(err).Msg("Fail to start node")
 					}
