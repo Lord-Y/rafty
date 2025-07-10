@@ -3,6 +3,7 @@ package rafty
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +39,7 @@ func basicNodeSetup() *Rafty {
 	return s
 }
 
-func TestParsePeers(t *testing.T) {
+func TestUtilsParsePeers(t *testing.T) {
 	assert := assert.New(t)
 
 	addr := net.TCPAddr{
@@ -100,7 +101,6 @@ func TestParsePeers(t *testing.T) {
 	}
 
 	mergePeers(s.options.Peers)
-
 	err := s.parsePeers()
 	assert.Nil(err)
 
@@ -109,13 +109,14 @@ func TestParsePeers(t *testing.T) {
 	err = s.parsePeers()
 	assert.Error(err)
 
+	s.configuration.ServerMembers = nil
 	s.options.Peers = badPeers2
 	mergePeers(s.options.Peers)
 	err = s.parsePeers()
 	assert.Error(err)
 }
 
-func TestSwitchStateAndLogState(t *testing.T) {
+func TestUtilsSwitchStateAndLogState(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
@@ -194,7 +195,7 @@ func TestSwitchStateAndLogState(t *testing.T) {
 	}
 }
 
-func TestSaveLeaderInformations(t *testing.T) {
+func TestUtilsSaveLeaderInformations(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
@@ -252,7 +253,7 @@ func TestSaveLeaderInformations(t *testing.T) {
 	}
 }
 
-func TestMin(t *testing.T) {
+func TestUtilsMin(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -282,7 +283,7 @@ func TestMin(t *testing.T) {
 	}
 }
 
-func TestMax(t *testing.T) {
+func TestUtilsMax(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -307,7 +308,42 @@ func TestMax(t *testing.T) {
 	}
 }
 
-func TestCalculateMaxRangeLogIndex(t *testing.T) {
+func TestUtilsBackoff(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		wait        time.Duration
+		failures    uint64
+		maxFailures uint64
+		result      time.Duration
+	}{
+		{
+			wait:        time.Second,
+			failures:    1,
+			maxFailures: replicationMaxRetry,
+			result:      time.Second,
+		},
+		{
+			wait:        time.Second,
+			failures:    10,
+			maxFailures: replicationMaxRetry,
+			result:      2 * time.Second,
+		},
+	}
+
+	for _, tc := range tests {
+		assert.Equal(tc.result, backoff(tc.wait, tc.failures, tc.maxFailures))
+	}
+}
+
+func TestUtilsQuorum(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	assert.Equal(2, s.quorum())
+}
+
+func TestUtilsCalculateMaxRangeLogIndex(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
