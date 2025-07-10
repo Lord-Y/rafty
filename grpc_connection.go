@@ -52,20 +52,11 @@ func (r *connectionManager) getClient(address, id string) raftypb.RaftyClient {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
 
-	conn, err := grpc.NewClient(
+	// in our case for now, err is always nil so no need to check it
+	conn, _ := grpc.NewClient(
 		address,
 		opts...,
 	)
-
-	if err != nil {
-		r.logger.Error().Err(err).
-			Str("address", r.address).
-			Str("id", r.id).
-			Str("peerAddress", address).
-			Str("peerId", id).
-			Msgf("Fail to create new peer client")
-		return nil
-	}
 
 	if r.connections == nil {
 		if !r.leadershipTransferInProgress.Load() {

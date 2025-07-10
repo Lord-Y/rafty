@@ -9,7 +9,7 @@ import (
 func TestGrpcConnection_getClient(t *testing.T) {
 	assert := assert.New(t)
 
-	t.Run("client_not_nil", func(t *testing.T) {
+	t.Run("not_nil", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
@@ -20,7 +20,7 @@ func TestGrpcConnection_getClient(t *testing.T) {
 		assert.NotNil(client)
 	})
 
-	t.Run("client_disconnect_nil", func(t *testing.T) {
+	t.Run("disconnect_nil", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
@@ -31,7 +31,7 @@ func TestGrpcConnection_getClient(t *testing.T) {
 		assert.Nil(client)
 	})
 
-	t.Run("client_leadership_transfer", func(t *testing.T) {
+	t.Run("leadership_transfer", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
