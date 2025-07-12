@@ -1,6 +1,9 @@
 package rafty
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,7 +12,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEncodeDecodeCommand(t *testing.T) {
+type failWriter struct {
+	failOn int
+	count  int
+}
+
+func (fw *failWriter) Write(p []byte) (int, error) {
+	fw.count++
+	if fw.count == fw.failOn {
+		return 0, errors.New("forced write error")
+	}
+	return len(p), nil
+}
+
+func TestEncoding_EncodeDecodeCommand(t *testing.T) {
 	assert := assert.New(t)
 
 	cc := clusterConfig{
@@ -26,15 +42,88 @@ func TestEncodeDecodeCommand(t *testing.T) {
 		Key:   "a",
 		Value: "b",
 	}
-	enc, err := encodeCommand(cmd)
-	assert.Nil(err)
-	assert.NotNil(enc)
-	dec, err := decodeCommand(enc)
-	assert.Nil(err)
-	assert.Equal(cmd, dec)
+
+	// Testing error on Kind write
+	w := &failWriter{failOn: 1}
+	buffer := new(bytes.Buffer)
+
+	t.Run("encode", func(t *testing.T) {
+		err := encodeCommand(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Key length write
+		w = &failWriter{failOn: 2}
+		err = encodeCommand(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Key write
+		w = &failWriter{failOn: 3}
+		err = encodeCommand(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Value length write
+		w = &failWriter{failOn: 4}
+		err = encodeCommand(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Value write
+		w = &failWriter{failOn: 5}
+		err = encodeCommand(cmd, w)
+		assert.Error(err)
+
+		// No errors expected here
+		err = encodeCommand(cmd, buffer)
+		assert.Nil(err)
+		assert.NotNil(buffer.Bytes())
+	})
+
+	t.Run("decode", func(t *testing.T) {
+		// Error reading Kind
+		_, err := decodeCommand([]byte{})
+		assert.Error(err)
+
+		// Error reading Key length
+		buf := new(bytes.Buffer)
+		binary.Write(buf, binary.LittleEndian, uint32(1)) // Kind
+		// No KeyLen
+		_, err = decodeCommand(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading Key
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint32(1)) // Kind
+		binary.Write(buf, binary.LittleEndian, uint64(3)) // KeyLen
+		// No Key bytes
+		_, err = decodeCommand(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading Value length
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint32(1)) // Kind
+		binary.Write(buf, binary.LittleEndian, uint64(3)) // KeyLen
+		buf.Write([]byte("abc"))                          // Key
+		// No ValueLen
+		_, err = decodeCommand(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading Value
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint32(1)) // Kind
+		binary.Write(buf, binary.LittleEndian, uint64(3)) // KeyLen
+		buf.Write([]byte("abc"))                          // Key
+		binary.Write(buf, binary.LittleEndian, uint64(2)) // ValueLen
+		// No Value bytes
+		_, err = decodeCommand(buf.Bytes())
+		assert.Error(err)
+
+		// No errors expected here
+		dec, err := decodeCommand(buffer.Bytes())
+		assert.Nil(err)
+		assert.Equal(cmd, dec)
+	})
 }
 
-func TestMarshallUnmarshallBinary(t *testing.T) {
+func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
 	assert := assert.New(t)
 
 	cc := clusterConfig{
@@ -48,8 +137,51 @@ func TestMarshallUnmarshallBinary(t *testing.T) {
 
 	for index := range 2 {
 		cmd := &logEntry{}
-		enc, err := marshalBinary(cmd)
+		// Testing error on FileFormat write
+		w := &failWriter{failOn: 1}
+		err := marshalBinary(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Tombstone write
+		w = &failWriter{failOn: 2}
+		err = marshalBinary(cmd, w)
+		assert.Error(err)
+
+		// Testing error on LogType write
+		w = &failWriter{failOn: 3}
+		err = marshalBinary(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Timestamp write
+		w = &failWriter{failOn: 4}
+		err = marshalBinary(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Term write
+		w = &failWriter{failOn: 5}
+		err = marshalBinary(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Index write
+		w = &failWriter{failOn: 6}
+		err = marshalBinary(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Command length write
+		w = &failWriter{failOn: 7}
+		err = marshalBinary(cmd, w)
+		assert.Error(err)
+
+		// Testing error on Command write
+		w = &failWriter{failOn: 8}
+		err = marshalBinary(cmd, w)
+		assert.Error(err)
+
+		// No errors expected here
+		buffer := new(bytes.Buffer)
+		err = marshalBinary(cmd, buffer)
 		assert.Nil(err)
+		enc := buffer.Bytes()
 		assert.NotNil(enc)
 		dec, err := unmarshalBinary(enc)
 		assert.Nil(err)
@@ -64,7 +196,10 @@ func TestMarshallUnmarshallBinary(t *testing.T) {
 		cmd.Timestamp = now
 		cmd.Command = data
 
-		enc, err = marshalBinary(cmd)
+		// No errors expected here
+		buffer = new(bytes.Buffer)
+		err = marshalBinary(cmd, buffer)
+		enc = buffer.Bytes()
 		assert.Nil(err)
 		assert.NotNil(enc)
 		dec, err = unmarshalBinary(enc)
@@ -76,10 +211,78 @@ func TestMarshallUnmarshallBinary(t *testing.T) {
 		assert.Equal(cmd.Timestamp, dec.Timestamp)
 		assert.Equal(cmd.Tombstone, uint8(dec.Tombstone))
 		assert.Equal(cmd.Command, dec.Command)
+
+		// Error reading FileFormat
+		_, err = unmarshalBinary([]byte{})
+		assert.Error(err)
+
+		// Error reading Tombstone
+		buf := new(bytes.Buffer)
+		binary.Write(buf, binary.LittleEndian, uint8(1)) // FileFormat
+		_, err = unmarshalBinary(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading LogType
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint8(1)) // FileFormat
+		binary.Write(buf, binary.LittleEndian, uint8(0)) // Tombstone
+		_, err = unmarshalBinary(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading Timestamp
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint8(1)) // FileFormat
+		binary.Write(buf, binary.LittleEndian, uint8(0)) // Tombstone
+		binary.Write(buf, binary.LittleEndian, uint8(0)) // LogType
+		_, err = unmarshalBinary(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading Term
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint8(1))  // FileFormat
+		binary.Write(buf, binary.LittleEndian, uint8(0))  // Tombstone
+		binary.Write(buf, binary.LittleEndian, uint8(0))  // LogType
+		binary.Write(buf, binary.LittleEndian, uint32(1)) // Timestamp
+		_, err = unmarshalBinary(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading Index
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint8(1))  // FileFormat
+		binary.Write(buf, binary.LittleEndian, uint8(0))  // Tombstone
+		binary.Write(buf, binary.LittleEndian, uint8(0))  // LogType
+		binary.Write(buf, binary.LittleEndian, uint32(1)) // Timestamp
+		binary.Write(buf, binary.LittleEndian, uint64(1)) // Term
+		_, err = unmarshalBinary(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading Command length
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint8(1))  // FileFormat
+		binary.Write(buf, binary.LittleEndian, uint8(0))  // Tombstone
+		binary.Write(buf, binary.LittleEndian, uint8(0))  // LogType
+		binary.Write(buf, binary.LittleEndian, uint32(1)) // Timestamp
+		binary.Write(buf, binary.LittleEndian, uint64(1)) // Term
+		binary.Write(buf, binary.LittleEndian, uint64(1)) // Index
+		_, err = unmarshalBinary(buf.Bytes())
+		assert.Error(err)
+
+		// Error reading Command bytes
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, uint8(1))  // FileFormat
+		binary.Write(buf, binary.LittleEndian, uint8(0))  // Tombstone
+		binary.Write(buf, binary.LittleEndian, uint8(0))  // LogType
+		binary.Write(buf, binary.LittleEndian, uint32(1)) // Timestamp
+		binary.Write(buf, binary.LittleEndian, uint64(1)) // Term
+		binary.Write(buf, binary.LittleEndian, uint64(1)) // Index
+		binary.Write(buf, binary.LittleEndian, uint64(5)) // Command length
+		// Not enough bytes for Command
+		_, err = unmarshalBinary(buf.Bytes())
+		assert.Error(err)
 	}
 }
 
-func TestEncodeDecodePeers(t *testing.T) {
+func TestEncoding_EncodeDecodePeers(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
@@ -87,8 +290,7 @@ func TestEncodeDecodePeers(t *testing.T) {
 	assert.Nil(err)
 	peers, _ := s.getPeers()
 	peers = append(peers, peer{Address: "127.0.0.1:6000", ID: "xyz"})
-	encodedPeers, err := encodePeers(peers)
-	assert.Nil(err)
+	encodedPeers := encodePeers(peers)
 	assert.NotNil(encodedPeers)
 
 	decodedPeers, err := decodePeers(encodedPeers)

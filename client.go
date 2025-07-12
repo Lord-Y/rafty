@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"bytes"
 	"context"
 	"time"
 
@@ -8,11 +9,11 @@ import (
 )
 
 func (r *Rafty) SubmitCommand(command Command) ([]byte, error) {
-	cmd, err := encodeCommand(command)
-	if err != nil {
+	buffer := new(bytes.Buffer)
+	if err := encodeCommand(command, buffer); err != nil {
 		return nil, err
 	}
-	resp, err := r.submitCommand(cmd)
+	resp, err := r.submitCommand(buffer.Bytes())
 	return resp, err
 }
 

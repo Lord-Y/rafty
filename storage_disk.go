@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -265,17 +266,15 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 		Command:    entry.Command,
 	}
 
-	var (
-		err  error
-		data []byte
-	)
-	data, err = marshalBinary(logEntry)
+	var err error
+	buffer := new(bytes.Buffer)
+	err = marshalBinary(logEntry, buffer)
 	if err != nil {
 		return err
 	}
 	writer := bufio.NewWriter(r.file)
 
-	if _, err = writer.Write(data); err != nil {
+	if _, err = writer.Write(buffer.Bytes()); err != nil {
 		return err
 	}
 
@@ -305,17 +304,15 @@ func (r dataFile) storeWithEntryIndex(entryIndex int) error {
 		Command:    entry.Command,
 	}
 
-	var (
-		err  error
-		data []byte
-	)
-	data, err = marshalBinary(logEntry)
+	var err error
+	buffer := new(bytes.Buffer)
+	err = marshalBinary(logEntry, buffer)
 	if err != nil {
 		return err
 	}
 	writer := bufio.NewWriter(r.file)
 
-	if _, err = writer.Write(data); err != nil {
+	if _, err = writer.Write(buffer.Bytes()); err != nil {
 		return err
 	}
 

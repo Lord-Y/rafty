@@ -4,35 +4,29 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"io"
 
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
 // encodeCommand permits to transform command receive from clients to binary language machine
-func encodeCommand(cmd Command) ([]byte, error) {
-	buffer := new(bytes.Buffer)
-
-	if err := binary.Write(buffer, binary.LittleEndian, uint32(cmd.Kind)); err != nil {
-		return nil, err
+func encodeCommand(cmd Command, w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, uint32(cmd.Kind)); err != nil {
+		return err
 	}
-
-	if err := binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.Key))); err != nil {
-		return nil, err
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(cmd.Key))); err != nil {
+		return err
 	}
-
-	if _, err := buffer.WriteString(cmd.Key); err != nil {
-		return nil, err
+	if _, err := w.Write([]byte(cmd.Key)); err != nil {
+		return err
 	}
-
-	if err := binary.Write(buffer, binary.LittleEndian, uint64(len(cmd.Value))); err != nil {
-		return nil, err
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(cmd.Value))); err != nil {
+		return err
 	}
-
-	if _, err := buffer.WriteString(cmd.Value); err != nil {
-		return nil, err
+	if _, err := w.Write([]byte(cmd.Value)); err != nil {
+		return err
 	}
-
-	return buffer.Bytes(), nil
+	return nil
 }
 
 // decodeCommand permits to transform back command from binary language machine to clients
@@ -71,42 +65,40 @@ func decodeCommand(data []byte) (Command, error) {
 }
 
 // marshalBinary permit to encode data in binary format
-func marshalBinary(entry *logEntry) ([]byte, error) {
-	buffer := bytes.NewBuffer(nil)
-
-	if err := binary.Write(buffer, binary.LittleEndian, entry.FileFormat); err != nil {
-		return nil, err
+func marshalBinary(entry *logEntry, w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, entry.FileFormat); err != nil {
+		return err
 	}
 
-	if err := binary.Write(buffer, binary.LittleEndian, entry.Tombstone); err != nil {
-		return nil, err
+	if err := binary.Write(w, binary.LittleEndian, entry.Tombstone); err != nil {
+		return err
 	}
 
-	if err := binary.Write(buffer, binary.LittleEndian, entry.LogType); err != nil {
-		return nil, err
+	if err := binary.Write(w, binary.LittleEndian, entry.LogType); err != nil {
+		return err
 	}
 
-	if err := binary.Write(buffer, binary.LittleEndian, entry.Timestamp); err != nil {
-		return nil, err
+	if err := binary.Write(w, binary.LittleEndian, entry.Timestamp); err != nil {
+		return err
 	}
 
-	if err := binary.Write(buffer, binary.LittleEndian, entry.Term); err != nil {
-		return nil, err
+	if err := binary.Write(w, binary.LittleEndian, entry.Term); err != nil {
+		return err
 	}
 
-	if err := binary.Write(buffer, binary.LittleEndian, entry.Index); err != nil {
-		return nil, err
+	if err := binary.Write(w, binary.LittleEndian, entry.Index); err != nil {
+		return err
 	}
 
-	if err := binary.Write(buffer, binary.LittleEndian, uint64(len(entry.Command))); err != nil {
-		return nil, err
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(entry.Command))); err != nil {
+		return err
 	}
 
-	if _, err := buffer.Write(entry.Command); err != nil {
-		return nil, err
+	if _, err := w.Write(entry.Command); err != nil {
+		return err
 	}
 
-	return buffer.Bytes(), nil
+	return nil
 }
 
 // unmarshalBinary permit to decode data in binary format
@@ -161,11 +153,11 @@ func unmarshalBinary(data []byte) (*raftypb.LogEntry, error) {
 }
 
 // encodePeers permits to encode peers and return bytes
-func encodePeers(data []peer) (result []byte, err error) {
-	if result, err = json.Marshal(data); err != nil {
-		return
-	}
-	return
+func encodePeers(data []peer) (result []byte) {
+	// checking error is irrelevant here as it will always be nil
+	// in this case
+	result, _ = json.Marshal(data)
+	return result
 }
 
 // decodePeers permits to decode peers and return bytes

@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -226,9 +227,10 @@ func TestStorageDisk(t *testing.T) {
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
-		encoded, err := encodeCommand(userCommand)
+		buffer := new(bytes.Buffer)
+		err := encodeCommand(userCommand, buffer)
 		assert.Nil(err)
-		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: encoded}
+		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: buffer.Bytes()}
 		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		err = node.storage.data.store(&entry)
 		assert.Nil(err)
@@ -279,9 +281,10 @@ func TestStorageDisk(t *testing.T) {
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
-		encoded, err := encodeCommand(userCommand)
+		buffer := new(bytes.Buffer)
+		err := encodeCommand(userCommand, buffer)
 		assert.Nil(err)
-		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: encoded}
+		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: buffer.Bytes()}
 		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		assert.Equal(1, len(node.logs.log))
 		err = node.storage.data.store(&entry)
@@ -331,10 +334,11 @@ func TestStorageDisk(t *testing.T) {
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
-		encoded, err := encodeCommand(userCommand)
+		buffer := new(bytes.Buffer)
+		err := encodeCommand(userCommand, buffer)
 		assert.Nil(err)
 
-		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: encoded}
+		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: buffer.Bytes()}
 		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		err = node.storage.data.storeWithEntryIndex(0)
 		assert.Nil(err)
@@ -361,10 +365,11 @@ func TestStorageDisk(t *testing.T) {
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
-		encoded, err := encodeCommand(userCommand)
+		buffer := new(bytes.Buffer)
+		err := encodeCommand(userCommand, buffer)
 		assert.Nil(err)
 
-		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: encoded}
+		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: buffer.Bytes()}
 		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		err = node.storage.data.storeWithEntryIndex(0)
 		assert.Nil(err)

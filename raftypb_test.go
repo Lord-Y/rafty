@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -265,7 +266,8 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	i := 0
 	command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
-	data, err := encodeCommand(command)
+	buffer := new(bytes.Buffer)
+	err = encodeCommand(command, buffer)
 	assert.Nil(err)
 
 	t.Run("up_command_fake", func(t *testing.T) {
@@ -273,7 +275,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s.isRunning.Store(true)
 		rpcm := rpcManager{rafty: s}
 
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: data}
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Equal(nil, err)
 	})
@@ -284,7 +286,8 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		rpcm := rpcManager{rafty: s}
 
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
-		data, err := encodeCommand(command)
+		buffer := new(bytes.Buffer)
+		err := encodeCommand(command, buffer)
 		assert.Nil(err)
 
 		s.wg.Add(1)
@@ -294,7 +297,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 			data.responseChan <- &raftypb.ForwardCommandToLeaderResponse{}
 		}()
 
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: data}
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Nil(err)
 		s.wg.Wait()
@@ -306,10 +309,11 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		rpcm := rpcManager{rafty: s}
 
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
-		data, err := encodeCommand(command)
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
 		assert.Nil(err)
 
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: data}
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.NotNil(err)
 	})
@@ -320,7 +324,8 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		rpcm := rpcManager{rafty: s}
 
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
-		data, err := encodeCommand(command)
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
 		assert.Nil(err)
 
 		s.wg.Add(1)
@@ -330,7 +335,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 			time.Sleep(time.Second)
 		}()
 
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: data}
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.NotNil(err)
 		s.wg.Wait()
@@ -339,7 +344,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 	t.Run("down", func(t *testing.T) {
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: data}
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.NotNil(err)
 	})
