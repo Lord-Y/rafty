@@ -123,7 +123,7 @@ func TestLogs(t *testing.T) {
 		peers, _ := s.getPeers()
 		newbie := peer{Address: "127.0.0.1:6000", ID: "xyz"}
 		peers = append(peers, newbie)
-		encodedPeers, err := encodePeers(peers)
+		encodedPeers := encodePeers(peers)
 		assert.Nil(err)
 		assert.NotNil(encodedPeers)
 

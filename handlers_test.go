@@ -678,7 +678,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 		peers, _ := s.getPeers()
 		peers = append(peers, peer{Address: "127.0.0.1:6000", ID: "xyz"})
-		encodedPeers, err := encodePeers(peers)
+		encodedPeers := encodePeers(peers)
 		assert.Nil(err)
 		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
 		request := appendEntriesResquestWrapper{
