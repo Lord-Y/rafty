@@ -163,10 +163,7 @@ func (r *leader) addReplication(follower *followerReplication, updateNextIndex b
 		follower.nextIndex.Store(1)
 	}
 	r.followerReplication[follower.ID] = follower
-	go func() {
-		follower.startFollowerReplication()
-		r.stopReplication(follower, true)
-	}()
+	go follower.startStopFollowerReplication()
 }
 
 // heartbeat is used by the leader to send hearbeat entries
@@ -214,37 +211,12 @@ func (r *leader) isReplicable(follower *followerReplication) bool {
 
 // stopReplication will stop ongoing follower replication. When deferred is set to true,
 // it will decrement waitGroup. deferred set to true must ONLY used by addReplication func
-func (r *leader) stopReplication(follower *followerReplication, deferred bool) {
-	if deferred {
-		r.rafty.wg.Add(1)
-		defer r.rafty.wg.Done()
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (r *leader) stopReplication(follower *followerReplication) {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
 
-	if !follower.replicationStopped.Load() {
+	if follower != nil && !follower.replicationStopped.Load() {
 		follower.replicationStopChan <- struct{}{}
-		follower.replicationStopped.Store(true)
-
-		r.rafty.Logger.Trace().
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Str("peerAddress", follower.address.String()).
-			Str("peerId", follower.ID).
-			Msgf("Replication stopped")
-
-		// draining remaining calls
-		for {
-			select {
-			case <-follower.newEntryChan:
-			default:
-				close(follower.replicationStopChan)
-				close(follower.newEntryChan)
-				follower.newEntryChan = nil
-				return
-			}
-		}
 	}
 }
 
@@ -253,7 +225,7 @@ func (r *leader) stopReplication(follower *followerReplication, deferred bool) {
 func (r *leader) stopAllReplication() {
 	for _, follower := range r.followerReplication {
 		if follower != nil {
-			r.stopReplication(follower, false)
+			r.stopReplication(follower)
 		}
 	}
 	r.followerReplication = nil
