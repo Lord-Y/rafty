@@ -30,10 +30,13 @@ Here is a list of the supported features of `rafty`:
   - [x] Submit write commands
   - [] Submit read commands
   - [] Log compaction
-- [] Membership changes
-  - [] Add member
-  - [] remove member
-  - [] promote member
+- [x] Membership changes
+  - [x] Add member
+  - [x] promote member
+  - [x] demote member
+  - [x] remove member (with shutdown if proper flag set)
+  - [x] forceRemove member
+  - [x] leaveOnTerminate
 
 ## References
 
