@@ -23,6 +23,80 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+/*
+
+How our raft cluster implementation works? It diverge slighly from raft paper by adding new safegards.
+When a 3 nodes cluster start with 0 logs, all nodes will contact each other to know who is the leader
+and if a node is part of the cluster, they will exchange theirs ids. Without getting all ids,
+no further steps will be done like election campaign.
+This also means that if nth nodes out of 3 is not up and running, no further process will be done.
+On the opposite side, if all 3 nodes were running and one of them shut down, when restarting, it will do
+business as usual it already has all ids.
+
+ADDING A NODE
+Adding a new node is NOT exposed to devops for cluster management.
+If the 4th node contact the cluster, it will:
+- ask to all members who is the leader and will keep asking when not found by any actual members of the cluster
+- the contacted node will provide the leader informations AND will also tell it to ask for membership
+  as the new node is NOT part of the cluster
+- contact the leader for membership
+- the leader will start replicate its logs in nth rounds with the informations provided when asked for membership
+- if the leader determined the the new node logs are up to date enough, a log entry config will be appended to
+  the logs and replicated to followers. In this log entry config, the flag WaitToBePromoted will be set to true.
+	That means the current cluster WILL NEVER start election campaign with this node if the actual
+	leader crashes. If the actual leader crashes, the new node will restart the membership process from the beginning.
+	Once the leader knows that the new log entry config has been committed, it will ONLY THEN promote the node.
+	Of course if the node is TOO SLOW or something got wrong, it won't be promoted AND will restart membership process again.
+	To promote the new node, another log entry config will created BUT with WaitToBePromoted flag set to false and
+	sent for replication. The leader will also add the new node configuration into the replication process in order to received
+	append entries from the leader like any other followers.
+	Again if the leader crashes during the promotion process, no worries, the new node will restart membership process.
+	A node with WaitToBePromoted set to true can be safely removed or force removed
+
+DEMOTING A NODE
+Demoting a node is exposed to devops for cluster management.
+Demoting a node MUST be used when a it needs to be stopped for maintenance for example.
+A log config entry will be created AND Decommissioning will be set to true.
+The cluster WILL NEVER start election campaign with this node if the actual leader crashes.
+The leader will keep sending append entries to it but will not be counted into the quorum.
+The leader will check if the node can be demoted WITHOUT breaking the cluster. If it will, an error will be returned.
+A demoted node can be promoted back.
+A demoted node can be then removed from the cluster, see REMOVE section.
+Somehow if both WaitToBePromoted AND Decommissioning are set to true the leader WON'T send any append entries to it.
+
+PROMOTING A NODE
+Promoting a node is exposed to devops for cluster management.
+Promoting a node can be used to promote back a demoted node.
+It is also used when a new node is added into the cluster, see ADDING A NODE section
+Somehow if both WaitToBePromoted AND Decommissioning are set to true, promoting the node will
+only will set Decommissioning to false.
+The node will then retry the membership process to be promoted by the leader
+
+REMOVE A NODE
+Removing a node is exposed to devops for cluster management.
+To remove a node it MUST first be demoted otherwise and error will be returned.
+If demoded, it will be removed from the replication process and a log entry config will be appended
+without this node and replicated to the cluster.
+The devops can then safely destroy the node.
+A node with WaitToBePromoted set to true can be safely removed or force removed.
+
+FORCE REMOVE A NODE
+Force removing a node is exposed to devops for cluster management.
+This must be done with cautious because:
+- NO demoting node is involved
+- NO check is done
+The leader symply remove it from the replication process and a log entry config without this node.
+A node with WaitToBePromoted set to true can be safely removed or force removed.
+
+LEAVE ON TERMINATE A NODE
+Leave on terminate a node is NOT exposed to devops for cluster management.
+Before the node is going down and when LeaveOnTerminate flag is set, it will
+send a leaveOnTerminate command to tell the leader that it won't be part of the cluster
+anymore. This flag is usually used by read replicas.
+No checks will be done when this flag is set so it must be set with cautious.
+
+*/
+
 const (
 	// GRPCAddress defines the default address to run the grpc server
 	GRPCAddress string = "127.0.0.1"
@@ -32,17 +106,19 @@ const (
 )
 
 const (
-	// electionTimeout is the defaut value used for election campain.
+	// electionTimeout is the defaut value used for election campaign.
 	// In raft paper it's between 150 and 300 milliseconds
 	// but we use more for more stability by default
 	electionTimeout int = 500
 
 	// heartbeatTimeout is the maximum time a follower will used to detect if there is a leader.
-	// If no leader, a new election campain will be started
+	// If no leader, a new election campaign will be started
 	heartbeatTimeout int = 500
 
 	// maxAppendEntries will hold how much append entries the leader will send to the follower at once
 	maxAppendEntries uint64 = 1000
+
+	membershipTimeoutSeconds = 10
 )
 
 type Peer struct {
@@ -77,14 +153,14 @@ type Options struct {
 	// Logger expose zerolog so it can be override
 	Logger *zerolog.Logger
 
-	// ElectionTimeout is used to start new election campain.
+	// ElectionTimeout is used to start new election campaign.
 	// Its value will be divided by 2 in order to randomize election timing process.
 	// It must be greater or equal to HeartbeatTimeout.
 	// Unit is in milliseconds
 	ElectionTimeout int
 
 	// HeartbeatTimeout is used by follower without contact from the leader
-	// before starting new election campain.
+	// before starting new election campaign.
 	// Unit is in milliseconds
 	HeartbeatTimeout int
 
@@ -93,7 +169,7 @@ type Options struct {
 	// The default value is 1 and the maximum is 10
 	TimeMultiplier uint
 
-	// MinimumClusterSize is the size minimum to have before starting prevote or election campain
+	// MinimumClusterSize is the size minimum to have before starting prevote or election campaign
 	// default is 3
 	// all members of the cluster will be contacted before any other tasks
 	MinimumClusterSize uint64
@@ -109,7 +185,7 @@ type Options struct {
 	PersistDataOnDisk bool
 
 	// ReadOnlyNode allow to statuate if the current node is a read only node
-	// This kind of node won't participate into any election campain
+	// This kind of node won't participate into any election campaign
 	ReadOnlyNode bool
 
 	// Peers hold the list of the peers
@@ -118,6 +194,15 @@ type Options struct {
 	// Disable pre vote is a boolean the allow us to directly start
 	// vote election without pre vote step
 	DisablePrevote bool
+
+	// ShutdownOnRemove is a boolean that allow the current node to shut down
+	// when Remove command as been sent during membership change request
+	ShutdownOnRemove bool
+
+	// LeaveOnTerminate is a boolean that allow the current node to completely remove itself
+	// from the cluster before shutting down by sending a LeaveOnTerminate command to the leader.
+	// It's usually used by read replicas nodes.
+	LeaveOnTerminate bool
 }
 
 // Rafty is a struct representing the raft requirements
@@ -152,7 +237,7 @@ type Rafty struct {
 	// grpcServer hold requirements for grpc server
 	grpcServer *grpc.Server
 
-	// timer is used during the election campain or heartbeat.
+	// timer is used during the election campaign or heartbeat.
 	// It will be used to detect if a Follower
 	// need to step up as a Candidate to then becoming a Leader
 	timer *time.Ticker
@@ -179,6 +264,12 @@ type Rafty struct {
 	// rpcClientGetLeaderChan will be used to handle rpc call
 	rpcClientGetLeaderChan chan RPCResponse
 
+	// rpcMembershipChangeRequestChan will be used by the leader to handle rpc call from followers
+	rpcMembershipChangeRequestChan chan RPCRequest
+
+	// rpcMembershipChangeChan will be used to handle rpc call from the leader
+	rpcMembershipChangeChan chan RPCResponse
+
 	// leaderFound is only related to rpc call GetLeader
 	leaderFound atomic.Bool
 
@@ -201,12 +292,12 @@ type Rafty struct {
 
 	// candidateForLeadershipTransfer is set to true when the actual node receive
 	// a TimeoutNow rpc request from the leader and will start to initiate
-	// a new election campain
+	// a new election campaign
 	candidateForLeadershipTransfer atomic.Bool
 
-	// startElectionCampain permit to start election campain as
+	// startElectionCampaign permit to start election campaign as
 	// pre vote quorum as been reached
-	startElectionCampain atomic.Bool
+	startElectionCampaign atomic.Bool
 
 	// quitCtx will be used to shutdown the server
 	quitCtx context.Context
@@ -227,21 +318,25 @@ type Rafty struct {
 	// before acknoledging the start prevote election
 	clusterSizeCounter atomic.Uint64
 
-	// votedFor is the node the current node voted for during the election campain
+	// votedFor is the node the current node voted for during the election campaign
 	votedFor string
 
-	// votedForTerm is the node the current node voted for during the election campain
+	// votedForTerm is the node the current node voted for during the election campaign
 	votedForTerm atomic.Uint64
 
-	// currentTerm is latest term seen during the voting campain
+	// currentTerm is latest term seen during the voting campaign
 	currentTerm atomic.Uint64
 
 	// lastApplied is the index of the highest log entry applied to the current raft server
 	lastApplied atomic.Uint64
 
-	// lastAppliedConfig is the index of the highest log entry configuration applied
+	// lastAppliedConfigIndex is the index of the highest log entry configuration applied
 	// to the current raft server
-	lastAppliedConfig atomic.Uint64
+	lastAppliedConfigIndex atomic.Uint64
+
+	// lastAppliedConfigTerm is the term of the highest log entry configuration applied
+	// to the current raft server
+	lastAppliedConfigTerm atomic.Uint64
 
 	// commitIndex is the highest log entry known to be committed
 	// initialized to 0, increases monotically
@@ -284,6 +379,30 @@ type Rafty struct {
 
 	// storage hold requirements to store/restore logs and metadata
 	storage storage
+
+	// waitToBePromoted is an helper when set to true will prevent current
+	// node to start any election campaign
+	waitToBePromoted atomic.Bool
+
+	// decommissioning is a boolean when set to true will allow devops
+	// to put this node on maintenance or to lately send a membership
+	// removal command to be safely be removed from the cluster.
+	// DON'T confuse it with daitToBePromoted flag
+	decommissioning atomic.Bool
+
+	// askForMembership is an helper when set to true will make the current node
+	// to ask for membership in order to be part of the cluster
+	askForMembership atomic.Bool
+
+	// askForMembershipInProgress is an helper when set to true will prevent the
+	// current node to constantly ask for membership when timeout is reached
+	askForMembershipInProgress atomic.Bool
+
+	// shutdownOnRemove is a boolean that allow the current node to shut down
+	// when Remove or ForceRemove command as been sent in membership change request.
+	// It's done like to to allow the node to cleanly reply to the requester before
+	// shutting down
+	shutdownOnRemove atomic.Bool
 }
 
 // preVoteResquestWrapper is a struct that will be used to send response to the caller
@@ -322,7 +441,7 @@ type forwardCommandToLeaderRequestWrapper struct {
 
 // NewRafty instantiate rafty with default configuration
 // with server address and its id
-func NewRafty(address net.TCPAddr, id string, options Options) *Rafty {
+func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 	r := &Rafty{
 		rpcPreVoteRequestChan:                make(chan preVoteResquestWrapper),
 		rpcVoteRequestChan:                   make(chan voteResquestWrapper),
@@ -331,6 +450,8 @@ func NewRafty(address net.TCPAddr, id string, options Options) *Rafty {
 		rpcForwardCommandToLeaderRequestChan: make(chan forwardCommandToLeaderRequestWrapper),
 		rpcAskNodeIDChan:                     make(chan RPCResponse),
 		rpcClientGetLeaderChan:               make(chan RPCResponse),
+		rpcMembershipChangeRequestChan:       make(chan RPCRequest),
+		rpcMembershipChangeChan:              make(chan RPCResponse),
 	}
 	r.Address = address
 	r.id = id
@@ -392,7 +513,7 @@ func NewRafty(address net.TCPAddr, id string, options Options) *Rafty {
 		leadershipTransferInProgress: &r.leadershipTransferInProgress,
 	}
 
-	metaFile, dataFile := r.newStorage()
+	metaFile, dataFile, err := r.newStorage()
 	r.storage = storage{
 		metadata: metaFile,
 		data:     dataFile,
@@ -401,7 +522,7 @@ func NewRafty(address net.TCPAddr, id string, options Options) *Rafty {
 	r.storage.data.rafty = r
 
 	r.logs = r.newLogs()
-	return r
+	return r, err
 }
 
 // Start permits to start the node with the provided configuration
@@ -503,6 +624,9 @@ func (r *Rafty) Stop() {
 
 // stop permits to stop the gRPC server and Rafty with the provided configuration
 func (r *Rafty) stop() {
+	if r.options.LeaveOnTerminate && r.waitForLeader() {
+		r.sendMembershipChangeLeaveOnTerminate()
+	}
 	r.isRunning.Store(false)
 	r.stopCtx()
 	// this is just a safe guard when invoking Stop function directly

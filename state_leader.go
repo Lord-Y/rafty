@@ -28,6 +28,11 @@ type leader struct {
 	// be used by the leader to replicate append entries
 	followerReplication map[string]*followerReplication
 
+	// totalFollowers is the total number of followers
+	// used during the replication. It must be update when adding or removing
+	// a follower
+	totalFollowers atomic.Uint64
+
 	// disableHeartBeat is set to true temporary while sending new entries
 	disableHeartBeat atomic.Bool
 
@@ -48,6 +53,9 @@ type leader struct {
 	// an is set to true when leadershipTransferTimer is resetted.
 	// When leadershipTransferTimer times out, the leadership transfer will be stopped
 	leadershipTransferInProgress atomic.Bool
+
+	// membershipChangeInProgress is set to true when membership change is ongoing
+	membershipChangeInProgress atomic.Bool
 }
 
 // init initialize all requirements needed by
@@ -67,7 +75,7 @@ func (r *leader) init() {
 	r.setupFollowersReplicationStates()
 
 	// heartBeatTimeout is divided by 2 for the leader
-	// otherwise it will step down quickly as new election campain
+	// otherwise it will step down quickly as new election campaign
 	// will be started by followers
 	r.rafty.timer.Reset(r.rafty.heartbeatTimeout() / 2)
 }
@@ -76,6 +84,11 @@ func (r *leader) init() {
 // and then perform some other actions
 func (r *leader) onTimeout() {
 	if r.rafty.getState() != Leader {
+		return
+	}
+
+	if r.rafty.decommissioning.Load() {
+		r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
 		return
 	}
 	r.heartbeat()
@@ -96,24 +109,16 @@ func (r *leader) release() {
 func (r *leader) setupFollowersReplicationStates() {
 	r.followerReplication = make(map[string]*followerReplication)
 	followers, totalFollowers := r.rafty.getPeers()
+	r.totalFollowers.Store(uint64(totalFollowers))
 
-	replicationInitialized := make(chan struct{}, totalFollowers)
 	for _, follower := range followers {
 		followerRepl := &followerReplication{
-			peer:                   follower,
-			rafty:                  r.rafty,
-			newEntryChan:           make(chan *onAppendEntriesRequest, 1),
-			replicationInitialized: replicationInitialized,
-			replicationStopChan:    make(chan struct{}, 1),
+			peer:                follower,
+			rafty:               r.rafty,
+			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
+			replicationStopChan: make(chan struct{}, 1),
 		}
-		r.addReplication(followerRepl)
-	}
-
-	// wait for all replication to be initialized
-	var replicationCounter atomic.Uint64
-	for int(replicationCounter.Load()) != totalFollowers {
-		<-replicationInitialized
-		replicationCounter.Add(1)
+		r.addReplication(followerRepl, true)
 	}
 
 	currentTerm := r.rafty.currentTerm.Load()
@@ -128,78 +133,98 @@ func (r *leader) setupFollowersReplicationStates() {
 
 	totalLogs := r.rafty.logs.appendEntries(entries, false)
 	request := &onAppendEntriesRequest{
-		totalFollowers: uint64(totalFollowers),
-		quorum:         uint64(r.rafty.quorum()),
-		term:           currentTerm,
-		prevLogIndex:   r.rafty.lastLogIndex.Load(),
-		prevLogTerm:    r.rafty.lastLogTerm.Load(),
-		totalLogs:      uint64(totalLogs),
-		uuid:           uuid.NewString(),
-		commitIndex:    r.rafty.commitIndex.Load(),
-		entries:        entries,
-		catchup:        true,
-		rpcTimeout:     r.rafty.randomRPCTimeout(true),
+		totalFollowers:             r.totalFollowers.Load(),
+		quorum:                     uint64(r.rafty.quorum()),
+		term:                       currentTerm,
+		prevLogIndex:               r.rafty.lastLogIndex.Load(),
+		prevLogTerm:                r.rafty.lastLogTerm.Load(),
+		totalLogs:                  uint64(totalLogs),
+		uuid:                       uuid.NewString(),
+		commitIndex:                r.rafty.commitIndex.Load(),
+		entries:                    entries,
+		catchup:                    true,
+		rpcTimeout:                 r.rafty.randomRPCTimeout(true),
+		membershipChangeInProgress: &atomic.Bool{},
 	}
 
 	r.disableHeartBeat.Store(true)
 	defer r.disableHeartBeat.Store(false)
-	for _, follower := range followers {
+	for _, follower := range r.followerReplication {
 		if r.rafty.getState() == Leader && r.rafty.isRunning.Load() {
-			r.followerReplication[follower.ID].newEntryChan <- request
+			follower.newEntryChan <- request
 		}
 	}
 }
 
-// addReplication add a new follower replication with provided config
-func (r *leader) addReplication(follower *followerReplication) {
-	follower.nextIndex.Store(1)
+// addReplication add a new follower replication with provided config.
+// updateNextIndex must be set to true when promoting new node
+func (r *leader) addReplication(follower *followerReplication, updateNextIndex bool) {
+	if updateNextIndex {
+		follower.nextIndex.Store(1)
+	}
 	r.followerReplication[follower.ID] = follower
-	r.rafty.wg.Add(2)
 	go func() {
-		defer r.rafty.wg.Done()
 		follower.startFollowerReplication()
 		r.stopReplication(follower, true)
 	}()
 }
 
+// heartbeat is used by the leader to send hearbeat entries
+// in order to do not lost leadership
 func (r *leader) heartbeat() {
 	currentTerm := r.rafty.currentTerm.Load()
-	followers, _ := r.rafty.getPeers()
-	totalFollowers := len(followers)
 	totalLogs := r.rafty.logs.total().total
 
 	request := &onAppendEntriesRequest{
-		totalFollowers: uint64(totalFollowers),
-		quorum:         uint64(r.rafty.quorum()),
-		term:           currentTerm,
-		prevLogIndex:   r.rafty.lastLogIndex.Load(),
-		prevLogTerm:    r.rafty.lastLogTerm.Load(),
-		heartbeat:      true,
-		totalLogs:      uint64(totalLogs),
-		uuid:           uuid.NewString(),
-		commitIndex:    r.rafty.commitIndex.Load(),
-		rpcTimeout:     r.rafty.randomRPCTimeout(true),
+		totalFollowers:             r.totalFollowers.Load(),
+		quorum:                     uint64(r.rafty.quorum()),
+		term:                       currentTerm,
+		prevLogIndex:               r.rafty.lastLogIndex.Load(),
+		prevLogTerm:                r.rafty.lastLogTerm.Load(),
+		heartbeat:                  true,
+		totalLogs:                  uint64(totalLogs),
+		uuid:                       uuid.NewString(),
+		commitIndex:                r.rafty.commitIndex.Load(),
+		rpcTimeout:                 r.rafty.randomRPCTimeout(true),
+		membershipChangeInProgress: &atomic.Bool{},
 	}
 
-	for _, follower := range followers {
-		if r.rafty.getState() == Leader && r.followerReplication[follower.ID] != nil && (!r.followerReplication[follower.ID].replicationStopped.Load() || !r.disableHeartBeat.Load() || r.rafty.isRunning.Load()) {
-			r.followerReplication[follower.ID].newEntryChan <- request
+	for _, follower := range r.followerReplication {
+		if r.isReplicableForHearbeat(follower) {
+			follower.newEntryChan <- request
 		}
 	}
 }
 
+// isReplicableForHearbeat will check if node is replicable by heartbeat process
+func (r *leader) isReplicableForHearbeat(follower *followerReplication) bool {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
+
+	return r.rafty.getState() == Leader && follower != nil && (!follower.replicationStopped.Load() && !follower.WaitToBePromoted || !r.disableHeartBeat.Load() || r.rafty.isRunning.Load())
+}
+
+// isReplicable will check if node is replicable when adding new logs
+func (r *leader) isReplicable(follower *followerReplication) bool {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
+
+	return r.rafty.getState() == Leader && follower != nil && (!follower.replicationStopped.Load() && !follower.WaitToBePromoted || r.rafty.isRunning.Load())
+}
+
 // stopReplication will stop ongoing follower replication. When deferred is set to true,
-// it will decrement waitGroup
+// it will decrement waitGroup. deferred set to true must ONLY used by addReplication func
 func (r *leader) stopReplication(follower *followerReplication, deferred bool) {
 	if deferred {
+		r.rafty.wg.Add(1)
 		defer r.rafty.wg.Done()
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if !follower.replicationStopped.Load() {
-		follower.replicationStopped.Store(true)
 		follower.replicationStopChan <- struct{}{}
+		follower.replicationStopped.Store(true)
 
 		r.rafty.Logger.Trace().
 			Str("address", r.rafty.Address.String()).
@@ -237,8 +262,6 @@ func (r *leader) stopAllReplication() {
 // handleAppendEntriesFromClients is used to handle commands
 // from clients
 func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
-	followers := r.rafty.configuration.ServerMembers
-	totalFollowers := len(followers)
 	currentTerm := r.rafty.currentTerm.Load()
 	var request *onAppendEntriesRequest
 
@@ -256,19 +279,20 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 
 		totalLogs := r.rafty.logs.appendEntries(entries, false)
 		request = &onAppendEntriesRequest{
-			totalFollowers:    uint64(totalFollowers),
-			quorum:            uint64(r.rafty.quorum()),
-			term:              currentTerm,
-			prevLogIndex:      r.rafty.lastLogIndex.Load(),
-			prevLogTerm:       r.rafty.lastLogTerm.Load(),
-			totalLogs:         uint64(totalLogs),
-			uuid:              uuid.NewString(),
-			replyToClient:     true,
-			replyToClientChan: data.responseChan,
-			commitIndex:       r.rafty.commitIndex.Load(),
-			entries:           entries,
-			catchup:           true,
-			rpcTimeout:        r.rafty.randomRPCTimeout(true),
+			totalFollowers:             r.totalFollowers.Load(),
+			quorum:                     uint64(r.rafty.quorum()),
+			term:                       currentTerm,
+			prevLogIndex:               r.rafty.lastLogIndex.Load(),
+			prevLogTerm:                r.rafty.lastLogTerm.Load(),
+			totalLogs:                  uint64(totalLogs),
+			uuid:                       uuid.NewString(),
+			replyToClient:              true,
+			replyToClientChan:          data.responseChan,
+			commitIndex:                r.rafty.commitIndex.Load(),
+			entries:                    entries,
+			catchup:                    true,
+			rpcTimeout:                 r.rafty.randomRPCTimeout(true),
+			membershipChangeInProgress: &atomic.Bool{},
 		}
 
 	case "forwardCommand":
@@ -284,7 +308,7 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 
 		totalLogs := r.rafty.logs.appendEntries(entries, false)
 		request = &onAppendEntriesRequest{
-			totalFollowers:              uint64(totalFollowers),
+			totalFollowers:              r.totalFollowers.Load(),
 			quorum:                      uint64(r.rafty.quorum()),
 			term:                        currentTerm,
 			prevLogIndex:                r.rafty.lastLogIndex.Load(),
@@ -297,14 +321,15 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			entries:                     entries,
 			catchup:                     true,
 			rpcTimeout:                  r.rafty.randomRPCTimeout(true),
+			membershipChangeInProgress:  &atomic.Bool{},
 		}
 	}
 
 	r.disableHeartBeat.Store(true)
 	defer r.disableHeartBeat.Store(false)
-	for _, follower := range followers {
-		if r.rafty.getState() == Leader && r.followerReplication[follower.ID] != nil && (!r.followerReplication[follower.ID].replicationStopped.Load() || r.rafty.isRunning.Load()) {
-			r.followerReplication[follower.ID].newEntryChan <- request
+	for _, follower := range r.followerReplication {
+		if r.isReplicable(follower) {
+			follower.newEntryChan <- request
 		}
 	}
 }
@@ -314,11 +339,9 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 func (r *leader) leasing() {
 	if r.rafty.getState() == Leader {
 		var unreachable int
-		followers, _ := r.rafty.getPeers()
 		var newLease time.Duration
 		now := time.Now()
-		for _, followerConfig := range followers {
-			follower := r.followerReplication[followerConfig.ID]
+		for _, follower := range r.followerReplication {
 			if follower != nil && !follower.replicationStopped.Load() && !follower.ReadOnlyNode {
 				lastContact := follower.lastContactDate.Load()
 				if lastContact != nil {
@@ -478,8 +501,6 @@ func (r *leader) leadershipTransferLoop() {
 			if r.leadershipTransferInProgress.Load() {
 				r.leadershipTransferChanClosed.Store(true)
 			}
-		//nolint staticcheck
-		default:
 		}
 	}
 }

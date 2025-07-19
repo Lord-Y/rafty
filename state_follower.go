@@ -19,7 +19,12 @@ func (r *follower) init() {
 // onTimeout permit to reset election timer
 // and then perform some other actions
 func (r *follower) onTimeout() {
-	if r.rafty.getState() != Follower {
+	if r.rafty.getState() != Follower || r.rafty.askForMembershipInProgress.Load() || r.rafty.decommissioning.Load() {
+		return
+	}
+
+	if r.rafty.askForMembership.Load() {
+		r.askForMembership()
 		return
 	}
 
@@ -39,7 +44,7 @@ func (r *follower) onTimeout() {
 				Msgf("Leader has been lost for term %d since %s", r.rafty.currentTerm.Load(), since)
 			r.rafty.setLeader(leaderMap{})
 			r.rafty.votedFor = ""
-			r.rafty.startElectionCampain.Store(false)
+			r.rafty.startElectionCampaign.Store(false)
 		}
 	}
 	r.rafty.switchState(Candidate, stepUp, false, r.rafty.currentTerm.Load())
@@ -48,3 +53,17 @@ func (r *follower) onTimeout() {
 // release permit to cancel or gracefully some actions
 // when the node change state
 func (r *follower) release() {}
+
+// askForMembership will contact the leader to be part of
+// the cluster
+func (r *follower) askForMembership() {
+	r.rafty.askForMembershipInProgress.Store(true)
+	r.rafty.sendGetLeaderRequest()
+	select {
+	case <-r.rafty.quitCtx.Done():
+		return
+
+	case <-time.After(5 * time.Second):
+		r.rafty.sendMembershipChangeRequest(Add)
+	}
+}

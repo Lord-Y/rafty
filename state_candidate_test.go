@@ -23,13 +23,26 @@ func TestStateCandidate(t *testing.T) {
 		assert.Equal(Follower, s.getState())
 	})
 
-	t.Run("ontimeout", func(t *testing.T) {
+	t.Run("onTimeout_not_candidate", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
 		assert.Nil(err)
 
 		s.isRunning.Store(true)
 		s.State = Follower
+		state := candidate{rafty: s}
+		state.onTimeout()
+		assert.Equal(Follower, s.getState())
+	})
+
+	t.Run("onTimeout_decommissioning", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.isRunning.Store(true)
+		s.State = Candidate
+		s.decommissioning.Store(true)
 		state := candidate{rafty: s}
 		state.onTimeout()
 		assert.Equal(Follower, s.getState())

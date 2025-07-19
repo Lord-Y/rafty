@@ -232,8 +232,10 @@ func (r *logs) appendEntries(entries []*raftypb.LogEntry, restore bool) int {
 		r.rafty.logs.log = append(r.rafty.logs.log, entry)
 	}
 	totalLogs = len(r.rafty.logs.log)
-	r.rafty.lastLogIndex.Store(uint64(totalLogs - 1))
-	r.rafty.lastLogTerm.Store(uint64(r.rafty.logs.log[r.rafty.lastLogIndex.Load()].Term))
+	if totalLogs > 0 {
+		r.rafty.lastLogIndex.Store(uint64(totalLogs - 1))
+		r.rafty.lastLogTerm.Store(uint64(r.rafty.logs.log[r.rafty.lastLogIndex.Load()].Term))
+	}
 	return totalLogs
 }
 
@@ -265,24 +267,30 @@ func (r *logs) wipeEntries(from, to uint64) logOperationWipeResponse {
 }
 
 // applyConfigEntry will check if logType is a configuration logType
-// and return new list of peers
-func (r *logs) applyConfigEntry(entry *raftypb.LogEntry, currentPeers []peer) ([]peer, error) {
+// and add new peer into configuration
+func (r *logs) applyConfigEntry(entry *raftypb.LogEntry) error {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
+
 	switch entry.LogType {
 	case uint32(logConfiguration):
-		peers, err := decodePeers(entry.Command)
-		if err != nil {
-			return nil, err
-		}
-
-		for i := range currentPeers {
-			if index := slices.IndexFunc(peers, func(p peer) bool {
-				return p.address.String() == currentPeers[i].Address
-			}); index == -1 {
-				currentPeers = append(currentPeers, peers[i])
+		if entry.Index > r.rafty.lastAppliedConfigIndex.Load() || entry.Term > r.rafty.lastAppliedConfigTerm.Load() {
+			peers, err := decodePeers(entry.Command)
+			if err != nil {
+				return err
 			}
+
+			r.rafty.updateServerMembers(peers)
+			// if I have been removed from the cluster
+			if !isPartOfTheCluster(peers, peer{Address: r.rafty.Address.String(), ID: r.rafty.id, address: getNetAddress(r.rafty.Address.String())}) && r.rafty.options.ShutdownOnRemove {
+				r.rafty.shutdownOnRemove.Store(true)
+			}
+
+			r.rafty.lastAppliedConfigIndex.Store(entry.Index)
+			r.rafty.lastAppliedConfigTerm.Store(entry.Term)
 		}
-		return currentPeers, nil
+		return nil
 	default:
 	}
-	return nil, nil
+	return nil
 }

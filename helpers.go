@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"slices"
 	"sync/atomic"
 )
 
@@ -58,15 +59,30 @@ func (r *Rafty) setLeader(newLeader leaderMap) {
 	}
 }
 
-// getLeader permits to retrieve current leader informations
-func (r *Rafty) getPeers() ([]peer, int) {
+// getPeers permits to retrieve all peers from the cluster
+// except current node
+func (r *Rafty) getPeers() (peers []peer, total int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	total := len(r.configuration.ServerMembers)
-	peers := make([]peer, total)
-	copy(peers, r.configuration.ServerMembers)
+	peers = slices.Clone(r.configuration.ServerMembers)
+	return peers, len(peers)
+}
 
-	return peers, total
+// getAllPeers permits to retrieve all members of the cluster
+// including current node
+func (r *Rafty) getAllPeers() (peers []peer, total int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	peers = append(peers, peer{
+		ID:               r.id,
+		Address:          r.Address.String(),
+		address:          getNetAddress(r.Address.String()),
+		WaitToBePromoted: r.waitToBePromoted.Load(),
+		Decommissioning:  r.decommissioning.Load(),
+	})
+	// we need to have the current node first
+	peers = slices.Concat(peers, slices.Clone(r.configuration.ServerMembers))
+	return peers, len(peers)
 }
 
 // IsRunning return a boolean tell if the node is running

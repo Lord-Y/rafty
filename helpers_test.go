@@ -41,7 +41,20 @@ func TestGetPeers(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
 	peers, total := s.getPeers()
+	assert.NotNil(peers)
+	assert.Equal(2, total)
+}
+
+func TestGetAllPeers(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	peers, total := s.getAllPeers()
 	assert.NotNil(peers)
 	assert.Equal(3, total)
 }

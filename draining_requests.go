@@ -70,3 +70,29 @@ func (r *Rafty) drainAppendEntriesRequests() {
 		}
 	}
 }
+
+// drainMembershipChangeRequests will drain all remaining requests in the chan
+func (r *Rafty) drainMembershipChangeRequests() {
+	r.Logger.Trace().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Msgf("Draining membership change requests chan")
+
+	for {
+		select {
+		case data := <-r.rpcMembershipChangeRequestChan:
+			select {
+			case data.ResponseChan <- RPCResponse{
+				Response: &raftypb.MembershipChangeResponse{},
+				Error:    ErrShutdown,
+			}:
+			//nolint staticcheck
+			default:
+			}
+		//nolint staticcheck
+		default:
+			return
+		}
+	}
+}

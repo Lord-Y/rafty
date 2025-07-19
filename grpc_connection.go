@@ -47,7 +47,6 @@ func (r *connectionManager) getClient(address, id string) raftypb.RaftyClient {
 	if client, ok := r.clients[address]; ok {
 		return client
 	}
-
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}

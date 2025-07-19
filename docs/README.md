@@ -28,25 +28,25 @@ _Consensus typically arises in the context of replicated state machines, a gener
 
 A `Down` node is a node that has been unreachable for a long period of time.
 
-A `ReadOnly` node is a node that does not pariticipate into the `voting campain`. It's a passive node that issue not requests on his own be simply respond answer from the leader. This node can never become a `follower`
+A `ReadOnly` node is a node that does not pariticipate into the `voting campaign`. It's a passive node that issue not requests on his own be simply respond answer from the leader. This node can never become a `follower`
 
-A `Follower` node is a node that participate into the `voting campain`. It's a passive node that issue not requests on his own be simply respond answer from the leader. This node can become a `candidate` if all requirements are available.
+A `Follower` node is a node that participate into the `voting campaign`. It's a passive node that issue not requests on his own be simply respond answer from the leader. This node can become a `candidate` if all requirements are available.
 
-A `Candidate` node is a node that participate into the `voting campain`. This node can become a `Leader`.
+A `Candidate` node is a node that participate into the `voting campaign`. This node can become a `Leader`.
 
-A `Leader` is a node that was previously a `Candidate`. It received the majority of the votes including itself and get elected as the `Leader`. It will then handle all client requests. Writes requests can only be done on the leader. There can only be one `Leader`. To conserve his leadership, it will also send heartbeats/appendEntries to `followers` and `readOnly` nodes otherwise, a new voting campain will be initiated.
+A `Leader` is a node that was previously a `Candidate`. It received the majority of the votes including itself and get elected as the `Leader`. It will then handle all client requests. Writes requests can only be done on the leader. There can only be one `Leader`. To conserve his leadership, it will also send heartbeats/appendEntries to `followers` and `readOnly` nodes otherwise, a new voting campaign will be initiated.
 
-## Voting campain
+## Voting campaign
 
 When a node is starting, it starts as a `Follower` except if it's a `ReadOnly` node.
 
 If there is no `Leader`, the `Follower` will become a `Candidate` node.
-During the campain, the `Candidate` will:
+During the campaign, the `Candidate` will:
 - reset its election timeout
 - increase its `currentTerm`
 - vote for himself
 - send request votes from others nodes.
-The other nodes will grant their votes based on `currentTerm`, `lastLogTerm` and `lastLogIndex` named `RequestVote`. The `term` increase over time with new election campain.
+The other nodes will grant their votes based on `currentTerm`, `lastLogTerm` and `lastLogIndex` named `RequestVote`. The `term` increase over time with new election campaign.
 
 If a server `currenTerm` is smaller than other's `currentTerm`, it will update is `term` to the larger value known and step down as a `Follower`.
 
@@ -59,26 +59,26 @@ When a server has reached the majority of votes based on the quorum of servers, 
 
 ## PreVote
 
-During the voting campain, by design a `preVote` is done in order to make sure that nodes with must update `currentTerm` will participate in the election campain before on of them become a `Leader`.
+During the voting campaign, by design a `preVote` is done in order to make sure that nodes with must update `currentTerm` will participate in the election campaign before on of them become a `Leader`.
 
 ### Multiple leaders
 
-If you have a 3 or 5 nodes constituing a cluster for example, you can have 2 leaders at the same time and the same sets of `RequestVote`. In order to fix that problem, the `raft protocol` introduced a random election timeout on each nodes participating into the campain.
+If you have a 3 or 5 nodes constituing a cluster for example, you can have 2 leaders at the same time and the same sets of `RequestVote`. In order to fix that problem, the `raft protocol` introduced a random election timeout on each nodes participating into the campaign.
 If the `term` of one `Leader` is lower than the other `Leader`, the first one will step down as a `Follower`.
 
 ### Split vote
 
-A `raft cluster` must have a minimum of 3 nodes in which you can allow only one fail node. If the leader is unreachable, a new campain will be initiatied by the 2 other `followers`. The problem is at some point a `split vote` can happen. The random election timeout will fix that problem.
+A `raft cluster` must have a minimum of 3 nodes in which you can allow only one fail node. If the leader is unreachable, a new campaign will be initiatied by the 2 other `followers`. The problem is at some point a `split vote` can happen. The random election timeout will fix that problem.
 
 ## Election timeout
 
 One thing you need to know is the election timeout keep running whether or not there is a `Leader`.
-It allow the follower node to start a new election campain in case there is no `Leader`.
+It allow the follower node to start a new election campaign in case there is no `Leader`.
 This election timeout will randomly be between `150` and `300` milliseconds.
 
 ## Heartbeats
 
-When a new `Leader` is elected, it must send heartbeats to all `Follower` before election timeout in order to prevent new election campain. After every heartbeats, a `Follower` will reset his own election timeout.
+When a new `Leader` is elected, it must send heartbeats to all `Follower` before election timeout in order to prevent new election campaign. After every heartbeats, a `Follower` will reset his own election timeout.
 The `Leader` will send `heartbeats` with empty logs.
 Those `heartbeats` are done with by `appendEntries`.
 

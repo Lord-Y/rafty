@@ -22,11 +22,17 @@ func (r *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest
 		lid, lad = leader.id, leader.address
 	}
 
+	var mustAskForMembership bool
+	if !r.rafty.isPartOfTheCluster(peer{ID: in.Id, Address: in.Address}) {
+		mustAskForMembership = true
+	}
+
 	return &raftypb.AskNodeIDResponse{
-		PeerID:        r.rafty.id,
-		ReadOnlyNode:  r.rafty.options.ReadOnlyNode,
-		LeaderID:      lid,
-		LeaderAddress: lad,
+		PeerID:           r.rafty.id,
+		ReadOnlyNode:     r.rafty.options.ReadOnlyNode,
+		LeaderID:         lid,
+		LeaderAddress:    lad,
+		AskForMembership: mustAskForMembership,
 	}, nil
 }
 
@@ -35,16 +41,23 @@ func (r *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest
 		return nil, ErrShutdown
 	}
 
-	response := &raftypb.GetLeaderResponse{
-		PeerID: r.rafty.id,
+	var mustAskForMembership bool
+	if !r.rafty.isPartOfTheCluster(peer{ID: in.PeerID, Address: in.PeerAddress}) {
+		mustAskForMembership = true
 	}
 
-	r.rafty.Logger.Info().
+	response := &raftypb.GetLeaderResponse{
+		PeerID:           r.rafty.id,
+		AskForMembership: mustAskForMembership,
+	}
+
+	r.rafty.Logger.Trace().
 		Str("address", r.rafty.Address.String()).
 		Str("id", r.rafty.id).
 		Str("state", r.rafty.getState().String()).
 		Str("peerAddress", in.PeerAddress).
 		Str("peerId", in.PeerID).
+		Str("mustAskForMembership", fmt.Sprintf("%t", mustAskForMembership)).
 		Msgf("Peer is looking for the leader")
 
 	if r.rafty.getState() == Leader {
@@ -134,11 +147,11 @@ func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteReques
 }
 
 func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.AppendEntryRequest) (*raftypb.AppendEntryResponse, error) {
-	responseChan := make(chan *raftypb.AppendEntryResponse, 1)
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
 
+	responseChan := make(chan *raftypb.AppendEntryResponse, 1)
 	select {
 	case r.rafty.rpcAppendEntriesRequestChan <- appendEntriesResquestWrapper{
 		request:      in,
@@ -245,4 +258,42 @@ func (r *rpcManager) SendTimeoutNowRequest(_ context.Context, in *raftypb.Timeou
 		Str("candidateForLeadershipTransfer", fmt.Sprintf("%t", r.rafty.candidateForLeadershipTransfer.Load())).
 		Msg("LeadershipTransfer received")
 	return &raftypb.TimeoutNowResponse{Success: true}, nil
+}
+
+func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftypb.MembershipChangeRequest) (*raftypb.MembershipChangeResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
+		return nil, ErrShutdown
+	}
+
+	responseChan := make(chan RPCResponse, 1)
+	select {
+	case r.rafty.rpcMembershipChangeRequestChan <- RPCRequest{
+		RPCType:      MembershipChangeRequest,
+		Request:      in,
+		ResponseChan: responseChan,
+	}:
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(500 * time.Millisecond):
+		return nil, errTimeoutSendingRequest
+	}
+
+	select {
+	case response := <-responseChan:
+		return response.Response.(*raftypb.MembershipChangeResponse), response.Error
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(time.Second * membershipTimeoutSeconds):
+		return nil, errTimeoutSendingRequest
+	}
 }
