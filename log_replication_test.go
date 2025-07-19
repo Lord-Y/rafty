@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -28,17 +29,18 @@ func TestSendCatchupAppendEntries(t *testing.T) {
 	t.Run("total_zero", func(t *testing.T) {
 		totalLogs := s.logs.appendEntries(entries, false)
 		oldRequest := &onAppendEntriesRequest{
-			totalFollowers: uint64(totalFollowers),
-			quorum:         uint64(s.quorum()),
-			term:           currentTerm,
-			prevLogIndex:   s.lastLogIndex.Load(),
-			prevLogTerm:    s.lastLogTerm.Load(),
-			totalLogs:      uint64(totalLogs),
-			uuid:           uuid.NewString(),
-			commitIndex:    s.commitIndex.Load(),
-			entries:        entries,
-			catchup:        true,
-			rpcTimeout:     s.randomRPCTimeout(true),
+			totalFollowers:             uint64(totalFollowers),
+			quorum:                     uint64(s.quorum()),
+			term:                       currentTerm,
+			prevLogIndex:               s.lastLogIndex.Load(),
+			prevLogTerm:                s.lastLogTerm.Load(),
+			totalLogs:                  uint64(totalLogs),
+			uuid:                       uuid.NewString(),
+			commitIndex:                s.commitIndex.Load(),
+			entries:                    entries,
+			catchup:                    true,
+			rpcTimeout:                 s.randomRPCTimeout(true),
+			membershipChangeInProgress: &atomic.Bool{},
 		}
 
 		oldResponse := &raftypb.AppendEntryResponse{
@@ -58,17 +60,18 @@ func TestSendCatchupAppendEntries(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
 		totalLogs := s.logs.appendEntries(entries, false)
 		oldRequest := &onAppendEntriesRequest{
-			totalFollowers: uint64(totalFollowers),
-			quorum:         uint64(s.quorum()),
-			term:           currentTerm,
-			prevLogIndex:   s.lastLogIndex.Load(),
-			prevLogTerm:    s.lastLogTerm.Load(),
-			totalLogs:      uint64(totalLogs),
-			uuid:           uuid.NewString(),
-			commitIndex:    s.commitIndex.Load(),
-			entries:        entries,
-			catchup:        true,
-			rpcTimeout:     s.randomRPCTimeout(true),
+			totalFollowers:             uint64(totalFollowers),
+			quorum:                     uint64(s.quorum()),
+			term:                       currentTerm,
+			prevLogIndex:               s.lastLogIndex.Load(),
+			prevLogTerm:                s.lastLogTerm.Load(),
+			totalLogs:                  uint64(totalLogs),
+			uuid:                       uuid.NewString(),
+			commitIndex:                s.commitIndex.Load(),
+			entries:                    entries,
+			catchup:                    true,
+			rpcTimeout:                 s.randomRPCTimeout(true),
+			membershipChangeInProgress: &atomic.Bool{},
 		}
 
 		oldResponse := &raftypb.AppendEntryResponse{

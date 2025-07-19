@@ -10,7 +10,7 @@ import (
 )
 
 // RPCType is used to build rpc requests
-type RPCType uint16
+type RPCType uint8
 
 const (
 	// AskNodeID will be used to ask node id
@@ -27,6 +27,10 @@ const (
 
 	// TimeoutNow is used during leadership transfer
 	TimeoutNowRequest
+
+	// MembershipChangeRequest is used during membership changes
+	// by a new node that wants to be part of the cluster
+	MembershipChangeRequest
 )
 
 type RPCRequest struct {
@@ -48,7 +52,7 @@ type RPCAskNodeIDRequest struct {
 
 type RPCAskNodeIDResponse struct {
 	LeaderID, LeaderAddress, PeerID string
-	ReadOnlyNode                    bool
+	ReadOnlyNode, AskForMembership  bool
 }
 
 type RPCGetLeaderRequest struct {
@@ -59,6 +63,7 @@ type RPCGetLeaderRequest struct {
 type RPCGetLeaderResponse struct {
 	LeaderID, LeaderAddress, PeerID string
 	TotalPeers                      int
+	AskForMembership                bool
 }
 
 type RPCPreVoteRequest struct {
@@ -88,6 +93,20 @@ type RPCTimeoutNowRequest struct{}
 
 type RPCTimeoutNowResponse struct {
 	Success bool
+}
+
+type RPCMembershipChangeRequest struct {
+	Address, Id               string
+	ReadOnlyNode              bool
+	Action                    uint32
+	LastLogIndex, LastLogTerm uint64
+}
+
+type RPCMembershipChangeResponse struct {
+	ActionPerformed, Response uint32
+	LeaderID, LeaderAddress   string
+	Peers                     []peer
+	Success                   bool
 }
 
 // sendRPC is use to send rpc request
@@ -145,6 +164,15 @@ func (r *Rafty) sendRPC(request RPCRequest, client raftypb.RaftyClient, peer pee
 		)
 		request.ResponseChan <- RPCResponse{Response: makeRPCTimeoutNowResponse(resp), Error: err, TargetPeer: peer}
 
+	case MembershipChangeRequest:
+		req := request.Request.(RPCMembershipChangeRequest)
+		resp, err := client.SendMembershipChangeRequest(
+			ctx,
+			makeRPCMembershipChangeRequest(req),
+			options...,
+		)
+		request.ResponseChan <- RPCResponse{Response: makeRPCMembershipChangeResponse(resp, req.Action), Error: err, TargetPeer: peer}
+
 	default:
 		request.ResponseChan <- RPCResponse{Error: errUnkownRPCType, TargetPeer: peer}
 	}
@@ -166,14 +194,15 @@ func makeRPCAskNodeIDResponse(data *raftypb.AskNodeIDResponse) RPCAskNodeIDRespo
 		return RPCAskNodeIDResponse{}
 	}
 	return RPCAskNodeIDResponse{
-		LeaderID:      data.LeaderID,
-		LeaderAddress: data.LeaderAddress,
-		PeerID:        data.PeerID,
-		ReadOnlyNode:  data.ReadOnlyNode,
+		LeaderID:         data.LeaderID,
+		LeaderAddress:    data.LeaderAddress,
+		PeerID:           data.PeerID,
+		ReadOnlyNode:     data.ReadOnlyNode,
+		AskForMembership: data.AskForMembership,
 	}
 }
 
-// makeRPCGetLeaderRequest build leader request
+// makeRPCGetLeaderRequest build get leader request
 func makeRPCGetLeaderRequest(data RPCGetLeaderRequest) *raftypb.GetLeaderRequest {
 	return &raftypb.GetLeaderRequest{
 		PeerID:      data.PeerID,
@@ -181,16 +210,17 @@ func makeRPCGetLeaderRequest(data RPCGetLeaderRequest) *raftypb.GetLeaderRequest
 	}
 }
 
-// makeRPCGetLeaderResponse build leader response
+// makeRPCGetLeaderResponse build get leader response
 func makeRPCGetLeaderResponse(data *raftypb.GetLeaderResponse, totalPeers int) RPCGetLeaderResponse {
 	if data == nil {
 		return RPCGetLeaderResponse{}
 	}
 	return RPCGetLeaderResponse{
-		LeaderID:      data.LeaderID,
-		LeaderAddress: data.LeaderAddress,
-		PeerID:        data.PeerID,
-		TotalPeers:    totalPeers,
+		LeaderID:         data.LeaderID,
+		LeaderAddress:    data.LeaderAddress,
+		PeerID:           data.PeerID,
+		TotalPeers:       totalPeers,
+		AskForMembership: data.AskForMembership,
 	}
 }
 
@@ -248,6 +278,29 @@ func makeRPCTimeoutNowResponse(data *raftypb.TimeoutNowResponse) RPCTimeoutNowRe
 	}
 }
 
+// makeRPCMembershipChangeRequest build membership change request
+func makeRPCMembershipChangeRequest(data RPCMembershipChangeRequest) *raftypb.MembershipChangeRequest {
+	return &raftypb.MembershipChangeRequest{
+		Id:           data.Id,
+		Address:      data.Address,
+		ReadOnlyNode: data.ReadOnlyNode,
+		Action:       data.Action,
+	}
+}
+
+// makeRPCMembershipChangeResponse build membership change response
+func makeRPCMembershipChangeResponse(data *raftypb.MembershipChangeResponse, action uint32) RPCMembershipChangeResponse {
+	if data == nil {
+		return RPCMembershipChangeResponse{ActionPerformed: action, Success: false}
+	}
+	return RPCMembershipChangeResponse{
+		ActionPerformed: action,
+		LeaderID:        data.LeaderID,
+		LeaderAddress:   data.LeaderAddress,
+		Success:         data.Success,
+	}
+}
+
 // sendAskNodeIDRequest will ask targeted node its id
 func (r *Rafty) sendAskNodeIDRequest() {
 	peers, _ := r.getPeers()
@@ -299,6 +352,10 @@ func (r *Rafty) askNodeIDResult(resp RPCResponse) {
 	peers := r.configuration.ServerMembers
 	r.mu.Unlock()
 
+	if response.AskForMembership {
+		r.askForMembership.Store(true)
+	}
+
 	// checking if all servers have an id
 	// if not, we are not ready
 	for index := range peers {
@@ -319,7 +376,7 @@ func (r *Rafty) askNodeIDResult(resp RPCResponse) {
 
 // sendGetLeaderRequest allow the current node
 // ask to other nodes who is the actual leader
-// and prevent starting election campain
+// and prevent starting election campaign
 func (r *Rafty) sendGetLeaderRequest() {
 	peers, totalPeers := r.getPeers()
 	r.leaderCount.Add(0)
@@ -348,7 +405,7 @@ func (r *Rafty) sendGetLeaderRequest() {
 
 // getLeaderResult allow the current node
 // ask to other nodes who is the actual leader
-// and prevent starting election campain
+// and prevent starting election campaign
 func (r *Rafty) getLeaderResult(resp RPCResponse) {
 	response := resp.Response.(RPCGetLeaderResponse)
 	err := resp.Error
@@ -370,7 +427,6 @@ func (r *Rafty) getLeaderResult(resp RPCResponse) {
 	}
 
 	r.leaderCount.Add(1)
-
 	if response.LeaderID != "" {
 		r.leaderFound.Store(true)
 		r.setLeader(leaderMap{
@@ -378,7 +434,7 @@ func (r *Rafty) getLeaderResult(resp RPCResponse) {
 			id:      response.LeaderID,
 		})
 
-		r.Logger.Info().
+		r.Logger.Debug().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
@@ -389,10 +445,175 @@ func (r *Rafty) getLeaderResult(resp RPCResponse) {
 	}
 
 	if !r.leaderFound.Load() && int(r.leaderCount.Load()) == response.TotalPeers {
-		r.Logger.Info().
+		r.Logger.Debug().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
 			Msgf("There is no leader")
 	}
+}
+
+// sendMembershipChangeRequest is used by the current node
+// to ask leader to be part of the cluster
+func (r *Rafty) sendMembershipChangeRequest(action MembershipChange) {
+	request := RPCRequest{
+		RPCType: MembershipChangeRequest,
+		Request: RPCMembershipChangeRequest{
+			Id:           r.id,
+			Address:      r.Address.String(),
+			Action:       uint32(action),
+			LastLogIndex: r.lastLogIndex.Load(),
+			LastLogTerm:  r.lastLogTerm.Load(),
+			ReadOnlyNode: r.options.ReadOnlyNode,
+		},
+		Timeout:      time.Second,
+		ResponseChan: r.rpcMembershipChangeChan,
+	}
+
+	leader := r.getLeader()
+	if leader.address != "" && leader.id != "" {
+		peer := peer{
+			Address: leader.address,
+			address: getNetAddress(leader.address),
+			ID:      leader.id,
+		}
+		client := r.connectionManager.getClient(peer.Address, leader.id)
+		if client != nil {
+			// membership is a kind of a long running progress
+			// so we need to send the request in background
+			// to be able to receive calls from leader
+			go r.sendRPC(request, client, peer)
+			r.Logger.Debug().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("leaderAddress", peer.Address).
+				Str("leaderId", peer.ID).
+				Str("action", action.String()).
+				Msgf("Membership change request sent")
+		}
+		return
+	}
+	r.askForMembershipInProgress.Store(false)
+}
+
+// membershipChangeResponse will handle membership change request
+// response from the leader by the new node.
+// It will update the current node configuration
+// and retry if needed
+func (r *Rafty) membershipChangeResponse(resp RPCResponse) {
+	response := resp.Response.(RPCMembershipChangeResponse)
+	err := resp.Error
+	targetPeer := resp.TargetPeer
+
+	defer r.askForMembershipInProgress.Store(false)
+	if r.getState() != Down && err != nil {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("leaderAddress", targetPeer.Address).
+			Str("leaderId", targetPeer.ID).
+			Str("action", MembershipChange(response.ActionPerformed).String()).
+			Msgf("Fail to ask for membership change request")
+		return
+	}
+
+	r.Logger.Debug().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Str("leaderAddress", targetPeer.Address).
+		Str("leaderId", targetPeer.ID).
+		Str("action", MembershipChange(response.ActionPerformed).String()).
+		Msgf("Membership change request response %t", response.Success)
+
+	if response.Success {
+		r.askForMembership.Store(false)
+		r.Logger.Debug().
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("leaderAddress", targetPeer.Address).
+			Str("leaderId", targetPeer.ID).
+			Str("action", MembershipChange(response.ActionPerformed).String()).
+			Msgf("Membership change request successful")
+	}
+}
+
+// sendMembershipChangeLeaveOnTerminate is used by the current node
+// to ask leader to be remove itself of the cluster as it's going down.
+// This is only used by nodes who are read replicas.
+// Using it for nodes who are followers are not recommended.
+func (r *Rafty) sendMembershipChangeLeaveOnTerminate() {
+	rpcMembershipChangeChan := make(chan RPCResponse, 1)
+	request := RPCRequest{
+		RPCType: MembershipChangeRequest,
+		Request: RPCMembershipChangeRequest{
+			Id:           r.id,
+			Address:      r.Address.String(),
+			Action:       uint32(LeaveOnTerminate),
+			LastLogIndex: r.lastLogIndex.Load(),
+			LastLogTerm:  r.lastLogTerm.Load(),
+			ReadOnlyNode: r.options.ReadOnlyNode,
+		},
+		Timeout:      time.Second,
+		ResponseChan: rpcMembershipChangeChan,
+	}
+
+	leader := r.getLeader()
+	if leader.address != "" && leader.id != "" {
+		peer := peer{
+			Address: leader.address,
+			address: getNetAddress(leader.address),
+			ID:      leader.id,
+		}
+
+		client := r.connectionManager.getClient(peer.Address, leader.id)
+		if client != nil {
+			// membership is a kind of a long running progress
+			// so we need to send the request in background
+			// to be able to receive calls from leader
+			go r.sendRPC(request, client, peer)
+			r.Logger.Debug().
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("leaderAddress", peer.Address).
+				Str("leaderId", peer.ID).
+				Str("action", LeaveOnTerminate.String()).
+				Msgf("Membership change request sent")
+		}
+
+		select {
+		case <-time.After(5 * time.Second):
+			return
+
+		case resp := <-rpcMembershipChangeChan:
+			response := resp.Response.(RPCMembershipChangeResponse)
+			if response.Success {
+				r.askForMembership.Store(false)
+				r.Logger.Debug().
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Str("leaderAddress", peer.Address).
+					Str("leaderId", peer.ID).
+					Str("action", LeaveOnTerminate.String()).
+					Msgf("Membership change request successful")
+			}
+		}
+	}
+}
+
+// rpcMembershipNotLeader is an rpc helper that allow to reploy to clients
+// when membership is sent to a non leader node
+func (r *Rafty) rpcMembershipNotLeader(data RPCRequest) {
+	leader := r.getLeader()
+	response := &raftypb.MembershipChangeResponse{LeaderID: leader.id, LeaderAddress: leader.address}
+	rpcResponse := RPCResponse{
+		Response: response,
+		Error:    ErrNotLeader,
+	}
+	data.ResponseChan <- rpcResponse
 }

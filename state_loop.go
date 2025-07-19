@@ -74,6 +74,18 @@ func (r *Rafty) runAsReadOnly() {
 			if ok {
 				r.handleSendAppendEntriesRequest(data)
 			}
+
+		// handle membership change response from leader
+		case data, ok := <-r.rpcMembershipChangeChan:
+			if ok {
+				r.membershipChangeResponse(data)
+			}
+
+		// handle membership sent when current node is NOT the leader
+		case data, ok := <-r.rpcMembershipChangeRequestChan:
+			if ok {
+				r.rpcMembershipNotLeader(data)
+			}
 		}
 	}
 }
@@ -116,6 +128,18 @@ func (r *Rafty) runAsFollower() {
 		case data, ok := <-r.rpcAppendEntriesRequestChan:
 			if ok {
 				r.handleSendAppendEntriesRequest(data)
+			}
+
+		// handle membership change response from leader
+		case data, ok := <-r.rpcMembershipChangeChan:
+			if ok {
+				r.membershipChangeResponse(data)
+			}
+
+		// handle membership sent when current node is NOT the leader
+		case data, ok := <-r.rpcMembershipChangeRequestChan:
+			if ok {
+				r.rpcMembershipNotLeader(data)
 			}
 		}
 	}
@@ -173,6 +197,12 @@ func (r *Rafty) runAsCandidate() {
 			if ok {
 				r.handleSendAppendEntriesRequest(data)
 			}
+
+		// handle membership sent when current node is NOT the leader
+		case data, ok := <-r.rpcMembershipChangeRequestChan:
+			if ok {
+				r.rpcMembershipNotLeader(data)
+			}
 		}
 	}
 }
@@ -193,6 +223,7 @@ func (r *Rafty) runAsLeader() {
 			r.drainPreVoteRequests()
 			r.drainVoteRequests()
 			r.drainAppendEntriesRequests()
+			r.drainMembershipChangeRequests()
 			return
 
 		// common state timer
@@ -232,6 +263,12 @@ func (r *Rafty) runAsLeader() {
 		case data, ok := <-r.rpcForwardCommandToLeaderRequestChan:
 			if ok {
 				state.handleAppendEntriesFromClients("forwardCommand", data)
+			}
+
+		// handle membership sent by follower nodes to the leader
+		case data, ok := <-r.rpcMembershipChangeRequestChan:
+			if ok {
+				state.handleSendMembershipChangeRequest(data)
 			}
 		}
 	}

@@ -1,7 +1,9 @@
 package rafty
 
 import (
+	"fmt"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
@@ -27,11 +29,12 @@ func basicNodeSetup() *Rafty {
 		},
 	}
 
-	id := "abe35d4f-787e-4262-9894-f6475ed81028"
+	id := fmt.Sprintf("%d", addr.Port)
+	id = id[len(id)-2:]
 	options := Options{
 		Peers: peers,
 	}
-	s := NewRafty(addr, id, options)
+	s, _ := NewRafty(addr, id, options)
 
 	for _, v := range s.options.Peers {
 		s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
@@ -39,7 +42,7 @@ func basicNodeSetup() *Rafty {
 	return s
 }
 
-func TestUtilsParsePeers(t *testing.T) {
+func TestUtils_parsePeers(t *testing.T) {
 	assert := assert.New(t)
 
 	addr := net.TCPAddr{
@@ -88,11 +91,12 @@ func TestUtilsParsePeers(t *testing.T) {
 		},
 	}
 
-	id := "abe35d4f-787e-4262-9894-f6475ed81028"
+	id := fmt.Sprintf("%d", addr.Port)
+	id = id[len(id)-2:]
 	options := Options{
 		Peers: peers,
 	}
-	s := NewRafty(addr, id, options)
+	s, _ := NewRafty(addr, id, options)
 
 	mergePeers := func(peers []Peer) {
 		for _, v := range peers {
@@ -116,7 +120,7 @@ func TestUtilsParsePeers(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestUtilsSwitchStateAndLogState(t *testing.T) {
+func TestUtils_switchStateAndLogState(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
@@ -195,7 +199,7 @@ func TestUtilsSwitchStateAndLogState(t *testing.T) {
 	}
 }
 
-func TestUtilsSaveLeaderInformations(t *testing.T) {
+func TestUtils_saveLeaderInformations(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
@@ -253,7 +257,7 @@ func TestUtilsSaveLeaderInformations(t *testing.T) {
 	}
 }
 
-func TestUtilsMin(t *testing.T) {
+func TestUtils_min(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -283,7 +287,7 @@ func TestUtilsMin(t *testing.T) {
 	}
 }
 
-func TestUtilsMax(t *testing.T) {
+func TestUtils_max(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -308,7 +312,7 @@ func TestUtilsMax(t *testing.T) {
 	}
 }
 
-func TestUtilsBackoff(t *testing.T) {
+func TestUtils_backoff(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -343,7 +347,7 @@ func TestUtilsQuorum(t *testing.T) {
 	assert.Equal(2, s.quorum())
 }
 
-func TestUtilsCalculateMaxRangeLogIndex(t *testing.T) {
+func TestUtils_calculateMaxRangeLogIndex(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -381,4 +385,69 @@ func TestUtilsCalculateMaxRangeLogIndex(t *testing.T) {
 		assert.Equal(tc.limit, limit)
 		assert.Equal(tc.snapshot, snapshot)
 	}
+}
+
+func TestUtils_getNetAddress(t *testing.T) {
+	assert := assert.New(t)
+
+	member := peer{
+		Address: "127.0.0.2:60000",
+	}
+
+	net := getNetAddress(member.Address)
+	assert.NotNil(net.IP)
+	assert.NotNil(net.Port)
+}
+
+func TestUtils_isPartOfTheCluster(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	member := peer{
+		Address: s.options.Peers[0].Address,
+	}
+	assert.Equal(true, s.isPartOfTheCluster(member))
+	assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, member))
+
+	member.Address = "127.0.0.2:60000"
+	member.ID = "fake"
+	assert.Equal(false, s.isPartOfTheCluster(member))
+	assert.Equal(false, isPartOfTheCluster(s.configuration.ServerMembers, member))
+}
+
+func TestUtils_waitForLeader(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("error", func(t *testing.T) {
+		s := basicNodeSetup()
+		s.configuration.ServerMembers = nil
+		assert.Equal(false, s.waitForLeader())
+	})
+}
+
+func TestUtils_updateServerMembers(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	peers, total := s.getAllPeers()
+	assert.NotNil(peers)
+	assert.Equal(3, total)
+
+	t.Run("waitToBePromoted", func(t *testing.T) {
+		clone := slices.Clone(peers)
+		clone[0].WaitToBePromoted = true
+		s.updateServerMembers(clone)
+		assert.Equal(true, s.waitToBePromoted.Load())
+	})
+
+	t.Run("decommissioning", func(t *testing.T) {
+		clone := slices.Clone(peers)
+		clone[0].WaitToBePromoted = false
+		clone[0].Decommissioning = true
+		s.updateServerMembers(clone)
+		assert.Equal(false, s.waitToBePromoted.Load())
+		assert.Equal(true, s.decommissioning.Load())
+	})
 }

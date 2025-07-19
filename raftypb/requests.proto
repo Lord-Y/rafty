@@ -61,7 +61,7 @@ message AppendEntryRequest {
 }
 
 message AppendEntryResponse {
-  uint64 term         = 1;
+  uint64 term         = 1; // what for?
   bool   success      = 2;
   bool   logNotFound  = 3;
   uint64 lastLogIndex = 4;
@@ -74,10 +74,11 @@ message AskNodeIDRequest {
 }
 
 message AskNodeIDResponse {
-  string peerID        = 1;
-  bool   readOnlyNode  = 2;
-  string leaderID      = 3;
-  string leaderAddress = 4;
+  string peerID           = 1;
+  bool   readOnlyNode     = 2;
+  string leaderID         = 3;
+  string leaderAddress    = 4;
+  bool   askForMembership = 5;
 }
 
 message ClientGetLeaderRequest {
@@ -95,9 +96,10 @@ message GetLeaderRequest {
 }
 
 message GetLeaderResponse {
-  string leaderID      = 1;
-  string leaderAddress = 2;
-  string peerID        = 3;
+  string leaderID         = 1;
+  string leaderAddress    = 2;
+  string peerID           = 3;
+  bool   askForMembership = 4;
 }
 
 message ForwardCommandToLeaderRequest {
@@ -109,16 +111,25 @@ message ForwardCommandToLeaderResponse {
   string error = 2;
 }
 
-message PersistMetadata {
-  string id          = 1;
-  uint64 currentTerm = 2;
-  string votedFor    = 3;
-}
-
 message TimeoutNowRequest {}
 
 message TimeoutNowResponse {
   bool   success = 1;
+}
+
+message MembershipChangeRequest {
+  string id           = 1;
+  string address      = 2;
+  bool   readOnlyNode = 3;
+  uint32 action       = 4;
+  uint64 lastLogIndex = 5;
+  uint64 lastLogTerm  = 6;
+}
+
+message MembershipChangeResponse {
+  bool   success       = 1;
+  string leaderID      = 2;
+  string leaderAddress = 3;
 }
 
 service Rafty {
@@ -130,4 +141,5 @@ service Rafty {
   rpc AskNodeID(AskNodeIDRequest) returns (AskNodeIDResponse) {}
   rpc ForwardCommandToLeader(ForwardCommandToLeaderRequest) returns (ForwardCommandToLeaderResponse) {}
   rpc SendTimeoutNowRequest(TimeoutNowRequest) returns (TimeoutNowResponse) {}
+  rpc SendMembershipChangeRequest(MembershipChangeRequest) returns (MembershipChangeResponse) {}
 }

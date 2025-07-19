@@ -90,9 +90,17 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		assert.NotNil(err)
 	})
 
+	t.Run("timeout_context", func(t *testing.T) {
+		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
+		defer func() {
+			s.stopCtx()
+			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		}()
+		_, err = rpcm.SendPreVoteRequest(s.quitCtx, request)
+		assert.NotNil(err)
+	})
+
 	t.Run("up", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
@@ -106,7 +114,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s.State = Follower
-		s.isRunning.Store(true)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
@@ -141,9 +148,18 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		assert.NotNil(err)
 	})
 
+	t.Run("timeout_context", func(t *testing.T) {
+		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
+		defer func() {
+			s.stopCtx()
+			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		}()
+		_, err = rpcm.SendVoteRequest(s.quitCtx, request)
+		assert.NotNil(err)
+	})
+
 	t.Run("up", func(t *testing.T) {
 		s.State = Follower
-		s.isRunning.Store(true)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
@@ -157,7 +173,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s.State = Follower
-		s.isRunning.Store(true)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
@@ -192,9 +207,18 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		assert.NotNil(err)
 	})
 
+	t.Run("timeout_context", func(t *testing.T) {
+		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
+		defer func() {
+			s.stopCtx()
+			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		}()
+		_, err = rpcm.SendAppendEntriesRequest(s.quitCtx, request)
+		assert.NotNil(err)
+	})
+
 	t.Run("up", func(t *testing.T) {
 		s.State = Follower
-		s.isRunning.Store(true)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
@@ -208,7 +232,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s.State = Follower
-		s.isRunning.Store(true)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
@@ -265,26 +288,21 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 
 	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	i := 0
+	s.State = Follower
+	s.isRunning.Store(true)
+	rpcm := rpcManager{rafty: s}
 	command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 	buffer := new(bytes.Buffer)
 	err = encodeCommand(command, buffer)
 	assert.Nil(err)
 
 	t.Run("up_command_fake", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
-		rpcm := rpcManager{rafty: s}
-
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Equal(nil, err)
 	})
 
 	t.Run("up_command_set", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
-		rpcm := rpcManager{rafty: s}
-
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
 		err := encodeCommand(command, buffer)
@@ -304,10 +322,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 	})
 
 	t.Run("timeout_second_sending", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
-		rpcm := rpcManager{rafty: s}
-
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
 		err = encodeCommand(command, buffer)
@@ -319,10 +333,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 	})
 
 	t.Run("timeout_second_response", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
-		rpcm := rpcManager{rafty: s}
-
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
 		err = encodeCommand(command, buffer)
@@ -366,5 +376,60 @@ func TestRaftypb_SendTimeoutNowRequest(t *testing.T) {
 		response, err := rpcm.SendTimeoutNowRequest(context.Background(), request)
 		assert.Equal(nil, err)
 		assert.Equal(true, response.Success)
+	})
+}
+
+func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
+	assert := assert.New(t)
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+
+	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	rpcm := rpcManager{rafty: s}
+	request := &raftypb.MembershipChangeRequest{Id: "newnode", Address: "127.0.0.1:60000", Action: uint32(Add)}
+
+	t.Run("down", func(t *testing.T) {
+		s.State = Down
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.NotNil(err)
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		s.State = Leader
+		s.isRunning.Store(true)
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.NotNil(err)
+	})
+
+	t.Run("timeout_context", func(t *testing.T) {
+		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
+		defer func() {
+			s.stopCtx()
+			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		}()
+		_, err = rpcm.SendMembershipChangeRequest(s.quitCtx, request)
+		assert.NotNil(err)
+	})
+
+	t.Run("timeout_second_response", func(t *testing.T) {
+		rpcm := rpcManager{rafty: s}
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			<-s.rpcMembershipChangeRequestChan
+			time.Sleep(time.Second)
+		}()
+
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.NotNil(err)
+		s.wg.Wait()
+	})
+
+	t.Run("up_timeout", func(t *testing.T) {
+		rpcm := rpcManager{rafty: s}
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.Error(err)
 	})
 }

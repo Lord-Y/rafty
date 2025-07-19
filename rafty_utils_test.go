@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 type clusterConfig struct {
@@ -27,6 +29,7 @@ type clusterConfig struct {
 	portStartRange            uint
 	clusterSize               uint
 	cluster                   []*Rafty
+	newNodes                  []*Rafty
 	timeMultiplier            uint
 	delayLastNode             bool
 	delayLastNodeTimeDuration time.Duration
@@ -75,7 +78,10 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		}
 
 		for j := range cc.clusterSize {
-			var peerAddr string
+			var (
+				peerAddr string
+				err      error
+			)
 
 			if i == j {
 				peerAddr = fmt.Sprintf("127.0.0.5:%d", cc.portStartRange+51+j)
@@ -92,15 +98,18 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 			if addr.String() != peerAddr {
 				peers = append(peers, Peer{
 					Address: peerAddr,
+					address: getNetAddress(peerAddr),
 				})
 
 				options.Peers = peers
 				options.logSource = cc.testName
 				id := ""
 				if !cc.noNodeID {
-					id = fmt.Sprintf("%d", i)
+					id = fmt.Sprintf("%d", addr.Port)
+					id = id[len(id)-2:]
 				}
-				server = NewRafty(addr, id, options)
+				server, err = NewRafty(addr, id, options)
+				cc.assert.Nil(err)
 			}
 		}
 		cluster = append(cluster, server)
@@ -108,24 +117,76 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 	return
 }
 
-func (cc *clusterConfig) startCluster() {
+func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leaveOnTerminate bool) {
+	var defaultPort int
+	if len(cc.newNodes) == 0 {
+		defaultPort = cc.cluster[0].options.Peers[cc.clusterSize-2].address.Port + 1
+	} else {
+		defaultPort = cc.newNodes[len(cc.newNodes)-1].Address.Port + 1
+	}
+
+	addr := net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.5"),
+		Port: defaultPort,
+	}
+	id := fmt.Sprintf("%d", addr.Port)
+	id = id[len(id)-2:]
+	options := cc.cluster[0].options
+	options.ReadOnlyNode = readReplica
+	options.ShutdownOnRemove = shutdownOnRemove
+	options.LeaveOnTerminate = leaveOnTerminate
+	if options.PersistDataOnDisk {
+		options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, "node"+id)
+	}
+	r, err := NewRafty(addr, id, options)
+	cc.assert.Nil(err)
+	cc.newNodes = append(cc.newNodes, r)
+}
+
+func (cc *clusterConfig) startCluster(wg *sync.WaitGroup) {
 	cc.cluster = cc.makeCluster()
 	for i, node := range cc.cluster {
 		if cc.delayLastNode && i == 0 {
 			time.Sleep(cc.delayLastNodeTimeDuration)
 		}
 		cc.t.Run(fmt.Sprintf("cluster_%s_%d", cc.testName, i), func(t *testing.T) {
-			time.AfterFunc(time.Second, func() {
-				go func() {
-					if err := node.Start(); err != nil {
-						node.Logger.Error().Err(err).
-							Str("node", fmt.Sprintf("%d", i)).
-							Msgf("Failed to start node")
-						cc.assert.Errorf(err, "Fail to start cluster node %d with error", i)
-						return
-					}
-				}()
-			})
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := node.Start(); err != nil {
+					node.Logger.Error().Err(err).
+						Str("node", fmt.Sprintf("%d", i)).
+						Msgf("Failed to start node")
+					cc.assert.Errorf(err, "Fail to start cluster node %d with error", i)
+					return
+				}
+			}()
+		})
+	}
+}
+
+func (cc *clusterConfig) startAdditionalNodes(wg *sync.WaitGroup) {
+	cc.makeAdditionalNode(false, true, false)
+	cc.makeAdditionalNode(true, true, false)
+	cc.makeAdditionalNode(false, true, false)
+	cc.makeAdditionalNode(false, false, false)
+	cc.makeAdditionalNode(true, false, true)
+	for i, node := range cc.newNodes {
+		if cc.delayLastNode && i == 0 {
+			time.Sleep(cc.delayLastNodeTimeDuration)
+		}
+		cc.t.Run(fmt.Sprintf("cluster_%s_newnode_%d", cc.testName, i), func(t *testing.T) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := node.Start(); err != nil {
+					node.Logger.Error().Err(err).
+						Str("node", fmt.Sprintf("%d", i)).
+						Msgf("Failed to start node")
+					cc.assert.Errorf(err, "Fail to start cluster node %d with error", i)
+					return
+				}
+			}()
 		})
 	}
 }
@@ -142,6 +203,34 @@ func (cc *clusterConfig) stopCluster(wg *sync.WaitGroup) {
 			node = nil
 		}()
 	}
+
+	for _, node := range cc.newNodes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			node.Stop()
+			// this sleep make sure all processings are done
+			// and nothing remain before nillify the node
+			time.Sleep(10 * time.Second)
+			node = nil
+		}()
+	}
+}
+
+func (cc *clusterConfig) stopAdditionalNode(wg *sync.WaitGroup, id string) {
+	for _, node := range cc.newNodes {
+		if node.id == id {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				node.Stop()
+				// this sleep make sure all processings are done
+				// and nothing remain before nillify the node
+				time.Sleep(10 * time.Second)
+				node = nil
+			}()
+		}
+	}
 }
 
 func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
@@ -157,7 +246,8 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 			if !node.isRunning.Load() {
 				stop = true
 				// reset this part to prevent errors
-				metaFile, dataFile := node.newStorage()
+				metaFile, dataFile, err := node.newStorage()
+				cc.assert.Nil(err)
 				node.storage = storage{
 					metadata: metaFile,
 					data:     dataFile,
@@ -211,26 +301,10 @@ func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup) (count atom
 	return
 }
 
-// func (cc *clusterConfig) countLogsOnAllNodes(count uint64) {
-// 	var wg sync.WaitGroup
-// 	for i, node := range cc.cluster {
-// 		wg.Add(1)
-// 		cc.t.Run(fmt.Sprintf("%s_countLogsOnNode_%d", cc.testName, i), func(t *testing.T) {
-// 			defer wg.Done()
-// 			node.mu.Lock()
-// 			totalLogs := len(node.logs.log)
-// 			node.mu.Unlock()
-// 			cc.assert.GreaterOrEqual(uint64(totalLogs), count)
-// 			cc.assert.Greater(totalLogs, 1)
-// 		})
-// 	}
-// 	wg.Wait()
-// }
-
 func (cc *clusterConfig) submitFakeCommandOnAllNodes() {
 	i := 0
-	node := cc.cluster[i]
 	cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d", cc.testName, i), func(t *testing.T) {
+		node := cc.cluster[i]
 		_, err := node.SubmitCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)})
 		if err != nil {
 			node.Logger.Error().Err(err).
@@ -243,25 +317,21 @@ func (cc *clusterConfig) submitFakeCommandOnAllNodes() {
 	})
 }
 
-func (cc *clusterConfig) waitForLeader() (leader leaderMap) {
+func (cc *clusterConfig) waitForLeader(timeout time.Duration, maxRound int) (leader leaderMap) {
 	round := 0
 	for {
-		<-time.After(3 * time.Second)
+		<-time.After(timeout)
 		nodeId := rand.IntN(int(cc.clusterSize))
 		node := cc.cluster[nodeId]
 
-		conn, err := grpc.NewClient(
-			node.Address.String(),
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		)
+		conn, client, err := cc.getClient(node.Address.String())
 		if err != nil {
-			cc.assert.Errorf(err, "Node %d reports fail to connect to grpc server %s", nodeId, node.Address.String())
+			cc.assert.Errorf(err, "Node %s / %s fail to connect to grpc server", node.Address.String(), node.id)
 			return
 		}
 		defer func() {
 			_ = conn.Close()
 		}()
-		client := raftypb.NewRaftyClient(conn)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
@@ -277,7 +347,7 @@ func (cc *clusterConfig) waitForLeader() (leader leaderMap) {
 		}
 		node.Logger.Info().Msgf("Node %d reports no leader found", nodeId)
 		round++
-		if round >= 5 {
+		if round >= maxRound {
 			return leaderMap{}
 		}
 	}
@@ -288,13 +358,13 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 		t.Parallel()
 	}
 
-	_ = os.Setenv("RAFTY_LOG_LEVEL", "trace")
-	cc.startCluster()
-	dataDir := filepath.Dir(cc.cluster[0].options.DataDir)
+	t.Setenv("RAFTY_LOG_LEVEL", "trace")
 	var wg sync.WaitGroup
+	cc.startCluster(&wg)
+	dataDir := filepath.Dir(cc.cluster[0].options.DataDir)
 
 	go func() {
-		if leader := cc.waitForLeader(); leader != (leaderMap{}) {
+		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
 			wg.Add(1)
 			go cc.submitCommandOnAllNodes(&wg)
 		}
@@ -312,7 +382,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	go func() {
-		if leader := cc.waitForLeader(); leader != (leaderMap{}) {
+		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
 			wg.Add(1)
 			go func() {
 				_ = cc.submitCommandOnAllNodes(&wg)
@@ -328,10 +398,235 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 		if shouldBeRemoved(dataDir) {
 			_ = os.RemoveAll(dataDir)
 		}
-		_ = os.Unsetenv("RAFTY_LOG_LEVEL")
 	})
 }
 
 func shouldBeRemoved(dir string) bool {
 	return strings.Contains(filepath.Dir(dir), "rafty")
+}
+
+func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
+	if cc.runTestInParallel {
+		t.Parallel()
+	}
+
+	t.Setenv("RAFTY_LOG_LEVEL", "trace")
+	var wg sync.WaitGroup
+	cc.startCluster(&wg)
+	dataDir := filepath.Dir(cc.cluster[0].options.DataDir)
+
+	var leader leaderMap
+	go func() {
+		if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+			wg.Add(1)
+			go cc.submitCommandOnAllNodes(&wg)
+		}
+	}()
+	cc.startAdditionalNodes(&wg)
+	cc.waitAdditionalNodesInCluster(&wg)
+
+	time.Sleep(5 * time.Second)
+	cc.stopAdditionalNode(&wg, "58")
+	time.Sleep(5 * time.Second)
+
+	response := &raftypb.MembershipChangeResponse{Success: true}
+	cc.membershipAction(&wg, leader, "54", Demote, false, response)
+	cc.membershipAction(&wg, leader, "55", Demote, false, response)
+	time.Sleep(5 * time.Second)
+
+	cc.membershipAction(&wg, leader, "54", Promote, false, response)
+	time.Sleep(5 * time.Second)
+
+	response.Success = true
+	cc.membershipAction(&wg, leader, "54", Remove, false, response)
+	time.Sleep(5 * time.Second)
+
+	response.Success = true
+	cc.membershipAction(&wg, leader, "55", ForceRemove, true, response)
+
+	if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+		response.Success = true
+		cc.membershipAction(&wg, leader, leader.id, ForceRemove, true, response)
+	}
+
+	time.Sleep(5 * time.Second)
+	response.Success = true
+	if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+		cc.membershipAction(&wg, leader, leader.id, Demote, false, response)
+	}
+
+	time.Sleep(5 * time.Second)
+	response.Success = true
+	if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+		cc.membershipAction(&wg, leader, "56", Demote, false, response)
+	}
+
+	time.Sleep(5 * time.Second)
+	response.Success = true
+	cc.membershipAction(&wg, leader, "56", Remove, false, response)
+	time.Sleep(5 * time.Second)
+
+	response.Success = true
+	cc.membershipAction(&wg, leader, "57", Demote, false, response)
+	time.Sleep(5 * time.Second)
+
+	response.Success = true
+	cc.membershipAction(&wg, leader, "57", Remove, false, response)
+	time.Sleep(5 * time.Second)
+
+	response.Success = true
+	cc.membershipAction(&wg, leader, "53", Demote, false, response)
+	time.Sleep(5 * time.Second)
+
+	response.Success = true
+	cc.membershipAction(&wg, leader, "53", Remove, false, response)
+
+	response.Success = true
+	cc.membershipAction(&wg, leader, leader.id, Demote, false, response)
+
+	time.Sleep(5 * time.Second)
+	response.Success = true
+	if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+		cc.membershipAction(&wg, leader, leader.id, Demote, false, response)
+	}
+
+	for _, node := range cc.cluster {
+		t.Logf("Node %s / %s is running? %t", node.Address.String(), node.id, node.isRunning.Load())
+	}
+	for _, node := range cc.newNodes {
+		t.Logf("Node %s / %s is running? %t", node.Address.String(), node.id, node.isRunning.Load())
+	}
+
+	time.AfterFunc(120*time.Second, func() {
+		cc.stopCluster(&wg)
+	})
+	wg.Wait()
+	t.Cleanup(func() {
+		if shouldBeRemoved(dataDir) {
+			_ = os.RemoveAll(dataDir)
+		}
+	})
+}
+
+func (cc *clusterConfig) getMember(id string) (p peer, index int, originalCluster bool) {
+	if index := slices.IndexFunc(cc.cluster, func(p *Rafty) bool {
+		return p.id == id
+	}); index != -1 {
+		return peer{Address: cc.cluster[index].Address.String(), ID: id, ReadOnlyNode: cc.cluster[index].options.ReadOnlyNode}, index, true
+	}
+
+	if index := slices.IndexFunc(cc.newNodes, func(p *Rafty) bool {
+		return p.id == id
+	}); index != -1 {
+		return peer{Address: cc.newNodes[index].Address.String(), ID: id, ReadOnlyNode: cc.newNodes[index].options.ReadOnlyNode}, index, false
+	}
+	return
+}
+
+// waitAdditionalNodesInCluster will wait for additional nodes to be
+// fully part of the cluster before doing anything else related to membership changes
+func (cc *clusterConfig) waitAdditionalNodesInCluster(wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
+
+	count, round, maxRound := 0, 0, 10
+	for {
+		<-time.After(5 * time.Second)
+		for _, node := range cc.newNodes {
+			if node.waitToBePromoted.Load() || node.askForMembership.Load() {
+				count++
+			}
+			cc.t.Logf("MUST WAIT %s askForMembership %t waitToBePromoted %t count %d", node.id, node.askForMembership.Load(), node.waitToBePromoted.Load(), count)
+		}
+		if count == 0 {
+			return
+		}
+		count = 0
+		round++
+		if round == maxRound {
+			return
+		}
+	}
+}
+
+func (cc *clusterConfig) membershipAction(wg *sync.WaitGroup, leader leaderMap, id string, action MembershipChange, leaderShutdownOnRemove bool, expectedResponse *raftypb.MembershipChangeResponse) {
+	cc.t.Run(fmt.Sprintf("%s_%s_%s", cc.testName, id, action.String()), func(t *testing.T) {
+		wg.Add(1)
+		defer wg.Done()
+
+		member, index, originalCluster := cc.getMember(id)
+		if member.Address != "" {
+			if leader.id == id {
+				if originalCluster {
+					cc.cluster[index].options.ShutdownOnRemove = leaderShutdownOnRemove
+				} else {
+					cc.newNodes[index].options.ShutdownOnRemove = leaderShutdownOnRemove
+				}
+			}
+
+			request := &raftypb.MembershipChangeRequest{
+				Id:           member.ID,
+				Address:      member.Address,
+				ReadOnlyNode: member.ReadOnlyNode,
+				Action:       uint32(action),
+			}
+			var noLeader bool
+			for retry := range 3 {
+				if noLeader {
+					leader = cc.waitForLeader(time.Second, 3)
+					// leader = &newLeader
+					noLeader = false
+				}
+				// we use retry here so r.rpcMembershipNotLeader from state_loop can be
+				// covered by unit tests
+				if leader.address == "" && retry > 0 {
+					noLeader = true
+					cc.t.Logf("Membership change request client no leader for %s retry %d", id+"_"+action.String(), retry)
+				} else {
+					cc.t.Logf("Membership change request client %s leaderAddress %s retry %d", id+"_"+action.String(), leader.address, retry)
+					_, client, _ := cc.getClient(leader.address)
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+
+					response, err := client.SendMembershipChangeRequest(ctx, request)
+					if err != nil {
+						nerr := status.Convert(err)
+						cc.t.Logf("Membership change request client error for %s leaderAddress %s retry %d error %s", id+"_"+action.String(), leader.address, retry, nerr.Err())
+						if strings.Contains(nerr.Err().Error(), ErrNotLeader.Error()) {
+							noLeader = true
+							time.Sleep(5 * time.Second)
+						} else {
+							if !slices.Contains([]error{ErrMembershipChangeNodeTooSlow, ErrMembershipChangeInProgress, ErrMembershipChangeNodeNotDemoted, ErrMembershipChangeNodeDemotionForbidden}, nerr.Err()) {
+								cc.assert.Errorf(err, "Fail to send membership request to %s / %s, expected %t retry %d", member.Address, member.ID, expectedResponse.Success, retry)
+							}
+						}
+					} else {
+						cc.assert.Equal(expectedResponse.Success, response.Success, id+"_"+action.String())
+						cc.t.Logf("Membership change request client success for %s result %t retry %d", id+"_"+action.String(), response.Success, retry)
+						return
+					}
+				}
+			}
+		}
+	})
+}
+
+func (cc *clusterConfig) getClient(address string) (*grpc.ClientConn, raftypb.RaftyClient, error) {
+	conn, err := grpc.NewClient(
+		address,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return conn, raftypb.NewRaftyClient(conn), nil
+}
+
+// fillIDs will fill peer ids
+func (r *Rafty) fillIDs() {
+	for i := range r.configuration.ServerMembers {
+		id := fmt.Sprintf("%d", r.configuration.ServerMembers[i].address.Port)
+		id = id[len(id)-2:]
+		r.configuration.ServerMembers[i].ID = id
+	}
 }

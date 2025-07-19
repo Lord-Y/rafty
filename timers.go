@@ -5,8 +5,13 @@ import (
 	"time"
 )
 
+// electionTimeout return election timeout based on time multiplier
+func (r *Rafty) electionTimeout() time.Duration {
+	return time.Duration(r.options.ElectionTimeout) * time.Millisecond * time.Duration(r.options.TimeMultiplier)
+}
+
 // randomElectionTimeout permit to generate a random value
-// that will be used during the election campain
+// that will be used during the election campaign
 // when preVote set to true, a value will be generated for preVote election
 func (r *Rafty) randomElectionTimeout() time.Duration {
 	rd := rand.New(rand.NewSource(time.Now().UnixNano()))

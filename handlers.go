@@ -317,8 +317,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 			if totalLogs > 0 {
 				lastLog := r.logs.fromIndex(entry.Index)
 				if entry.Term != lastLog.logs[0].Term {
-					wipe := r.logs.wipeEntries(entry.Index, lastLogIndex)
-					if wipe.err != nil {
+					if wipe := r.logs.wipeEntries(entry.Index, lastLogIndex); wipe.err != nil {
 						r.Logger.Error().Err(wipe.err).
 							Str("address", r.Address.String()).
 							Str("id", r.id).
@@ -342,11 +341,9 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 
 		if lenEntries := len(newEntries); lenEntries > 0 {
 			var (
-				newPeers []peer
-				err      error
+				err error
 			)
 			totalLogs = r.logs.appendEntries(newEntries, false)
-			peers, _ := r.getPeers()
 			for index := range newEntries {
 				entryIndex := 0
 				if totalLogs > 0 {
@@ -362,7 +359,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 					Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
 					Msgf("debug data persistance")
 
-				if newPeers, err = r.logs.applyConfigEntry(newEntries[index], peers); err != nil {
+				if err = r.logs.applyConfigEntry(newEntries[index]); err != nil {
 					r.Logger.Warn().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).
@@ -373,8 +370,17 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 						Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
 						Msgf("Fail to apply config entry")
 				}
-				if newPeers != nil {
-					r.lastAppliedConfig.Add(1)
+
+				if err := r.storage.metadata.store(); err != nil {
+					r.Logger.Fatal().Err(err).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("leaderAddress", data.request.LeaderAddress).
+						Str("leaderId", data.request.LeaderID).
+						Str("leaderTerm", fmt.Sprintf("%d", data.request.Term)).
+						Msgf("Fail to persist metadata")
 				}
 
 				if err := r.storage.data.store(newEntries[index]); err != nil {
@@ -406,7 +412,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 				Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
 				Str("matchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
 				Str("lastApplied", fmt.Sprintf("%d", r.lastApplied.Load())).
-				Str("lastAppliedConfig", fmt.Sprintf("%d", r.lastAppliedConfig.Load())).
+				Str("lastAppliedConfigIndex", fmt.Sprintf("%d", r.lastAppliedConfigIndex.Load())).
+				Str("lastAppliedConfigTerm", fmt.Sprintf("%d", r.lastAppliedConfigTerm.Load())).
 				Msgf("Node state index updated")
 
 			if err := r.storage.metadata.store(); err != nil {
@@ -444,4 +451,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 		Str("leaderPrevLogTerm", fmt.Sprintf("%d", data.request.PrevLogTerm)).
 		Str("leaderCommitIndex", fmt.Sprintf("%d", data.request.LeaderCommitIndex)).
 		Msgf("Received append entries from leader")
+
+	if r.shutdownOnRemove.Load() {
+		go r.stop()
+	}
 }

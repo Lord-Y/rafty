@@ -8,23 +8,23 @@ const (
 	// Down state is a node that has been unreachable for a long period of time
 	Down State = iota
 
-	// ReadOnly state is a node that does not pariticipate into the voting campain
-	// It's a passive node that issue no requests on his own but simply respond from the leader
+	// ReadOnly state is a node that does not pariticipate into the voting campaign.
+	// It's a passive node that issue no requests on his own but simply respond from the leader.
 	// This node can never become a follower
 	ReadOnly
 
-	// Follower state is a node that participate into the voting campain
-	// It's a passive node that issue no requests on his own but simply respond from the leader
+	// Follower state is a node that participate into the voting campaign.
+	// It's a passive node that issue no requests on his own but simply respond from the leader.
 	// This node can become a Precandidate if all requirements are available
 	Follower
 
-	// Candidate state is a node that participate into the voting campain.
+	// Candidate state is a node that participate into the voting campaign.
 	// It can become a Leader
 	Candidate
 
-	// Leader state is a node that was previously a Candidate
+	// Leader state is a node that was previously a Candidate.
 	// It received the majority of the votes including itself and get elected as the Leader.
-	// It will then handle all client requests
+	// It will then handle all client requests.
 	// Writes requests can only be done on the leader
 	Leader
 )

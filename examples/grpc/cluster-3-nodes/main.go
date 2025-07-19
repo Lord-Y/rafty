@@ -14,7 +14,7 @@ import (
 
 var ipAddress = flag.String("ip-address", "127.0.0.1", "ip address")
 var maxUptime = flag.Bool("max-uptime", false, "stop node")
-var nodeId = flag.Uint("nodeid", 0, "node id config to chose, can be 0, 1 or 2")
+var nodeId = flag.Uint("nodeid", 0, "node id config to chose, can be 0, 1, 2 or 3")
 var maxUptimeAfterN = flag.Uint("max-uptime-after-n", 6, "max uptime in minutes before stopping node")
 var restartNode = flag.Bool("restart-node", false, "restart node")
 var restartNodeAfterN = flag.Uint("restart-node-after-n", 2, "max uptime in minutes before restarting node")
@@ -24,6 +24,8 @@ var disablePersistance = flag.Bool("disable-persistance", false, "if true persis
 var submitCommands = flag.Bool("submit-commands", false, "if true submit commands to leader")
 var maxCommands = flag.Uint("max-commands", 10, "Max command to submit")
 var disablePreVote = flag.Bool("disable-prevote", false, "if true pre vote will be disabled")
+var readReplica = flag.Bool("read-replica", false, "only when last node for membership")
+var shutdownOnRemove = flag.Bool("shutdown-on-remove", false, "only when last node for membership")
 
 func main() {
 	flag.Parse()
@@ -34,24 +36,26 @@ func main() {
 	)
 
 	switch *nodeId {
+	case 3:
+		addr = net.TCPAddr{
+			IP:   net.ParseIP(*ipAddress),
+			Port: 50054,
+		}
 	case 2:
 		addr = net.TCPAddr{
 			IP:   net.ParseIP(*ipAddress),
 			Port: 50053,
 		}
-		id = "775c0bce-f3ed-47d0-9b44-0e0909d48e1a"
 	case 1:
 		addr = net.TCPAddr{
 			IP:   net.ParseIP(*ipAddress),
 			Port: 50052,
 		}
-		id = "229fc9de-a8f7-4d21-964f-f23a2cc20eff"
 	default:
 		addr = net.TCPAddr{
 			IP:   net.ParseIP(*ipAddress),
 			Port: int(rafty.GRPCPort),
 		}
-		id = "abe35d4f-787e-4262-9894-f6475ed81028"
 	}
 
 	peers := []rafty.Peer{
@@ -73,7 +77,17 @@ func main() {
 		TimeMultiplier:    *timeMultiplier,
 		DisablePrevote:    *disablePreVote,
 	}
-	s := rafty.NewRafty(addr, id, options)
+	if *nodeId == 3 {
+		if *readReplica {
+			options.ReadOnlyNode = true
+		}
+		if *shutdownOnRemove {
+			options.ShutdownOnRemove = true
+		}
+	}
+	id = fmt.Sprintf("%d", addr.Port)
+	id = id[len(id)-2:]
+	s, _ := rafty.NewRafty(addr, id, options)
 
 	if *submitCommands {
 		go func() {
@@ -108,7 +122,10 @@ func main() {
 					s.Stop()
 					time.Sleep(30 * time.Second)
 					s = nil
-					s = rafty.NewRafty(addr, id, options)
+					var err error
+					if s, err = rafty.NewRafty(addr, id, options); err != nil {
+						s.Logger.Fatal().Err(err).Msg("Fail to create cluster config")
+					}
 					if err := s.Start(); err != nil {
 						s.Logger.Fatal().Err(err).Msg("Fail to start node")
 					}

@@ -20,7 +20,7 @@ type candidate struct {
 	responseVoteChan chan RPCResponse
 
 	// preCandidatePeers hold the list of the peers that will be used
-	// during election campain to elect a new leader
+	// during election campaign to elect a new leader
 	preCandidatePeers []peer
 
 	// preVotes is the total number of votes used to be compare against quorum
@@ -59,6 +59,11 @@ func (r *candidate) onTimeout() {
 		return
 	}
 
+	if r.rafty.decommissioning.Load() {
+		r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
+		return
+	}
+
 	defer func() {
 		_ = r.rafty.candidateForLeadershipTransfer.CompareAndSwap(true, false)
 	}()
@@ -77,14 +82,14 @@ func (r *candidate) onTimeout() {
 func (r *candidate) release() {
 	r.preVotes = 0
 	r.votes = 0
-	r.rafty.startElectionCampain.Store(false)
+	r.rafty.startElectionCampaign.Store(false)
 	r.responsePreVoteChan = nil
 	r.responseVoteChan = nil
 }
 
 // preVoteRequest connect to peers in order to check who is the leader
 // If no leader, fetch their currentTerm
-// and decided if they are suitable for election campain
+// and decided if they are suitable for election campaign
 func (r *candidate) preVoteRequest() {
 	currentTerm := r.rafty.currentTerm.Load() + 1
 	r.rafty.switchState(Candidate, stepUp, true, currentTerm)
@@ -107,7 +112,7 @@ func (r *candidate) preVoteRequest() {
 	for _, peer := range peers {
 		go func() {
 			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
-			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode {
+			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode && !peer.Decommissioning {
 				r.rafty.sendRPC(request, client, peer)
 			}
 		}()
@@ -115,7 +120,7 @@ func (r *candidate) preVoteRequest() {
 }
 
 // handlePreVoteResponse will treat pre vote response and select nodes
-// that are suitable to start the election campain
+// that are suitable to start the election campaign
 func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 	if r.rafty.getState() != Candidate || r.rafty.candidateForLeadershipTransfer.Load() {
 		return
@@ -160,8 +165,8 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 		r.preVotes++
 		r.mu.Unlock()
 
-		if r.preVotes >= r.quorum && (!r.rafty.startElectionCampain.Load() || !r.rafty.candidateForLeadershipTransfer.Load()) {
-			r.rafty.startElectionCampain.Store(true)
+		if r.preVotes >= r.quorum && (!r.rafty.startElectionCampaign.Load() || !r.rafty.candidateForLeadershipTransfer.Load()) {
+			r.rafty.startElectionCampaign.Store(true)
 			r.startElection()
 		}
 		return
@@ -209,7 +214,7 @@ func (r *candidate) startElection() {
 	for _, peer := range peers {
 		go func() {
 			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
-			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode {
+			if client != nil && r.rafty.getState() == Candidate && !peer.ReadOnlyNode && !peer.Decommissioning {
 				r.rafty.sendRPC(request, client, peer)
 			}
 		}()

@@ -6,6 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestElectionTimeout(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	assert.NotNil(s.electionTimeout())
+}
+
 func TestRandomElectionTimeout(t *testing.T) {
 	assert := assert.New(t)
 

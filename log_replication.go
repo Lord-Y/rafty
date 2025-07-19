@@ -8,8 +8,6 @@ import (
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -19,15 +17,10 @@ const (
 
 	// replicationMaxRetry is the maximum number of retry to perform before stop retrying
 	replicationMaxRetry uint64 = 3
-)
 
-var (
-	// retryableStatusCodes is a mapping used to check if we should retry to
-	// send append entries
-	retryableStatusCodes = map[codes.Code]bool{
-		codes.Unavailable:      true,
-		codes.DeadlineExceeded: true,
-	}
+	// maxRound is used during membership request. When reached, it means that the new member
+	// is to slow and must retry membership process in order before being promoted
+	maxRound uint64 = 10
 )
 
 // appendEntriesResponse is used to answer back to the client
@@ -55,10 +48,6 @@ type followerReplication struct {
 	// newEntry is used every the leader received
 	// a new log entry
 	newEntryChan chan *onAppendEntriesRequest
-
-	// replicationInitialized is a chan that telling the leader
-	// that replication has been initialized
-	replicationInitialized chan struct{}
 
 	// replicationStopChan is used by the leader
 	// in order stop ongoing append entries replication
@@ -163,12 +152,25 @@ type onAppendEntriesRequest struct {
 
 	// rpcTimeout is the timeout to use when sending append entries
 	rpcTimeout time.Duration
+
+	// membershipChangeInProgress is set to true when membership change is ongoing
+	membershipChangeInProgress *atomic.Bool
+
+	// membershipChangeCommitted is set to true when log config has been replicated
+	// to the majority of servers
+	membershipChangeCommitted atomic.Bool
+
+	// membershipChangeID is the id of the member to take action on.
+	// When filled membershipChangeCommitted can be updated
+	membershipChangeID string
 }
 
 // startFollowerReplication is instanciate for every
 // follower by the leader in order to replicate append entries
 func (r *followerReplication) startFollowerReplication() {
-	r.replicationInitialized <- struct{}{}
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
+
 	for r.rafty.getState() == Leader {
 		select {
 		case <-r.rafty.quitCtx.Done():
@@ -234,12 +236,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 		if err != nil && r.rafty.getState() == Leader {
 			r.failures.Add(1)
 
-			var doNotRetry bool
-			if !retryableStatusCodes[status.Code(err)] {
-				// The RPC was successful or errored in a non-retryable way;
-				// do not retry.
-				doNotRetry = true
-			}
 			r.rafty.Logger.Error().Err(err).
 				Str("address", r.rafty.Address.String()).
 				Str("id", r.rafty.id).
@@ -247,21 +243,16 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 				Str("term", fmt.Sprintf("%d", request.term)).
 				Str("peerAddress", r.address.String()).
 				Str("peerId", r.ID).
-				Str("retryable", fmt.Sprintf("%t", doNotRetry)).
 				Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
 				Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 				Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
 				Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
 				Str("rpcTimeout", request.rpcTimeout.String()).
 				Msgf("Fail to send append entries to peer")
-
-			if doNotRetry {
-				return
-			}
 		} else {
 			r.failures.Store(0)
 
-			// must be keep with large cluster like 7+ nodes when leader is stepping down
+			// must be kept as sometimes it's really nil
 			if response == nil {
 				return
 			}
@@ -335,10 +326,27 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 							//
 							// reply to clients if necessary
 							if request.replyToClient {
-								request.replyToClientChan <- appendEntriesResponse{}
+								select {
+								case <-r.rafty.quitCtx.Done():
+									return
+								case <-time.After(500 * time.Millisecond):
+									return
+								case request.replyToClientChan <- appendEntriesResponse{}:
+								}
 							}
+
 							if request.replyToForwardedCommand {
-								request.replyToForwardedCommandChan <- &raftypb.ForwardCommandToLeaderResponse{}
+								select {
+								case <-r.rafty.quitCtx.Done():
+									return
+								case <-time.After(500 * time.Millisecond):
+									return
+								case request.replyToForwardedCommandChan <- &raftypb.ForwardCommandToLeaderResponse{}:
+								}
+							}
+
+							if request.membershipChangeInProgress.Load() && request.membershipChangeID != "" {
+								request.membershipChangeCommitted.Store(true)
 							}
 						}
 					}
@@ -394,6 +402,7 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 	defer r.catchup.Store(false)
+
 	logsResponse := r.rafty.logs.fromLastLogParameters(
 		oldResponse.LastLogIndex,
 		oldResponse.LastLogTerm,
@@ -414,6 +423,7 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 			Str("peerId", r.ID).
 			Str("peerLastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
 			Str("peerLastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
+			Str("membershipChange", fmt.Sprintf("%t", oldRequest.membershipChangeInProgress.Load())).
 			Msg("Fail to prepare catchup append entries request")
 		return
 	}
@@ -430,21 +440,24 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		Str("peerId", r.ID).
 		Str("peerLastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
 		Str("peerLastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
+		Str("membershipChange", fmt.Sprintf("%t", oldRequest.membershipChangeInProgress.Load())).
 		Msg("Prepare catchup append entries request")
 
 	request := &onAppendEntriesRequest{
-		totalFollowers: 1,
-		quorum:         1,
-		term:           oldRequest.term,
-		heartbeat:      false,
-		prevLogIndex:   oldRequest.prevLogIndex,
-		prevLogTerm:    oldRequest.prevLogTerm,
-		totalLogs:      uint64(logsResponse.total),
-		uuid:           uuid.NewString(),
-		commitIndex:    r.rafty.commitIndex.Load(),
-		entries:        logsResponse.logs,
-		catchup:        true,
-		rpcTimeout:     oldRequest.rpcTimeout,
+		totalFollowers:             1,
+		quorum:                     1,
+		term:                       oldRequest.term,
+		heartbeat:                  false,
+		prevLogIndex:               oldRequest.prevLogIndex,
+		prevLogTerm:                oldRequest.prevLogTerm,
+		totalLogs:                  uint64(logsResponse.total),
+		uuid:                       uuid.NewString(),
+		commitIndex:                r.rafty.commitIndex.Load(),
+		entries:                    logsResponse.logs,
+		catchup:                    true,
+		rpcTimeout:                 oldRequest.rpcTimeout,
+		membershipChangeInProgress: oldRequest.membershipChangeInProgress,
+		membershipChangeID:         oldRequest.membershipChangeID,
 	}
 
 	response, err := r.sendAppendEntries(client, request)
@@ -457,18 +470,12 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 			Str("term", fmt.Sprintf("%d", request.term)).
 			Str("peerAddress", r.address.String()).
 			Str("peerId", r.ID).
+			Str("membershipChange", fmt.Sprintf("%t", request.membershipChangeInProgress.Load())).
 			Msgf("Fail to send catchup append entries to peer")
 		return
 	}
 
 	r.failures.Store(0)
-
-	// sometimes, during unit testing, response is nil
-	// so let's avoid failure
-	if response == nil {
-		return
-	}
-
 	r.lastContactDate.Store(time.Now())
 	if response.Success {
 		r.nextIndex.Add(request.totalLogs)
@@ -485,6 +492,7 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 			Str("peerId", r.ID).
 			Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
 			Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+			Str("membershipChange", fmt.Sprintf("%t", request.membershipChangeInProgress.Load())).
 			Msgf("Follower nextIndex / matchIndex has been updated with catchup entries")
 	}
 }

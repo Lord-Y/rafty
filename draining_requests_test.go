@@ -148,3 +148,56 @@ func TestDrainAppendEntriesRequests(t *testing.T) {
 	}()
 	s.wg.Wait()
 }
+
+func TestDrainMembershipChangeRequests(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	s.currentTerm.Store(1)
+
+	responseChan := make(chan RPCResponse, 1)
+	request := RPCRequest{
+		RPCType: MembershipChangeRequest,
+		Request: RPCMembershipChangeRequest{
+			Id:           s.id,
+			Address:      s.Address.String(),
+			Action:       uint32(Add),
+			LastLogIndex: s.lastLogIndex.Load(),
+			LastLogTerm:  s.lastLogTerm.Load(),
+		},
+		Timeout:      time.Second,
+		ResponseChan: responseChan,
+	}
+	s.wg.Add(3)
+	go func() {
+		defer s.wg.Done()
+		for {
+			select {
+			case s.rpcMembershipChangeRequestChan <- request:
+			case <-time.After(500 * time.Millisecond):
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer s.wg.Done()
+		time.Sleep(100 * time.Millisecond) // Ensure the request is sent before draining
+		s.drainMembershipChangeRequests()
+	}()
+
+	go s.drainMembershipChangeRequests()
+	go func() {
+		defer s.wg.Done()
+		for {
+			select {
+			case <-responseChan:
+			case <-time.After(500 * time.Millisecond):
+				return
+			}
+		}
+	}()
+	s.wg.Wait()
+}

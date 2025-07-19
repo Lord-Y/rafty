@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 
 	"github.com/Lord-Y/rafty/raftypb"
 )
@@ -36,7 +36,11 @@ type metadata struct {
 
 	// LastAppliedConfig is the index of the highest log entry configuration applied
 	// to the current raft server
-	LastAppliedConfig uint64 `json:"lastAppliedConfig"`
+	LastAppliedConfigIndex uint64 `json:"lastAppliedConfigIndex"`
+
+	// LastAppliedConfigTerm is the term of the highest log entry configuration applied
+	// to the current raft server
+	LastAppliedConfigTerm uint64 `json:"lastAppliedConfigTerm"`
 
 	// Configuration hold server members
 	Configuration configuration `json:"configuration"`
@@ -65,9 +69,13 @@ type storage struct {
 // createDirectoryIfNotExist permits to check if a directory exist
 // and create it if not. An error will be return if there is any
 func createDirectoryIfNotExist(d string, perm fs.FileMode) error {
-	if _, err := os.Stat(d); os.IsNotExist(err) {
+	if fileinfo, err := os.Stat(d); os.IsNotExist(err) {
 		if err := os.MkdirAll(d, perm); err != nil {
 			return err
+		}
+	} else {
+		if !fileinfo.IsDir() {
+			return fmt.Errorf("%s is not a directory", d)
 		}
 		return nil
 	}
@@ -75,7 +83,7 @@ func createDirectoryIfNotExist(d string, perm fs.FileMode) error {
 }
 
 // newStorage instantiate rafty with default storage configuration
-func (r *Rafty) newStorage() (metadata metaFile, data dataFile) {
+func (r *Rafty) newStorage() (metadata metaFile, data dataFile, err error) {
 	if !r.options.PersistDataOnDisk {
 		return
 	}
@@ -85,18 +93,17 @@ func (r *Rafty) newStorage() (metadata metaFile, data dataFile) {
 
 	datadir := filepath.Join(r.options.DataDir, dataStateDir)
 	if err := createDirectoryIfNotExist(datadir, 0750); err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to create directory %s", datadir)
+		return metadata, data, fmt.Errorf("fail to create directory %s: %w", datadir, err)
 	}
 
-	var err error
 	metadata.fullFilename = filepath.Join(r.options.DataDir, metadataFile)
 	if metadata.file, err = os.OpenFile(metadata.fullFilename, os.O_RDWR|os.O_CREATE, 0644); err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to create file %s", metadata.fullFilename)
+		return metadata, data, fmt.Errorf("fail to create file %s: %w", metadata.fullFilename, err)
 	}
 
 	data.fullFilename = filepath.Join(datadir, dataStateFile)
 	if data.file, err = os.OpenFile(data.fullFilename, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0644); err != nil {
-		r.Logger.Fatal().Err(err).Msgf("Fail to create file %s", data.fullFilename)
+		return metadata, data, fmt.Errorf("fail to create file %s: %w", data.fullFilename, err)
 	}
 
 	return
@@ -125,16 +132,18 @@ func (r metaFile) restore() error {
 		return nil
 	}
 
+	var (
+		err    error
+		result []byte
+	)
 	_, _ = r.file.Seek(0, 0)
-	result, err := io.ReadAll(r.file)
-	if err != nil {
+	if result, err = io.ReadAll(r.file); err != nil {
 		return err
 	}
 
 	if len(result) > 0 {
 		var data metadata
-		err = json.Unmarshal(result, &data)
-		if err != nil {
+		if err = json.Unmarshal(result, &data); err != nil {
 			return err
 		}
 
@@ -143,21 +152,13 @@ func (r metaFile) restore() error {
 		r.rafty.currentTerm.Store(data.CurrentTerm)
 		r.rafty.votedFor = data.VotedFor
 		r.rafty.lastApplied.Store(data.LastApplied)
-		r.rafty.lastAppliedConfig.Store(data.LastAppliedConfig)
+		r.rafty.lastAppliedConfigIndex.Store(data.LastAppliedConfigIndex)
+		r.rafty.lastAppliedConfigTerm.Store(data.LastAppliedConfigTerm)
 		if len(data.Configuration.ServerMembers) > 0 {
 			r.rafty.configuration.ServerMembers = data.Configuration.ServerMembers
 		} else {
 			for _, server := range r.rafty.options.Peers {
 				r.rafty.configuration.ServerMembers = append(r.rafty.configuration.ServerMembers, peer{Address: server.Address})
-			}
-		}
-
-		for i := range data.Configuration.ServerMembers {
-			index := slices.IndexFunc(r.rafty.options.Peers, func(p Peer) bool {
-				return p.address.String() == data.Configuration.ServerMembers[i].Address
-			})
-			if index == -1 {
-				r.rafty.configuration.newMembers = append(r.rafty.configuration.newMembers, peer{Address: data.Configuration.ServerMembers[i].Address, ID: data.Configuration.ServerMembers[i].ID})
 			}
 		}
 		r.rafty.mu.Unlock()
@@ -184,30 +185,32 @@ func (r metaFile) store() error {
 	r.rafty.mu.Unlock()
 
 	data := metadata{
-		Id:                r.rafty.id,
-		CurrentTerm:       r.rafty.currentTerm.Load(),
-		VotedFor:          r.rafty.votedFor,
-		LastApplied:       r.rafty.lastApplied.Load(),
-		LastAppliedConfig: r.rafty.lastAppliedConfig.Load(),
+		Id:                     r.rafty.id,
+		CurrentTerm:            r.rafty.currentTerm.Load(),
+		VotedFor:               r.rafty.votedFor,
+		LastApplied:            r.rafty.lastApplied.Load(),
+		LastAppliedConfigIndex: r.rafty.lastAppliedConfigIndex.Load(),
+		LastAppliedConfigTerm:  r.rafty.lastAppliedConfigTerm.Load(),
 		Configuration: configuration{
 			ServerMembers: peers,
 		},
 	}
 
-	result, err := json.Marshal(data)
-	if err != nil {
+	var (
+		err    error
+		result []byte
+	)
+	if result, err = json.Marshal(data); err != nil {
 		return err
 	}
 
 	_ = r.file.Truncate(0)
 	_, _ = r.file.Seek(0, 0)
-	_, err = r.file.Write(result)
-	if err != nil {
+	if _, err = r.file.Write(result); err != nil {
 		return err
 	}
 
-	err = r.file.Sync()
-	if err != nil {
+	if err = r.file.Sync(); err != nil {
 		return err
 	}
 	return nil
@@ -226,16 +229,13 @@ func (r dataFile) restore() error {
 		return nil
 	}
 
-	_, err := r.file.Seek(0, 0)
-	if err != nil {
-		return err
-	}
-
+	var err error
+	_, _ = r.file.Seek(0, 0)
 	scanner := bufio.NewScanner(r.file)
 	for scanner.Scan() {
 		if len(scanner.Bytes()) > 0 {
-			data, err := unmarshalBinary(scanner.Bytes())
-			if err != nil && err != io.EOF {
+			var data *raftypb.LogEntry
+			if data, err = unmarshalBinary(scanner.Bytes()); err != nil && err != io.EOF {
 				return err
 			}
 			r.rafty.logs.appendEntries([]*raftypb.LogEntry{data}, true)
@@ -268,8 +268,7 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 
 	var err error
 	buffer := new(bytes.Buffer)
-	err = marshalBinary(logEntry, buffer)
-	if err != nil {
+	if err = marshalBinary(logEntry, buffer); err != nil {
 		return err
 	}
 	writer := bufio.NewWriter(r.file)
@@ -299,15 +298,16 @@ func (r dataFile) storeWithEntryIndex(entryIndex int) error {
 	logEntry := &logEntry{
 		FileFormat: uint8(entry.FileFormat),
 		Tombstone:  uint8(entry.Tombstone),
+		LogType:    uint8(entry.LogType),
 		Timestamp:  entry.Timestamp,
 		Term:       entry.Term,
+		Index:      entry.Index,
 		Command:    entry.Command,
 	}
 
 	var err error
 	buffer := new(bytes.Buffer)
-	err = marshalBinary(logEntry, buffer)
-	if err != nil {
+	if err = marshalBinary(logEntry, buffer); err != nil {
 		return err
 	}
 	writer := bufio.NewWriter(r.file)

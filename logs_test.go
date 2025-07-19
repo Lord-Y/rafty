@@ -17,6 +17,7 @@ func TestLogs(t *testing.T) {
 	s := basicNodeSetup()
 	err := s.parsePeers()
 	assert.Nil(err)
+	s.fillIDs()
 
 	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	entries := []*raftypb.LogEntry{{Term: 1}}
@@ -124,37 +125,55 @@ func TestLogs(t *testing.T) {
 		newbie := peer{Address: "127.0.0.1:6000", ID: "xyz"}
 		peers = append(peers, newbie)
 		encodedPeers := encodePeers(peers)
-		assert.Nil(err)
 		assert.NotNil(encodedPeers)
 
 		entry := &raftypb.LogEntry{
 			LogType: uint32(logConfiguration),
+			Index:   1,
 			Term:    1,
 			Command: encodedPeers,
 		}
 
-		newPeers, err := s.logs.applyConfigEntry(entry, peers)
+		err = s.logs.applyConfigEntry(entry)
 		assert.Nil(err)
-		assert.Contains(newPeers, newbie)
+		assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, newbie))
+
+		s.options.ShutdownOnRemove = true
+		// apply the same entry again to make sure we don't update current config
+		err = s.logs.applyConfigEntry(entry)
+		assert.Nil(err)
+		assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, newbie))
+		assert.Equal(false, s.shutdownOnRemove.Load())
+
+		entry = &raftypb.LogEntry{
+			LogType: uint32(logConfiguration),
+			Index:   2,
+			Term:    1,
+			Command: encodedPeers,
+		}
+
+		err = s.logs.applyConfigEntry(entry)
+		assert.Nil(err)
+		assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, newbie))
+		assert.Equal(true, s.shutdownOnRemove.Load())
 
 		fakePeer := &raftypb.LogEntry{
 			LogType: uint32(logConfiguration),
+			Index:   3,
 			Term:    1,
 			Command: []byte("a=b"),
 		}
 
-		_, err = s.logs.applyConfigEntry(fakePeer, peers)
+		err = s.logs.applyConfigEntry(fakePeer)
 		assert.NotNil(err)
 
-		entryCommand := &raftypb.LogEntry{
-			LogType: uint32(logCommand),
+		entry = &raftypb.LogEntry{
+			LogType: uint32(logNoop),
 			Term:    1,
-			Command: encodedPeers,
 		}
 
-		newPeers, err = s.logs.applyConfigEntry(entryCommand, peers)
+		err = s.logs.applyConfigEntry(entry)
 		assert.Nil(err)
-		assert.Equal([]peer(nil), newPeers)
 	})
 
 	s.wg.Wait()

@@ -30,7 +30,7 @@ type clusterConfig struct {
 	TimeMultiplier            uint
 }
 
-func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
+func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 	for i := range cc.clusterSize {
 		var addr net.TCPAddr
 
@@ -42,9 +42,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 		}
 
 		for j := range cc.clusterSize {
-			var (
-				peerAddr string
-			)
+			var peerAddr string
 			if i == j {
 				peerAddr = fmt.Sprintf("%s:500%d", *ipAddress, 51+j)
 			} else {
@@ -74,7 +72,10 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 					TimeMultiplier:     2,
 					MinimumClusterSize: minimumClusterSize,
 				}
-				server = rafty.NewRafty(addr, id, options)
+				server, err = rafty.NewRafty(addr, id, options)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 		cluster = append(cluster, server)
@@ -83,7 +84,13 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty) {
 }
 
 func (cc *clusterConfig) startCluster() {
-	cc.cluster = cc.makeCluster()
+	var err error
+	cc.cluster, err = cc.makeCluster()
+	if err != nil {
+		log.Fatal().Msgf("Fail to make the cluster config with error %s", err.Error())
+		return
+	}
+
 	for i, node := range cc.cluster {
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 		sleep := 1 + r.Intn(len(cc.cluster))

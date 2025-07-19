@@ -13,8 +13,7 @@ func (r *Rafty) SubmitCommand(command Command) ([]byte, error) {
 	if err := encodeCommand(command, buffer); err != nil {
 		return nil, err
 	}
-	resp, err := r.submitCommand(buffer.Bytes())
-	return resp, err
+	return r.submitCommand(buffer.Bytes())
 }
 
 func (r *Rafty) submitCommand(command []byte) ([]byte, error) {

@@ -28,7 +28,8 @@ func TestStorageDisk(t *testing.T) {
 			return
 		}
 
-		metaFile, dataFile := node.newStorage()
+		metaFile, dataFile, err := node.newStorage()
+		assert.Nil(err)
 		node.storage = storage{
 			metadata: metaFile,
 			data:     dataFile,
@@ -53,14 +54,106 @@ func TestStorageDisk(t *testing.T) {
 		assert.Error(createDirectoryIfNotExist("", 0750))
 	})
 
-	t.Run("newStorage", func(t *testing.T) {
+	t.Run("newStorage_success", func(t *testing.T) {
 		cc.cluster = cc.makeCluster()
 		node := cc.cluster[0]
 		node.Logger = &logger
 
-		metadata, data := node.newStorage()
+		metadata, data, err := node.newStorage()
+		assert.Nil(err)
 		assert.Equal(metaFile{}, metadata)
 		assert.Equal(dataFile{}, data)
+	})
+
+	t.Run("newStorage_error", func(t *testing.T) {
+		node := &Rafty{}
+		node.Logger = &logger
+
+		_, _, err := node.newStorage()
+		assert.Nil(err)
+
+		node.options.PersistDataOnDisk = true
+		_, _, err = node.newStorage()
+		assert.Nil(err)
+
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_newStorage_error")
+		_, _, err = node.newStorage()
+		assert.Nil(err)
+
+		_ = os.RemoveAll(node.options.DataDir)
+		_ = os.MkdirAll(node.options.DataDir, 0750)
+		tmpFile := filepath.Join(node.options.DataDir, dataStateDir)
+		_, err = os.Create(tmpFile)
+		assert.Nil(err)
+		_, _, err = node.newStorage()
+		assert.Error(err)
+		_ = os.RemoveAll(node.options.DataDir)
+
+		tmpFile = filepath.Join(node.options.DataDir, metadataFile)
+		_ = os.MkdirAll(tmpFile, 0750)
+		_, _, err = node.newStorage()
+		assert.Error(err)
+		_ = os.RemoveAll(node.options.DataDir)
+
+		tmpFile = filepath.Join(node.options.DataDir, dataStateDir, dataStateFile)
+		_ = os.MkdirAll(tmpFile, 0750)
+		_, _, err = node.newStorage()
+		assert.Error(err)
+		_ = os.RemoveAll(node.options.DataDir)
+
+		_, _, err = node.newStorage()
+		assert.Nil(err)
+		_ = os.RemoveAll(node.options.DataDir)
+	})
+
+	t.Run("restore_error", func(t *testing.T) {
+		cc.cluster = cc.makeCluster()
+		node := cc.cluster[0]
+		node.Logger = &logger
+
+		metadata, data, err := node.newStorage()
+		assert.Nil(err)
+		tmpFile, err := os.CreateTemp("", "invalid_metadata")
+		assert.Nil(err)
+		_, _ = tmpFile.WriteString("{invalid json")
+		_, _ = tmpFile.Seek(0, 0)
+
+		metadata.fullFilename = tmpFile.Name()
+		metadata.file = tmpFile
+		assert.Error(metadata.restore())
+
+		// fake json
+		node.options.PersistDataOnDisk = true
+		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_newStorage_error")
+		_, _, err = node.newStorage()
+		assert.Nil(err)
+
+		file := filepath.Join(node.options.DataDir, metadataFile)
+		tmpFile, err = os.Create(file)
+		assert.Nil(err)
+		_, _ = tmpFile.WriteString("{invalid json")
+		_, _ = tmpFile.Seek(0, 0)
+
+		metadata.fullFilename = tmpFile.Name()
+		metadata.file = tmpFile
+		assert.Error(metadata.restore())
+
+		data.fullFilename = tmpFile.Name()
+		data.file = tmpFile
+		assert.Error(data.restore())
+
+		storage := storage{
+			metadata: metadata,
+		}
+		assert.Error(storage.restore())
+
+		storage.metadata = metaFile{rafty: node, file: nil}
+		storage.data = data
+		assert.Error(storage.restore())
+
+		storage.data = dataFile{rafty: node, file: nil}
+		assert.Nil(storage.restore())
+		_ = os.RemoveAll(node.options.DataDir)
 	})
 
 	t.Run("restore_close", func(t *testing.T) {
