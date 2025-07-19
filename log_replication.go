@@ -215,6 +215,7 @@ func (r *followerReplication) startStopFollowerReplication() {
 		Str("peerId", r.ID).
 		Msgf("Replication stopped")
 
+	time.Sleep(100 * time.Millisecond)
 	// draining remaining calls
 	for {
 		select {
