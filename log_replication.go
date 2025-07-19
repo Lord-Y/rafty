@@ -165,9 +165,11 @@ type onAppendEntriesRequest struct {
 	membershipChangeID string
 }
 
-// startFollowerReplication is instanciate for every
-// follower by the leader in order to replicate append entries
-func (r *followerReplication) startFollowerReplication() {
+// startStopFollowerReplication is instanciate for every
+// follower by the leader in order to replicate append entries.
+// It will automatically stop to send append entries when quitCtx or
+// replicationStopChan chans are hit.
+func (r *followerReplication) startStopFollowerReplication() {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
@@ -201,6 +203,27 @@ func (r *followerReplication) startFollowerReplication() {
 			}
 		//nolint staticcheck
 		default:
+		}
+	}
+
+	r.replicationStopped.Store(true)
+	r.rafty.Logger.Trace().
+		Str("address", r.rafty.Address.String()).
+		Str("id", r.rafty.id).
+		Str("state", r.rafty.getState().String()).
+		Str("peerAddress", r.address.String()).
+		Str("peerId", r.ID).
+		Msgf("Replication stopped")
+
+	// draining remaining calls
+	for {
+		select {
+		case <-r.newEntryChan:
+		default:
+			close(r.replicationStopChan)
+			close(r.newEntryChan)
+			r.newEntryChan = nil
+			return
 		}
 	}
 }
@@ -477,7 +500,7 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 
 	r.failures.Store(0)
 	r.lastContactDate.Store(time.Now())
-	if response.Success {
+	if response != nil && response.Success {
 		r.nextIndex.Add(request.totalLogs)
 		r.matchIndex.Add(request.totalLogs - 1)
 
