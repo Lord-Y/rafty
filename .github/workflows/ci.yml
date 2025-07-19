@@ -38,7 +38,7 @@ jobs:
           -path ./logger -prune -o \
           -path ./examples -prune -o \
           -path ./.tmp -prune -o \
-          -type f -name "*.go" -exec grep -r "\slog\." {} \; > ${output_logger}
+          -type f -name "*.go" -exec grep -r "slog\." {} \; > ${output_logger}
 
         if [[ $(wc -l ${output_logger} | awk '{print $1}') -gt 0 ]]
         then
