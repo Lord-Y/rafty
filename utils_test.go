@@ -42,6 +42,67 @@ func basicNodeSetup() *Rafty {
 	return s
 }
 
+func TestUtils_getState(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	s.State = Down
+
+	assert.Equal(Down, s.getState())
+}
+
+func TestUtils_votedFor(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	peerId := "0"
+	term := uint64(1)
+	s.setVotedFor(peerId, term)
+	votedFor, votedForTerm := s.getVotedFor()
+	assert.Equal(peerId, votedFor)
+	assert.Equal(term, votedForTerm)
+}
+
+func TestUtils_getLeader(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	assert.Equal(leaderMap{}, s.getLeader())
+	s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+	assert.Equal(s.id, s.getLeader().id)
+	s.State = Leader
+	assert.Equal(s.id, s.getLeader().id)
+}
+
+func TestUtils_getPeers(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	peers, total := s.getPeers()
+	assert.NotNil(peers)
+	assert.Equal(2, total)
+}
+
+func TestUtils_getAllPeers(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	peers, total := s.getAllPeers()
+	assert.NotNil(peers)
+	assert.Equal(3, total)
+}
+
+func TestUtils_isRunning(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	assert.Equal(false, s.IsRunning())
+}
+
 func TestUtils_parsePeers(t *testing.T) {
 	assert := assert.New(t)
 
