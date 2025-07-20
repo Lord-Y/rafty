@@ -132,11 +132,11 @@ type onAppendEntriesRequest struct {
 	replyToClientChan chan appendEntriesResponse
 
 	// replyToForwardedCommand is a boolean that allow the leader
-	// to reply the client by using rpcForwardCommandToLeaderRequestChanWritter var
+	// to reply the client by using replyToForwardedCommandChan var
 	replyToForwardedCommand bool
 
-	// rpcForwardCommandToLeaderRequestChanWritter is used by replyToForwardedCommand
-	replyToForwardedCommandChan chan *raftypb.ForwardCommandToLeaderResponse
+	// replyToForwardedCommandChan is used by replyToForwardedCommand
+	replyToForwardedCommandChan chan<- RPCResponse
 
 	// uuid is used only for debugging.
 	// It helps to differenciate append entries requests
@@ -360,12 +360,16 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 							}
 
 							if request.replyToForwardedCommand {
+								response := &raftypb.ForwardCommandToLeaderResponse{}
+								rpcResponse := RPCResponse{
+									Response: response,
+								}
 								select {
 								case <-r.rafty.quitCtx.Done():
 									return
 								case <-time.After(500 * time.Millisecond):
 									return
-								case request.replyToForwardedCommandChan <- &raftypb.ForwardCommandToLeaderResponse{}:
+								case request.replyToForwardedCommandChan <- rpcResponse:
 								}
 							}
 

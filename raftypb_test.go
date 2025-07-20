@@ -105,7 +105,9 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		go func() {
 			defer s.wg.Done()
 			data := <-s.rpcPreVoteRequestChan
-			data.responseChan <- &raftypb.PreVoteResponse{PeerID: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()}
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.PreVoteResponse{PeerID: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
+			}
 		}()
 		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
 		assert.Nil(err)
@@ -164,7 +166,9 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		go func() {
 			defer s.wg.Done()
 			data := <-s.rpcVoteRequestChan
-			data.responseChan <- &raftypb.VoteResponse{PeerID: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()}
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.VoteResponse{PeerID: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
+			}
 		}()
 		_, err = rpcm.SendVoteRequest(context.Background(), request)
 		assert.Nil(err)
@@ -223,7 +227,9 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		go func() {
 			defer s.wg.Done()
 			data := <-s.rpcAppendEntriesRequestChan
-			data.responseChan <- &raftypb.AppendEntryResponse{Success: false}
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.AppendEntryResponse{Success: false},
+			}
 		}()
 		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
 		assert.Nil(err)
@@ -312,7 +318,9 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		go func() {
 			defer s.wg.Done()
 			data := <-s.rpcForwardCommandToLeaderRequestChan
-			data.responseChan <- &raftypb.ForwardCommandToLeaderResponse{}
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.ForwardCommandToLeaderResponse{},
+			}
 		}()
 
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
