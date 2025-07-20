@@ -171,7 +171,7 @@ func (r *Rafty) switchState(newState State, upOrDown upOrDown, niceMessage bool,
 
 	if niceMessage {
 		switch newState {
-		case ReadOnly:
+		case ReadReplica:
 		case Down:
 			r.Logger.Info().
 				Str("address", r.Address.String()).
@@ -227,7 +227,7 @@ func (r *Rafty) quorum() int {
 	defer r.murw.RUnlock()
 	voter := 0
 	for _, member := range r.configuration.ServerMembers {
-		if !member.ReadOnlyNode && !member.WaitToBePromoted && !member.Decommissioning {
+		if !member.ReadReplica && !member.WaitToBePromoted && !member.Decommissioning {
 			voter++
 		}
 	}

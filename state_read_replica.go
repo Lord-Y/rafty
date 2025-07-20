@@ -2,19 +2,19 @@ package rafty
 
 import "time"
 
-type readOnly struct {
+type readReplica struct {
 	// rafty holds rafty config
 	rafty *Rafty
 }
 
 // init initialize all requirements needed by
 // the current node type
-func (r *readOnly) init() {}
+func (r *readReplica) init() {}
 
 // onTimeout permit to reset election timer
 // and then perform some other actions
-func (r *readOnly) onTimeout() {
-	if r.rafty.getState() != ReadOnly || r.rafty.askForMembershipInProgress.Load() {
+func (r *readReplica) onTimeout() {
+	if r.rafty.getState() != ReadReplica || r.rafty.askForMembershipInProgress.Load() {
 		return
 	}
 
@@ -28,11 +28,11 @@ func (r *readOnly) onTimeout() {
 
 // release permit to cancel or gracefully some actions
 // when the node change state
-func (r *readOnly) release() {}
+func (r *readReplica) release() {}
 
 // askForMembership will contact the leader to be part of
 // the cluster
-func (r *readOnly) askForMembership() {
+func (r *readReplica) askForMembership() {
 	r.rafty.askForMembershipInProgress.Store(true)
 	r.rafty.sendGetLeaderRequest()
 	select {

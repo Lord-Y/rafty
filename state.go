@@ -1,17 +1,17 @@
 package rafty
 
 // State represent the current status of the raft server.
-// The state can only be Leader, Candidate, Follower, ReadOnly, Down
+// The state can only be Leader, Candidate, Follower, ReadReplica, Down
 type State uint32
 
 const (
 	// Down state is a node that has been unreachable for a long period of time
 	Down State = iota
 
-	// ReadOnly state is a node that does not pariticipate into the voting campaign.
+	// ReadReplica state is a node that does not pariticipate into the voting campaign.
 	// It's a passive node that issue no requests on his own but simply respond from the leader.
 	// This node can never become a follower
-	ReadOnly
+	ReadReplica
 
 	// Follower state is a node that participate into the voting campaign.
 	// It's a passive node that issue no requests on his own but simply respond from the leader.
@@ -30,7 +30,7 @@ const (
 )
 
 // upOrDown is only a helper for the State
-// The state can only be Leader, Candidate, Follower, ReadOnly, Down
+// The state can only be Leader, Candidate, Follower, ReadReplica, Down
 type upOrDown uint32
 
 const (
@@ -50,8 +50,8 @@ func (s State) String() string {
 		return "candidate"
 	case Follower:
 		return "follower"
-	case ReadOnly:
-		return "readOnly"
+	case ReadReplica:
+		return "readReplica"
 	}
 	return "down"
 }

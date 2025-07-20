@@ -84,10 +84,10 @@ func (r *leader) handleSendMembershipChangeRequest(data RPCRequest) {
 	defer r.membershipChangeInProgress.Store(false)
 
 	member := peer{
-		ID:           request.Id,
-		Address:      request.Address,
-		ReadOnlyNode: request.ReadOnlyNode,
-		address:      getNetAddress(request.Address),
+		ID:          request.Id,
+		Address:     request.Address,
+		ReadReplica: request.ReadReplica,
+		address:     getNetAddress(request.Address),
 	}
 
 	follower := &followerReplication{
@@ -557,7 +557,7 @@ func (r *leader) nextConfiguration(action MembershipChange, current []peer, memb
 func (r *leader) verifyConfiguration(peers []peer) bool {
 	var voters int
 	for _, node := range peers {
-		if !node.ReadOnlyNode && !node.WaitToBePromoted && !node.Decommissioning {
+		if !node.ReadReplica && !node.WaitToBePromoted && !node.Decommissioning {
 			voters++
 		}
 	}

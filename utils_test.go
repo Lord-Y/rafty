@@ -226,11 +226,11 @@ func TestUtils_switchStateAndLogState(t *testing.T) {
 			expectedCurrentTerm: 0,
 		},
 		{
-			state:               ReadOnly,
+			state:               ReadReplica,
 			currentTerm:         3,
 			niceMessage:         true,
 			isRunning:           true,
-			expectedState:       ReadOnly,
+			expectedState:       ReadReplica,
 			expectedCurrentTerm: 0,
 		},
 		{

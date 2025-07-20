@@ -11,14 +11,14 @@ func TestStateString(t *testing.T) {
 
 	tests := []State{
 		Down,
-		ReadOnly,
+		ReadReplica,
 		Follower,
 		Candidate,
 		Leader,
 	}
 	results := []string{
 		"down",
-		"readOnly",
+		"readReplica",
 		"follower",
 		"candidate",
 		"leader",

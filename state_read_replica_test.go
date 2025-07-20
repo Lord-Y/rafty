@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStateReadOnly(t *testing.T) {
+func TestStateReadReplica(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
 	err := s.parsePeers()
@@ -19,8 +19,8 @@ func TestStateReadOnly(t *testing.T) {
 
 	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	s.isRunning.Store(true)
-	s.State = ReadOnly
-	state := readOnly{rafty: s}
+	s.State = ReadReplica
+	state := readReplica{rafty: s}
 
 	t.Run("init", func(t *testing.T) {
 		state.init()
