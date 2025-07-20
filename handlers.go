@@ -203,7 +203,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 		LastLogTerm:  lastLogTerm,
 	}
 
-	if !r.options.ReadOnlyNode {
+	if !r.options.ReadReplica {
 		if currentTerm > data.request.Term {
 			data.responseChan <- response
 
@@ -430,7 +430,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data appendEntriesResquestWrapper
 	data.responseChan <- response
 
 	// this is only temporary as we added more debug logs
-	if !r.options.ReadOnlyNode {
+	if !r.options.ReadReplica {
 		r.switchState(Follower, stepDown, false, data.request.Term)
 	}
 

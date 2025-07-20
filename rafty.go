@@ -184,9 +184,9 @@ type Options struct {
 	// PersistDataOnDisk is a boolean that allow us to persist data on disk
 	PersistDataOnDisk bool
 
-	// ReadOnlyNode allow to statuate if the current node is a read only node
+	// ReadReplica statuate if the current node is a read only node
 	// This kind of node won't participate into any election campaign
-	ReadOnlyNode bool
+	ReadReplica bool
 
 	// Peers hold the list of the peers
 	Peers []Peer
@@ -228,7 +228,7 @@ type Rafty struct {
 	Address net.TCPAddr
 
 	// State of the current raft server state
-	// Can only be Leader, Candidate, Follower, ReadOnly, Down
+	// Can only be Leader, Candidate, Follower, ReadReplica, Down
 	State
 
 	// grpc listener
@@ -582,8 +582,8 @@ func (r *Rafty) Start() error {
 
 	r.isRunning.Store(true)
 	if r.getState() == Down {
-		if r.options.ReadOnlyNode {
-			r.switchState(ReadOnly, stepUp, false, r.currentTerm.Load())
+		if r.options.ReadReplica {
+			r.switchState(ReadReplica, stepUp, false, r.currentTerm.Load())
 		} else {
 			r.switchState(Follower, stepUp, false, r.currentTerm.Load())
 		}
@@ -663,7 +663,7 @@ func (r *Rafty) checkNodeIDs() bool {
 	for _, peer := range peers {
 		if peer.ID != "" {
 			count--
-			if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !peer.ReadOnlyNode {
+			if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !peer.ReadReplica {
 				r.clusterSizeCounter.Add(1)
 			}
 		}

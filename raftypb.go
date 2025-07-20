@@ -29,7 +29,7 @@ func (r *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest
 
 	return &raftypb.AskNodeIDResponse{
 		PeerID:           r.rafty.id,
-		ReadOnlyNode:     r.rafty.options.ReadOnlyNode,
+		ReadReplica:      r.rafty.options.ReadReplica,
 		LeaderID:         lid,
 		LeaderAddress:    lad,
 		AskForMembership: mustAskForMembership,

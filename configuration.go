@@ -11,9 +11,9 @@ type peer struct {
 	// ID of the current peer
 	ID string `json:"id"`
 
-	// readOnlyNode allow to statuate if this peer is a read only node
+	// ReadReplica statuate if this peer is a read replica node
 	// This kind of node won't participate into any election campaign
-	ReadOnlyNode bool `json:"readOnlyNode"`
+	ReadReplica bool `json:"readReplica"`
 
 	// address is the address of a peer node with explicit host and port
 	address net.TCPAddr

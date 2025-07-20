@@ -35,8 +35,8 @@ func (r *Rafty) stateLoop() {
 
 	for r.getState() != Down {
 		switch r.getState() {
-		case ReadOnly:
-			r.runAsReadOnly()
+		case ReadReplica:
+			r.runAsReadReplica()
 		case Follower:
 			r.runAsFollower()
 		case Candidate:
@@ -47,16 +47,16 @@ func (r *Rafty) stateLoop() {
 	}
 }
 
-// runAsReadOnly will run node as readOnly
-func (r *Rafty) runAsReadOnly() {
+// runAsReadReplica will run node as read replica
+func (r *Rafty) runAsReadReplica() {
 	r.wg.Add(1)
 	defer r.wg.Done()
 
-	state := readOnly{rafty: r}
+	state := readReplica{rafty: r}
 	defer state.release()
 	state.init()
 
-	for r.getState() == ReadOnly {
+	for r.getState() == ReadReplica {
 		select {
 		// exiting for loop
 		case <-r.quitCtx.Done():

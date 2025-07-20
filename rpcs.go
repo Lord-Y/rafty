@@ -52,7 +52,7 @@ type RPCAskNodeIDRequest struct {
 
 type RPCAskNodeIDResponse struct {
 	LeaderID, LeaderAddress, PeerID string
-	ReadOnlyNode, AskForMembership  bool
+	ReadReplica, AskForMembership   bool
 }
 
 type RPCGetLeaderRequest struct {
@@ -97,7 +97,7 @@ type RPCTimeoutNowResponse struct {
 
 type RPCMembershipChangeRequest struct {
 	Address, Id               string
-	ReadOnlyNode              bool
+	ReadReplica               bool
 	Action                    uint32
 	LastLogIndex, LastLogTerm uint64
 }
@@ -197,7 +197,7 @@ func makeRPCAskNodeIDResponse(data *raftypb.AskNodeIDResponse) RPCAskNodeIDRespo
 		LeaderID:         data.LeaderID,
 		LeaderAddress:    data.LeaderAddress,
 		PeerID:           data.PeerID,
-		ReadOnlyNode:     data.ReadOnlyNode,
+		ReadReplica:      data.ReadReplica,
 		AskForMembership: data.AskForMembership,
 	}
 }
@@ -281,10 +281,10 @@ func makeRPCTimeoutNowResponse(data *raftypb.TimeoutNowResponse) RPCTimeoutNowRe
 // makeRPCMembershipChangeRequest build membership change request
 func makeRPCMembershipChangeRequest(data RPCMembershipChangeRequest) *raftypb.MembershipChangeRequest {
 	return &raftypb.MembershipChangeRequest{
-		Id:           data.Id,
-		Address:      data.Address,
-		ReadOnlyNode: data.ReadOnlyNode,
-		Action:       data.Action,
+		Id:          data.Id,
+		Address:     data.Address,
+		ReadReplica: data.ReadReplica,
+		Action:      data.Action,
 	}
 }
 
@@ -347,7 +347,7 @@ func (r *Rafty) askNodeIDResult(resp RPCResponse) {
 		return peer.address.String() == targetPeer.address.String() && peer.ID == ""
 	}); index != -1 {
 		r.configuration.ServerMembers[index].ID = response.PeerID
-		r.configuration.ServerMembers[index].ReadOnlyNode = response.ReadOnlyNode
+		r.configuration.ServerMembers[index].ReadReplica = response.ReadReplica
 	}
 	peers := r.configuration.ServerMembers
 	r.mu.Unlock()
@@ -369,7 +369,7 @@ func (r *Rafty) askNodeIDResult(resp RPCResponse) {
 		r.leaderLastContactDate.Store(time.Now())
 	}
 
-	if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !response.ReadOnlyNode {
+	if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !response.ReadReplica {
 		r.clusterSizeCounter.Add(1)
 	}
 }
@@ -464,7 +464,7 @@ func (r *Rafty) sendMembershipChangeRequest(action MembershipChange) {
 			Action:       uint32(action),
 			LastLogIndex: r.lastLogIndex.Load(),
 			LastLogTerm:  r.lastLogTerm.Load(),
-			ReadOnlyNode: r.options.ReadOnlyNode,
+			ReadReplica:  r.options.ReadReplica,
 		},
 		Timeout:      time.Second,
 		ResponseChan: r.rpcMembershipChangeChan,
@@ -555,7 +555,7 @@ func (r *Rafty) sendMembershipChangeLeaveOnTerminate() {
 			Action:       uint32(LeaveOnTerminate),
 			LastLogIndex: r.lastLogIndex.Load(),
 			LastLogTerm:  r.lastLogTerm.Load(),
-			ReadOnlyNode: r.options.ReadOnlyNode,
+			ReadReplica:  r.options.ReadReplica,
 		},
 		Timeout:      time.Second,
 		ResponseChan: rpcMembershipChangeChan,

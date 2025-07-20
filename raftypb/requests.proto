@@ -75,7 +75,7 @@ message AskNodeIDRequest {
 
 message AskNodeIDResponse {
   string peerID           = 1;
-  bool   readOnlyNode     = 2;
+  bool   readReplica      = 2;
   string leaderID         = 3;
   string leaderAddress    = 4;
   bool   askForMembership = 5;
@@ -120,7 +120,7 @@ message TimeoutNowResponse {
 message MembershipChangeRequest {
   string id           = 1;
   string address      = 2;
-  bool   readOnlyNode = 3;
+  bool   readReplica  = 3;
   uint32 action       = 4;
   uint64 lastLogIndex = 5;
   uint64 lastLogTerm  = 6;

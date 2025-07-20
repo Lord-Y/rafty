@@ -37,7 +37,7 @@ type clusterConfig struct {
 	noDataDir                 bool
 	noNodeID                  bool
 	maxAppendEntries          uint64
-	readOnlyNodeCount         uint64
+	readReplicaCount          uint64
 	disablePrevote            bool
 }
 
@@ -48,7 +48,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 	} else {
 		defaultPort = int(cc.portStartRange) + 51
 	}
-	readOnlyNodeCount := 0
+	readReplicaCount := 0
 	for i := range cc.clusterSize {
 		var (
 			addr    net.TCPAddr
@@ -65,16 +65,16 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		options.DisablePrevote = cc.disablePrevote
 		options.TimeMultiplier = cc.timeMultiplier
 		if cc.autoSetMinimumClusterSize {
-			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.readOnlyNodeCount
+			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.readReplicaCount
 		}
 		options.MaxAppendEntries = cc.maxAppendEntries
 		if cc.noDataDir && i != 0 || !cc.noDataDir {
 			options.PersistDataOnDisk = true
 			options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
 		}
-		if cc.readOnlyNodeCount > 0 && int(cc.readOnlyNodeCount) > readOnlyNodeCount {
-			options.ReadOnlyNode = true
-			readOnlyNodeCount++
+		if cc.readReplicaCount > 0 && int(cc.readReplicaCount) > readReplicaCount {
+			options.ReadReplica = true
+			readReplicaCount++
 		}
 
 		for j := range cc.clusterSize {
@@ -132,7 +132,7 @@ func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leave
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := cc.cluster[0].options
-	options.ReadOnlyNode = readReplica
+	options.ReadReplica = readReplica
 	options.ShutdownOnRemove = shutdownOnRemove
 	options.LeaveOnTerminate = leaveOnTerminate
 	if options.PersistDataOnDisk {
@@ -512,13 +512,13 @@ func (cc *clusterConfig) getMember(id string) (p peer, index int, originalCluste
 	if index := slices.IndexFunc(cc.cluster, func(p *Rafty) bool {
 		return p.id == id
 	}); index != -1 {
-		return peer{Address: cc.cluster[index].Address.String(), ID: id, ReadOnlyNode: cc.cluster[index].options.ReadOnlyNode}, index, true
+		return peer{Address: cc.cluster[index].Address.String(), ID: id, ReadReplica: cc.cluster[index].options.ReadReplica}, index, true
 	}
 
 	if index := slices.IndexFunc(cc.newNodes, func(p *Rafty) bool {
 		return p.id == id
 	}); index != -1 {
-		return peer{Address: cc.newNodes[index].Address.String(), ID: id, ReadOnlyNode: cc.newNodes[index].options.ReadOnlyNode}, index, false
+		return peer{Address: cc.newNodes[index].Address.String(), ID: id, ReadReplica: cc.newNodes[index].options.ReadReplica}, index, false
 	}
 	return
 }
@@ -565,10 +565,10 @@ func (cc *clusterConfig) membershipAction(wg *sync.WaitGroup, leader leaderMap, 
 			}
 
 			request := &raftypb.MembershipChangeRequest{
-				Id:           member.ID,
-				Address:      member.Address,
-				ReadOnlyNode: member.ReadOnlyNode,
-				Action:       uint32(action),
+				Id:          member.ID,
+				Address:     member.Address,
+				ReadReplica: member.ReadReplica,
+				Action:      uint32(action),
 			}
 			var noLeader bool
 			for retry := range 3 {

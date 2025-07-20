@@ -79,7 +79,7 @@ func main() {
 	}
 	if *nodeId == 3 {
 		if *readReplica {
-			options.ReadOnlyNode = true
+			options.ReadReplica = true
 		}
 		if *shutdownOnRemove {
 			options.ShutdownOnRemove = true

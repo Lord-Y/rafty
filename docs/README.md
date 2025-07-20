@@ -28,17 +28,17 @@ _Consensus typically arises in the context of replicated state machines, a gener
 
 A `Down` node is a node that has been unreachable for a long period of time.
 
-A `ReadOnly` node is a node that does not pariticipate into the `voting campaign`. It's a passive node that issue not requests on his own be simply respond answer from the leader. This node can never become a `follower`
+A `ReadReplica` node is a node that does not pariticipate into the `voting campaign`. It's a passive node that issue not requests on his own be simply respond answer from the leader. This node can never become a `follower`
 
 A `Follower` node is a node that participate into the `voting campaign`. It's a passive node that issue not requests on his own be simply respond answer from the leader. This node can become a `candidate` if all requirements are available.
 
 A `Candidate` node is a node that participate into the `voting campaign`. This node can become a `Leader`.
 
-A `Leader` is a node that was previously a `Candidate`. It received the majority of the votes including itself and get elected as the `Leader`. It will then handle all client requests. Writes requests can only be done on the leader. There can only be one `Leader`. To conserve his leadership, it will also send heartbeats/appendEntries to `followers` and `readOnly` nodes otherwise, a new voting campaign will be initiated.
+A `Leader` is a node that was previously a `Candidate`. It received the majority of the votes including itself and get elected as the `Leader`. It will then handle all client requests. Writes requests can only be done on the leader. There can only be one `Leader`. To conserve his leadership, it will also send heartbeats/appendEntries to `followers` and `readReplica` nodes otherwise, a new voting campaign will be initiated.
 
 ## Voting campaign
 
-When a node is starting, it starts as a `Follower` except if it's a `ReadOnly` node.
+When a node is starting, it starts as a `Follower` except if it's a `ReadReplica` node.
 
 If there is no `Leader`, the `Follower` will become a `Candidate` node.
 During the campaign, the `Candidate` will:

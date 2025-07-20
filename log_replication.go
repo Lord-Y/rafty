@@ -289,7 +289,7 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 				return
 
 			case response.Success:
-				if !r.ReadOnlyNode {
+				if !r.ReadReplica {
 					request.majority.Add(1)
 				}
 
