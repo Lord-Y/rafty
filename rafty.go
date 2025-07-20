@@ -243,20 +243,20 @@ type Rafty struct {
 	timer *time.Ticker
 
 	// rpcPreVoteRequestChan will be used to handle rpc call
-	rpcPreVoteRequestChan chan preVoteResquestWrapper
+	rpcPreVoteRequestChan chan RPCRequest
 
 	// rpcVoteRequestChan will be used to handle rpc call
-	rpcVoteRequestChan chan voteResquestWrapper
+	rpcVoteRequestChan chan RPCRequest
 
 	// rpcSendAppendEntriesRequestChan will be used to handle rpc call
-	rpcAppendEntriesRequestChan chan appendEntriesResquestWrapper
+	rpcAppendEntriesRequestChan chan RPCRequest
 
 	// triggerAppendEntriesChan is the chan that will trigger append entries
 	// without waiting leader hearbeat append entries
 	triggerAppendEntriesChan chan triggerAppendEntries
 
 	// rpcForwardCommandToLeaderRequestChan will be used to handle rpc client call to leader
-	rpcForwardCommandToLeaderRequestChan chan forwardCommandToLeaderRequestWrapper
+	rpcForwardCommandToLeaderRequestChan chan RPCRequest
 
 	// rpcAskNodeIDChan will be used to handle rpc call
 	rpcAskNodeIDChan chan RPCResponse
@@ -405,49 +405,15 @@ type Rafty struct {
 	shutdownOnRemove atomic.Bool
 }
 
-// preVoteResquestWrapper is a struct that will be used to send response to the caller
-type preVoteResquestWrapper struct {
-	// request of the peer
-	request      *raftypb.PreVoteRequest
-	responseChan chan *raftypb.PreVoteResponse
-}
-
-// voteResquestWrapper is a struct that will be used to send response to the caller
-type voteResquestWrapper struct {
-	// request of the peer
-	request *raftypb.VoteRequest
-
-	// responseChan will be used to send back the response
-	responseChan chan *raftypb.VoteResponse
-}
-
-// appendEntriesResquestWrapper is a struct that will be used to send response to the caller
-type appendEntriesResquestWrapper struct {
-	// request of the peer
-	request *raftypb.AppendEntryRequest
-
-	// responseChan will be used to send back the response
-	responseChan chan *raftypb.AppendEntryResponse
-}
-
-// forwardCommandToLeaderRequestWrapper is a struct that will be used to send response to the caller
-type forwardCommandToLeaderRequestWrapper struct {
-	// request of the peer
-	request *raftypb.ForwardCommandToLeaderRequest
-
-	// responseChan will be used to send back the response
-	responseChan chan *raftypb.ForwardCommandToLeaderResponse
-}
-
 // NewRafty instantiate rafty with default configuration
 // with server address and its id
 func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 	r := &Rafty{
-		rpcPreVoteRequestChan:                make(chan preVoteResquestWrapper),
-		rpcVoteRequestChan:                   make(chan voteResquestWrapper),
-		rpcAppendEntriesRequestChan:          make(chan appendEntriesResquestWrapper),
+		rpcPreVoteRequestChan:                make(chan RPCRequest),
+		rpcVoteRequestChan:                   make(chan RPCRequest),
+		rpcAppendEntriesRequestChan:          make(chan RPCRequest),
 		triggerAppendEntriesChan:             make(chan triggerAppendEntries),
-		rpcForwardCommandToLeaderRequestChan: make(chan forwardCommandToLeaderRequestWrapper),
+		rpcForwardCommandToLeaderRequestChan: make(chan RPCRequest),
 		rpcAskNodeIDChan:                     make(chan RPCResponse),
 		rpcClientGetLeaderChan:               make(chan RPCResponse),
 		rpcMembershipChangeRequestChan:       make(chan RPCRequest),

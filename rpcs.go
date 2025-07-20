@@ -19,11 +19,17 @@ const (
 	// GetLeader will be used to ask who is the leader
 	GetLeader
 
-	// PreVoteRequest is used during PreVote
+	// PreVoteRequest is used during pre vote request
 	PreVoteRequest
 
-	// VoteRequest is used during PreVote
+	// VoteRequest is used during Vote request
 	VoteRequest
+
+	// AppendEntryRequest is used during append entry request
+	AppendEntryRequest
+
+	// ForwardCommandToLeader is used to forward command to leader
+	ForwardCommandToLeader
 
 	// TimeoutNow is used during leadership transfer
 	TimeoutNowRequest

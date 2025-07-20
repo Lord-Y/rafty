@@ -22,34 +22,36 @@ func TestHandleSendPreVoteRequest(t *testing.T) {
 
 	t.Run("granted_false", func(t *testing.T) {
 		s.currentTerm.Store(2)
-		responseChan := make(chan *raftypb.PreVoteResponse, 1)
-		request := preVoteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.PreVoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: PreVoteRequest,
+			Request: &raftypb.PreVoteRequest{
 				Id:          s.id,
 				CurrentTerm: 1,
 			},
+			ResponseChan: responseChan,
 		}
-
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
 			s.handleSendPreVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(false, data.Granted)
+		response := data.Response.(*raftypb.PreVoteResponse)
+		assert.Equal(false, response.Granted)
 		s.wg.Wait()
 	})
 
 	t.Run("granted", func(t *testing.T) {
 		s.currentTerm.Store(1)
-		responseChan := make(chan *raftypb.PreVoteResponse, 1)
-		request := preVoteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.PreVoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: PreVoteRequest,
+			Request: &raftypb.PreVoteRequest{
 				Id:          s.id,
 				CurrentTerm: 1,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -58,7 +60,8 @@ func TestHandleSendPreVoteRequest(t *testing.T) {
 			s.handleSendPreVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(true, data.Granted)
+		response := data.Response.(*raftypb.PreVoteResponse)
+		assert.Equal(true, response.Granted)
 		s.wg.Wait()
 	})
 
@@ -69,13 +72,14 @@ func TestHandleSendPreVoteRequest(t *testing.T) {
 			id:      s.id,
 		})
 
-		responseChan := make(chan *raftypb.PreVoteResponse, 1)
-		request := preVoteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.PreVoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: PreVoteRequest,
+			Request: &raftypb.PreVoteRequest{
 				Id:          s.id,
 				CurrentTerm: 1,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -84,7 +88,8 @@ func TestHandleSendPreVoteRequest(t *testing.T) {
 			s.handleSendPreVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(false, data.Granted)
+		response := data.Response.(*raftypb.PreVoteResponse)
+		assert.Equal(false, response.Granted)
 		s.wg.Wait()
 	})
 }
@@ -104,14 +109,15 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s.currentTerm.Store(1)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
 
-		responseChan := make(chan *raftypb.VoteResponse, 1)
-		request := voteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.VoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
 				CandidateId:      candidateId,
 				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 				CurrentTerm:      2,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -120,8 +126,9 @@ func TestHandleSendVoteRequest(t *testing.T) {
 			s.handleSendVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
-		assert.Equal(true, data.Granted)
+		response := data.Response.(*raftypb.VoteResponse)
+		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
+		assert.Equal(true, response.Granted)
 		s.wg.Wait()
 	})
 
@@ -131,14 +138,15 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s.currentTerm.Store(1)
 		s.switchState(Candidate, stepUp, false, s.currentTerm.Load())
 
-		responseChan := make(chan *raftypb.VoteResponse, 1)
-		request := voteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.VoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
 				CandidateId:      candidateId,
 				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 				CurrentTerm:      2,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -147,9 +155,10 @@ func TestHandleSendVoteRequest(t *testing.T) {
 			s.handleSendVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
+		response := data.Response.(*raftypb.VoteResponse)
+		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
 		assert.Equal(Follower, s.getState())
-		assert.Equal(true, data.Granted)
+		assert.Equal(true, response.Granted)
 		s.wg.Wait()
 	})
 
@@ -159,14 +168,15 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s.currentTerm.Store(1)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
 
-		responseChan := make(chan *raftypb.VoteResponse, 1)
-		request := voteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.VoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
 				CandidateId:      candidateId,
 				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 				CurrentTerm:      1,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -175,9 +185,10 @@ func TestHandleSendVoteRequest(t *testing.T) {
 			s.handleSendVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
+		response := data.Response.(*raftypb.VoteResponse)
+		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
 		assert.Equal(Follower, s.getState())
-		assert.Equal(false, data.Granted)
+		assert.Equal(false, response.Granted)
 		s.wg.Wait()
 	})
 
@@ -188,14 +199,15 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s.switchState(Candidate, stepUp, false, s.currentTerm.Load())
 		s.candidateForLeadershipTransfer.Store(true)
 
-		responseChan := make(chan *raftypb.VoteResponse, 1)
-		request := voteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.VoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
 				CandidateId:      candidateId,
 				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 				CurrentTerm:      1,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -204,9 +216,10 @@ func TestHandleSendVoteRequest(t *testing.T) {
 			s.handleSendVoteRequest(request)
 		}()
 		data := <-responseChan
+		response := data.Response.(*raftypb.VoteResponse)
 		assert.Equal(s.currentTerm.Load(), uint64(2))
 		assert.Equal(Candidate, s.getState())
-		assert.Equal(false, data.Granted)
+		assert.Equal(false, response.Granted)
 		s.wg.Wait()
 	})
 
@@ -221,14 +234,15 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s.logs.log = nil
 		s.logs.log = append(s.logs.log, &raftypb.LogEntry{Term: 2})
 
-		responseChan := make(chan *raftypb.VoteResponse, 1)
-		request := voteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.VoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
 				CandidateId:      candidateId,
 				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 				CurrentTerm:      2,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -237,10 +251,11 @@ func TestHandleSendVoteRequest(t *testing.T) {
 			s.handleSendVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
-		assert.Equal(s.id, data.PeerID)
+		response := data.Response.(*raftypb.VoteResponse)
+		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
+		assert.Equal(s.id, response.PeerID)
 		assert.Equal(Follower, s.getState())
-		assert.Equal(true, data.Granted)
+		assert.Equal(true, response.Granted)
 		s.wg.Wait()
 	})
 
@@ -257,16 +272,17 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s.logs.log = append(s.logs.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2})
 		s.candidateForLeadershipTransfer.Store(false)
 
-		responseChan := make(chan *raftypb.VoteResponse, 1)
-		request := voteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.VoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
 				CandidateId:      candidateId,
 				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 				CurrentTerm:      3,
 				LastLogTerm:      3,
 				LastLogIndex:     2,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -275,8 +291,9 @@ func TestHandleSendVoteRequest(t *testing.T) {
 			s.handleSendVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
-		assert.Equal(true, data.Granted)
+		response := data.Response.(*raftypb.VoteResponse)
+		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
+		assert.Equal(true, response.Granted)
 		s.wg.Wait()
 	})
 
@@ -292,16 +309,17 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s.logs.log = nil
 		s.logs.log = append(s.logs.log, &raftypb.LogEntry{Term: 1}, &raftypb.LogEntry{Term: 2}, &raftypb.LogEntry{Term: 3})
 
-		responseChan := make(chan *raftypb.VoteResponse, 1)
-		request := voteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.VoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
 				CandidateId:      candidateId,
 				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 				CurrentTerm:      3,
 				LastLogTerm:      3,
 				LastLogIndex:     1,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -310,8 +328,9 @@ func TestHandleSendVoteRequest(t *testing.T) {
 			s.handleSendVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
-		assert.Equal(false, data.Granted)
+		response := data.Response.(*raftypb.VoteResponse)
+		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
+		assert.Equal(false, response.Granted)
 		s.wg.Wait()
 	})
 
@@ -324,14 +343,15 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s.switchState(Candidate, stepUp, false, s.currentTerm.Load())
 		s.logs.log = nil
 
-		responseChan := make(chan *raftypb.VoteResponse, 1)
-		request := voteResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.VoteRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
 				CandidateId:      candidateId,
 				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
 				CurrentTerm:      1,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -340,8 +360,9 @@ func TestHandleSendVoteRequest(t *testing.T) {
 			s.handleSendVoteRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.CurrentTerm)
-		assert.Equal(true, data.Granted)
+		response := data.Response.(*raftypb.VoteResponse)
+		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
+		assert.Equal(true, response.Granted)
 		s.wg.Wait()
 	})
 }
@@ -362,14 +383,15 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		idx := fmt.Sprintf("%d", id)
 		s.logs.log = nil
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          1,
 			},
+			ResponseChan: responseChan,
 		}
 
 		s.wg.Add(1)
@@ -378,7 +400,8 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.Term)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
 		s.wg.Wait()
 	})
 
@@ -396,14 +419,15 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.logs.log = nil
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -411,7 +435,8 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.Term)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
 		assert.Equal(s.State, Follower)
 		s.wg.Wait()
 	})
@@ -430,14 +455,15 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.logs.log = nil
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -445,7 +471,8 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.Term)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
 		s.wg.Wait()
 	})
 
@@ -463,14 +490,15 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.logs.log = nil
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -478,7 +506,8 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.Term)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
 		s.wg.Wait()
 	})
 
@@ -502,15 +531,16 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		})
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 				Heartbeat:     true,
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -518,7 +548,8 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(true, data.LogNotFound)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(true, response.LogNotFound)
 		s.wg.Wait()
 	})
 
@@ -538,10 +569,10 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		_ = s.logs.appendEntries(entries, false)
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
@@ -555,6 +586,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 					},
 				},
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -562,7 +594,8 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.Term)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
 		s.wg.Wait()
 	})
 
@@ -582,10 +615,10 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		_ = s.logs.appendEntries(entries, false)
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
@@ -599,6 +632,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 					},
 				},
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -606,7 +640,8 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(false, data.Success)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(false, response.Success)
 		s.wg.Wait()
 	})
 
@@ -627,10 +662,10 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		_ = s.logs.appendEntries(entries, false)
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              1,
@@ -649,6 +684,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 					},
 				},
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -656,8 +692,9 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.Term)
-		assert.Equal(true, data.Success)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
+		assert.Equal(true, response.Success)
 		s.wg.Wait()
 	})
 
@@ -680,16 +717,17 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		peers = append(peers, peer{Address: "127.0.0.1:6000", ID: "xyz"})
 		encodedPeers := encodePeers(peers)
 		assert.NotNil(encodedPeers)
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		leaderCommitIndex := uint64(5)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
 				PrevLogIndex:      3,
 				PrevLogTerm:       2,
-				LeaderCommitIndex: 5,
+				LeaderCommitIndex: leaderCommitIndex,
 				Catchup:           true,
 				Entries: []*raftypb.LogEntry{
 					{
@@ -720,6 +758,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 					},
 				},
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -727,9 +766,10 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.Term)
-		assert.Equal(true, data.Success)
-		assert.Equal(s.commitIndex.Load(), request.request.LeaderCommitIndex)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
+		assert.Equal(true, response.Success)
+		assert.Equal(s.commitIndex.Load(), leaderCommitIndex)
 		s.wg.Wait()
 	})
 
@@ -749,16 +789,17 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		_ = s.logs.appendEntries(entries, false)
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 		assert.Nil(err)
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		leaderCommitIndex := uint64(5)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
 				PrevLogIndex:      3,
 				PrevLogTerm:       2,
-				LeaderCommitIndex: 5,
+				LeaderCommitIndex: leaderCommitIndex,
 				Catchup:           true,
 				Entries: []*raftypb.LogEntry{
 					{
@@ -789,6 +830,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 					},
 				},
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -796,9 +838,10 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(s.currentTerm.Load(), data.Term)
-		assert.Equal(true, data.Success)
-		assert.Equal(s.commitIndex.Load(), request.request.LeaderCommitIndex)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
+		assert.Equal(true, response.Success)
+		assert.Equal(s.commitIndex.Load(), leaderCommitIndex)
 		s.wg.Wait()
 	})
 
@@ -823,15 +866,16 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		})
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
-		responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-		request := appendEntriesResquestWrapper{
-			responseChan: responseChan,
-			request: &raftypb.AppendEntryRequest{
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
 				LeaderID:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 				Heartbeat:     true,
 			},
+			ResponseChan: responseChan,
 		}
 		s.wg.Add(1)
 		go func() {
@@ -839,7 +883,8 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 			s.handleSendAppendEntriesRequest(request)
 		}()
 		data := <-responseChan
-		assert.Equal(false, data.Success)
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(false, response.Success)
 		s.wg.Wait()
 	})
 }

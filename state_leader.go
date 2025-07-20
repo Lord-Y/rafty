@@ -268,13 +268,14 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 		}
 
 	case "forwardCommand":
-		data := datai.(forwardCommandToLeaderRequestWrapper)
+		data := datai.(RPCRequest)
+		drequest := data.Request.(*raftypb.ForwardCommandToLeaderRequest)
 		entries := []*raftypb.LogEntry{
 			{
 				LogType:   uint32(logCommand),
 				Timestamp: uint32(time.Now().Unix()),
 				Term:      currentTerm,
-				Command:   data.request.Command,
+				Command:   drequest.Command,
 			},
 		}
 
@@ -288,7 +289,7 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			totalLogs:                   uint64(totalLogs),
 			uuid:                        uuid.NewString(),
 			replyToForwardedCommand:     true,
-			replyToForwardedCommandChan: data.responseChan,
+			replyToForwardedCommandChan: data.ResponseChan,
 			commitIndex:                 r.rafty.commitIndex.Load(),
 			entries:                     entries,
 			catchup:                     true,

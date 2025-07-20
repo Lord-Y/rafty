@@ -77,11 +77,12 @@ func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVote
 		return nil, ErrShutdown
 	}
 
-	responseChan := make(chan *raftypb.PreVoteResponse, 1)
+	responseChan := make(chan RPCResponse, 1)
 	select {
-	case r.rafty.rpcPreVoteRequestChan <- preVoteResquestWrapper{
-		request:      in,
-		responseChan: responseChan,
+	case r.rafty.rpcPreVoteRequestChan <- RPCRequest{
+		RPCType:      PreVoteRequest,
+		Request:      in,
+		ResponseChan: responseChan,
 	}:
 
 	case <-ctx.Done():
@@ -96,7 +97,7 @@ func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVote
 
 	select {
 	case response := <-responseChan:
-		return response, nil
+		return response.Response.(*raftypb.PreVoteResponse), response.Error
 
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -114,11 +115,12 @@ func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteReques
 		return nil, ErrShutdown
 	}
 
-	responseChan := make(chan *raftypb.VoteResponse, 1)
+	responseChan := make(chan RPCResponse, 1)
 	select {
-	case r.rafty.rpcVoteRequestChan <- voteResquestWrapper{
-		request:      in,
-		responseChan: responseChan,
+	case r.rafty.rpcVoteRequestChan <- RPCRequest{
+		RPCType:      VoteRequest,
+		Request:      in,
+		ResponseChan: responseChan,
 	}:
 
 	case <-ctx.Done():
@@ -133,7 +135,7 @@ func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteReques
 
 	select {
 	case response := <-responseChan:
-		return response, nil
+		return response.Response.(*raftypb.VoteResponse), response.Error
 
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -151,11 +153,12 @@ func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.A
 		return nil, ErrShutdown
 	}
 
-	responseChan := make(chan *raftypb.AppendEntryResponse, 1)
+	responseChan := make(chan RPCResponse, 1)
 	select {
-	case r.rafty.rpcAppendEntriesRequestChan <- appendEntriesResquestWrapper{
-		request:      in,
-		responseChan: responseChan,
+	case r.rafty.rpcAppendEntriesRequestChan <- RPCRequest{
+		RPCType:      AppendEntryRequest,
+		Request:      in,
+		ResponseChan: responseChan,
 	}:
 
 	case <-ctx.Done():
@@ -170,7 +173,7 @@ func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.A
 
 	select {
 	case response := <-responseChan:
-		return response, nil
+		return response.Response.(*raftypb.AppendEntryResponse), response.Error
 
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -213,12 +216,12 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		return nil, err
 	}
 	if cmd.Kind == CommandSet {
-		responseChan := make(chan *raftypb.ForwardCommandToLeaderResponse, 1)
-
+		responseChan := make(chan RPCResponse, 1)
 		select {
-		case r.rafty.rpcForwardCommandToLeaderRequestChan <- forwardCommandToLeaderRequestWrapper{
-			request:      in,
-			responseChan: responseChan,
+		case r.rafty.rpcForwardCommandToLeaderRequestChan <- RPCRequest{
+			RPCType:      ForwardCommandToLeader,
+			Request:      in,
+			ResponseChan: responseChan,
 		}:
 
 		case <-ctx.Done():
@@ -233,7 +236,7 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 
 		select {
 		case response := <-responseChan:
-			return response, nil
+			return response.Response.(*raftypb.ForwardCommandToLeaderResponse), response.Error
 
 		case <-ctx.Done():
 			return nil, ctx.Err()

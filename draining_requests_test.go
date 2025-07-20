@@ -16,10 +16,11 @@ func TestDrainPreVoteRequests(t *testing.T) {
 	assert.Nil(err)
 	s.currentTerm.Store(1)
 
-	responseChan := make(chan *raftypb.PreVoteResponse, 1)
-	request := preVoteResquestWrapper{
-		request:      &raftypb.PreVoteRequest{Id: s.id, CurrentTerm: s.currentTerm.Load()},
-		responseChan: responseChan,
+	responseChan := make(chan RPCResponse, 1)
+	request := RPCRequest{
+		RPCType:      PreVoteRequest,
+		Request:      &raftypb.PreVoteRequest{Id: s.id, CurrentTerm: s.currentTerm.Load()},
+		ResponseChan: responseChan,
 	}
 	s.wg.Add(3)
 	go func() {
@@ -44,7 +45,10 @@ func TestDrainPreVoteRequests(t *testing.T) {
 		for {
 			select {
 			case data := <-responseChan:
-				assert.Equal(false, data.Granted)
+				response := data.Response.(*raftypb.PreVoteResponse)
+				if response != nil {
+					assert.Equal(false, response.Granted)
+				}
 			case <-time.After(500 * time.Millisecond):
 				return
 			}
@@ -61,14 +65,15 @@ func TestDrainVoteRequests(t *testing.T) {
 	assert.Nil(err)
 	s.currentTerm.Store(1)
 
-	responseChan := make(chan *raftypb.VoteResponse, 1)
-	request := voteResquestWrapper{
-		request: &raftypb.VoteRequest{
+	responseChan := make(chan RPCResponse, 1)
+	request := RPCRequest{
+		RPCType: VoteRequest,
+		Request: &raftypb.VoteRequest{
 			CandidateId:      s.id,
 			CandidateAddress: s.Address.String(),
 			CurrentTerm:      s.currentTerm.Load(),
 		},
-		responseChan: responseChan,
+		ResponseChan: responseChan,
 	}
 	s.wg.Add(3)
 	go func() {
@@ -94,7 +99,10 @@ func TestDrainVoteRequests(t *testing.T) {
 		for {
 			select {
 			case data := <-responseChan:
-				assert.Equal(false, data.Granted)
+				response := data.Response.(*raftypb.VoteResponse)
+				if response != nil {
+					assert.Equal(false, response.Granted)
+				}
 			case <-time.After(500 * time.Millisecond):
 				return
 			}
@@ -111,11 +119,13 @@ func TestDrainAppendEntriesRequests(t *testing.T) {
 	assert.Nil(err)
 	s.currentTerm.Store(1)
 
-	responseChan := make(chan *raftypb.AppendEntryResponse, 1)
-	request := appendEntriesResquestWrapper{
-		request:      &raftypb.AppendEntryRequest{},
-		responseChan: responseChan,
+	responseChan := make(chan RPCResponse, 1)
+	request := RPCRequest{
+		RPCType:      AppendEntryRequest,
+		Request:      &raftypb.AppendEntryRequest{},
+		ResponseChan: responseChan,
 	}
+
 	s.wg.Add(3)
 	go func() {
 		defer s.wg.Done()
@@ -140,7 +150,10 @@ func TestDrainAppendEntriesRequests(t *testing.T) {
 		for {
 			select {
 			case data := <-responseChan:
-				assert.Equal(false, data.Success)
+				response := data.Response.(*raftypb.AppendEntryResponse)
+				if response != nil {
+					assert.Equal(false, response.Success)
+				}
 			case <-time.After(500 * time.Millisecond):
 				return
 			}
