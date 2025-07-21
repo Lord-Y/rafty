@@ -92,6 +92,7 @@ type logEntry struct {
 func (r *Rafty) newLogs() logs {
 	return logs{
 		rafty: r,
+		log:   nil,
 	}
 }
 

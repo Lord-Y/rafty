@@ -125,10 +125,10 @@ func (r storage) restore() error {
 func (r metaFile) restore() error {
 	if r.file == nil {
 		r.rafty.mu.Lock()
+		defer r.rafty.mu.Unlock()
 		for _, server := range r.rafty.options.Peers {
 			r.rafty.configuration.ServerMembers = append(r.rafty.configuration.ServerMembers, peer{Address: server.Address})
 		}
-		r.rafty.mu.Unlock()
 		return nil
 	}
 

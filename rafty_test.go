@@ -249,7 +249,21 @@ func TestStart3Nodes_membership(t *testing.T) {
 		testName:    "3_nodes_membership",
 		clusterSize: 3,
 		// runTestInParallel: true,
+		portStartRange: 41000,
 	}
 	cc.assert = assert.New(t)
 	cc.testClusteringMembership(t)
+}
+
+func TestStartSingleServerCluster(t *testing.T) {
+	cc := clusterConfig{
+		t:           t,
+		testName:    "single_server_cluster",
+		clusterSize: 1,
+		// runTestInParallel: true,
+		portStartRange:        42000,
+		isSingleServerCluster: true,
+	}
+	cc.assert = assert.New(t)
+	cc.testClustering(t)
 }

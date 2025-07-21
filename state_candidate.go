@@ -37,6 +37,10 @@ type candidate struct {
 // init initialize all requirements needed by
 // the current node type
 func (r *candidate) init() {
+	if r.rafty.options.IsSingleServerCluster {
+		r.isSingleServerCluster()
+		return
+	}
 	leader := r.rafty.getLeader()
 	if r.rafty.getState() == Candidate && (leader == (leaderMap{}) || r.rafty.candidateForLeadershipTransfer.Load()) {
 		r.quorum = r.rafty.quorum()
@@ -283,4 +287,18 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 	if r.votes >= r.quorum && r.rafty.getState() == Candidate {
 		r.rafty.switchState(Leader, stepUp, true, response.RequesterTerm)
 	}
+}
+
+func (r *candidate) isSingleServerCluster() {
+	currentTerm := r.rafty.currentTerm.Add(1)
+	r.rafty.switchState(Candidate, stepUp, true, currentTerm)
+	if err := r.rafty.storage.metadata.store(); err != nil {
+		r.rafty.Logger.Fatal().Err(err).
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Msgf("Fail to persist metadata")
+		return
+	}
+	r.rafty.switchState(Leader, stepUp, true, currentTerm)
 }

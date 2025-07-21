@@ -45,7 +45,7 @@ type followerReplication struct {
 	// rafty holds rafty config
 	rafty *Rafty
 
-	// newEntry is used every the leader received
+	// newEntry is used by the leader every times it received
 	// a new log entry
 	newEntryChan chan *onAppendEntriesRequest
 
@@ -522,5 +522,89 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 			Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
 			Str("membershipChange", fmt.Sprintf("%t", request.membershipChangeInProgress.Load())).
 			Msgf("Follower nextIndex / matchIndex has been updated with catchup entries")
+	}
+}
+
+// startStopSingleServerReplication is instanciate for single server cluster
+// by the leader in order to replicate append entries.
+// It will automatically stop when singleServerReplicationStopChan chan is hit.
+func (r *leader) startStopSingleServerReplication() {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
+
+	for r.rafty.getState() == Leader {
+		select {
+		case <-r.singleServerReplicationStopChan:
+			return
+
+		// append entries
+		case entry, ok := <-r.singleServerNewEntryChan:
+			if ok {
+				r.singleServerAppendEntries(entry)
+			}
+		//nolint staticcheck
+		default:
+		}
+	}
+
+	r.singleServerReplicationStopped.Store(true)
+	r.rafty.Logger.Trace().
+		Str("address", r.rafty.Address.String()).
+		Str("id", r.rafty.id).
+		Str("state", r.rafty.getState().String()).
+		Msgf("Replication stopped")
+
+	time.Sleep(100 * time.Millisecond)
+	// draining remaining calls
+	for {
+		select {
+		case <-r.singleServerNewEntryChan:
+		default:
+			close(r.singleServerReplicationStopChan)
+			close(r.singleServerNewEntryChan)
+			r.singleServerNewEntryChan = nil
+			return
+		}
+	}
+}
+
+// singleServerAppendEntries manage append entries for the leader in the
+// single server cluster mode
+func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
+
+	if r.rafty.options.PersistDataOnDisk {
+		if err := r.rafty.storage.data.storeWithEntryIndex(request.entryIndex); err != nil {
+			r.rafty.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
+		}
+	}
+
+	r.rafty.nextIndex.Add(1)
+	r.rafty.matchIndex.Add(1)
+	r.rafty.lastApplied.Add(1)
+	r.rafty.commitIndex.Add(1)
+
+	r.rafty.Logger.Trace().
+		Str("address", r.rafty.Address.String()).
+		Str("id", r.rafty.id).
+		Str("state", r.rafty.getState().String()).
+		Str("term", fmt.Sprintf("%d", request.term)).
+		Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
+		Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+		Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
+		Str("commitIndex", fmt.Sprintf("%d", r.rafty.commitIndex.Load())).
+		Str("lastApplied", fmt.Sprintf("%d", r.rafty.lastApplied.Load())).
+		Str("requestUUID", request.uuid).
+		Msgf("Leader volatile state has been updated")
+
+	if request.replyToClient {
+		select {
+		case <-r.rafty.quitCtx.Done():
+			return
+		case <-time.After(500 * time.Millisecond):
+			return
+		case request.replyToClientChan <- appendEntriesResponse{}:
+		}
 	}
 }

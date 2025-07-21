@@ -14,6 +14,10 @@ type follower struct {
 // the current node type
 func (r *follower) init() {
 	r.rafty.leadershipTransferDisabled.Store(false)
+	if r.rafty.options.IsSingleServerCluster {
+		r.rafty.switchState(Candidate, stepUp, true, r.rafty.currentTerm.Load())
+		return
+	}
 }
 
 // onTimeout permit to reset election timer
@@ -47,7 +51,7 @@ func (r *follower) onTimeout() {
 			r.rafty.startElectionCampaign.Store(false)
 		}
 	}
-	r.rafty.switchState(Candidate, stepUp, false, r.rafty.currentTerm.Load())
+	r.rafty.switchState(Candidate, stepUp, true, r.rafty.currentTerm.Load())
 }
 
 // release permit to cancel or gracefully some actions
