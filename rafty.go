@@ -203,6 +203,10 @@ type Options struct {
 	// from the cluster before shutting down by sending a LeaveOnTerminate command to the leader.
 	// It's usually used by read replicas nodes.
 	LeaveOnTerminate bool
+
+	// IsSingleServerCluster indicate that it's a single server cluster.
+	// This is useful for development for example
+	IsSingleServerCluster bool
 }
 
 // Rafty is a struct representing the raft requirements
@@ -488,6 +492,9 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 	r.storage.data.rafty = r
 
 	r.logs = r.newLogs()
+	if r.options.IsSingleServerCluster {
+		r.leadershipTransferDisabled.Store(true)
+	}
 	return r, err
 }
 
@@ -549,9 +556,9 @@ func (r *Rafty) Start() error {
 	r.isRunning.Store(true)
 	if r.getState() == Down {
 		if r.options.ReadReplica {
-			r.switchState(ReadReplica, stepUp, false, r.currentTerm.Load())
+			r.switchState(ReadReplica, stepUp, true, r.currentTerm.Load())
 		} else {
-			r.switchState(Follower, stepUp, false, r.currentTerm.Load())
+			r.switchState(Follower, stepUp, true, r.currentTerm.Load())
 		}
 		r.Logger.Info().
 			Str("address", r.Address.String()).

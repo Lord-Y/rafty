@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSendCatchupAppendEntries(t *testing.T) {
+func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
 	err := s.parsePeers()

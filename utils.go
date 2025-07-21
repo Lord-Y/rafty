@@ -149,7 +149,7 @@ func (r *Rafty) switchState(newState State, upOrDown upOrDown, niceMessage bool,
 	// if ok {
 	// 	r.Logger.Info().
 	// 		Str("address", r.Address.String()).
-	// 		Str("newState", state.String()).
+	// 		Str("newState", newState.String()).
 	// 		Msgf("Called from %s#%d", file, no)
 	// }
 	addr := (*uint32)(&r.State)

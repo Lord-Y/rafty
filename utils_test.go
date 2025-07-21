@@ -10,38 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// basicNodeSetup is only a helper for other unit testing.
-// It MUST NOT be used to start a cluster
-func basicNodeSetup() *Rafty {
-	addr := net.TCPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: int(GRPCPort),
-	}
-	peers := []Peer{
-		{
-			Address: "127.0.0.1",
-		},
-		{
-			Address: "127.0.0.2",
-		},
-		{
-			Address: "127.0.0.3:50053",
-		},
-	}
-
-	id := fmt.Sprintf("%d", addr.Port)
-	id = id[len(id)-2:]
-	options := Options{
-		Peers: peers,
-	}
-	s, _ := NewRafty(addr, id, options)
-
-	for _, v := range s.options.Peers {
-		s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
-	}
-	return s
-}
-
 func TestUtils_getState(t *testing.T) {
 	assert := assert.New(t)
 

@@ -21,6 +21,38 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// basicNodeSetup is only a helper for other unit testing.
+// It MUST NOT be used to start a cluster
+func basicNodeSetup() *Rafty {
+	addr := net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: int(GRPCPort),
+	}
+	peers := []Peer{
+		{
+			Address: "127.0.0.1",
+		},
+		{
+			Address: "127.0.0.2",
+		},
+		{
+			Address: "127.0.0.3:50053",
+		},
+	}
+
+	id := fmt.Sprintf("%d", addr.Port)
+	id = id[len(id)-2:]
+	options := Options{
+		Peers: peers,
+	}
+	s, _ := NewRafty(addr, id, options)
+
+	for _, v := range s.options.Peers {
+		s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
+	}
+	return s
+}
+
 type clusterConfig struct {
 	t                         *testing.T
 	assert                    *assert.Assertions
@@ -39,6 +71,7 @@ type clusterConfig struct {
 	maxAppendEntries          uint64
 	readReplicaCount          uint64
 	disablePrevote            bool
+	isSingleServerCluster     bool
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
@@ -47,6 +80,25 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		cc.portStartRange = 50000
 	} else {
 		defaultPort = int(cc.portStartRange) + 51
+	}
+
+	if cc.isSingleServerCluster {
+		addr := net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: defaultPort,
+		}
+
+		id := fmt.Sprintf("%d", addr.Port)
+		id = id[len(id)-2:]
+		options := Options{
+			IsSingleServerCluster: true,
+			logSource:             cc.testName,
+			PersistDataOnDisk:     true,
+		}
+		server, err := NewRafty(addr, id, options)
+		cc.assert.Nil(err)
+		cluster = append(cluster, server)
+		return
 	}
 	readReplicaCount := 0
 	for i := range cc.clusterSize {
@@ -62,6 +114,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 			Port: defaultPort + int(i),
 		}
 
+		options.logSource = cc.testName
 		options.DisablePrevote = cc.disablePrevote
 		options.TimeMultiplier = cc.timeMultiplier
 		if cc.autoSetMinimumClusterSize {
@@ -102,7 +155,6 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 				})
 
 				options.Peers = peers
-				options.logSource = cc.testName
 				id := ""
 				if !cc.noNodeID {
 					id = fmt.Sprintf("%d", addr.Port)
@@ -374,10 +426,14 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	for !done {
 		<-time.After(10 * time.Second)
 		go cc.restartNode(nodeId, &wg)
-		if nodeId >= 2 {
+		if cc.isSingleServerCluster {
 			done = true
+		} else {
+			if nodeId >= 2 {
+				done = true
+			}
+			nodeId++
 		}
-		nodeId++
 	}
 	time.Sleep(5 * time.Second)
 

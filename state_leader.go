@@ -56,6 +56,17 @@ type leader struct {
 
 	// membershipChangeInProgress is set to true when membership change is ongoing
 	membershipChangeInProgress atomic.Bool
+
+	// singleServerNewEntryChan is used by the leader every times it received
+	// a new log entry
+	singleServerNewEntryChan chan *onAppendEntriesRequest
+
+	// singleServerReplicationStopChan is used by the leader
+	// in order stop ongoing append entries replication
+	singleServerReplicationStopChan chan struct{}
+
+	// singleServerReplicationStopped is only a helper to indicate if a singleServerReplicationStopChan is closed
+	singleServerReplicationStopped atomic.Bool
 }
 
 // init initialize all requirements needed by
@@ -67,12 +78,16 @@ func (r *leader) init() {
 	r.leaseDuration = r.rafty.heartbeatTimeout()
 	r.leaseTimer = time.NewTicker(r.leaseDuration * 3)
 
-	r.leadershipTransferDuration = r.rafty.heartbeatTimeout()
-	r.leadershipTransferTimer = time.NewTicker(r.leadershipTransferDuration)
-	r.leadershipTransferChan = make(chan RPCResponse, 1)
-	go r.leadershipTransferLoop()
+	if r.rafty.options.IsSingleServerCluster {
+		r.setupSingleServerReplicationState()
+	} else {
+		r.leadershipTransferDuration = r.rafty.heartbeatTimeout()
+		r.leadershipTransferTimer = time.NewTicker(r.leadershipTransferDuration)
+		r.leadershipTransferChan = make(chan RPCResponse, 1)
+		go r.leadershipTransferLoop()
 
-	r.setupFollowersReplicationStates()
+		r.setupFollowersReplicationStates()
+	}
 
 	// heartBeatTimeout is divided by 2 for the leader
 	// otherwise it will step down quickly as new election campaign
@@ -83,7 +98,7 @@ func (r *leader) init() {
 // onTimeout permit to reset election timer
 // and then perform some other actions
 func (r *leader) onTimeout() {
-	if r.rafty.getState() != Leader {
+	if r.rafty.getState() != Leader || r.rafty.options.IsSingleServerCluster {
 		return
 	}
 
@@ -97,6 +112,15 @@ func (r *leader) onTimeout() {
 // release permit to cancel or gracefully some actions
 // when the node change state
 func (r *leader) release() {
+	if r.rafty.options.IsSingleServerCluster {
+		if !r.singleServerReplicationStopped.Load() {
+			r.singleServerReplicationStopChan <- struct{}{}
+		}
+		r.leaseTimer.Stop()
+		r.rafty.setLeader(leaderMap{})
+		return
+	}
+
 	r.timeoutNowRequest()
 	r.leaseTimer.Stop()
 	r.rafty.setLeader(leaderMap{})
@@ -115,7 +139,7 @@ func (r *leader) setupFollowersReplicationStates() {
 		followerRepl := &followerReplication{
 			peer:                follower,
 			rafty:               r.rafty,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
+			newEntryChan:        make(chan *onAppendEntriesRequest),
 			replicationStopChan: make(chan struct{}, 1),
 		}
 		r.addReplication(followerRepl, true)
@@ -298,6 +322,13 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 		}
 	}
 
+	if r.rafty.options.IsSingleServerCluster {
+		if r.rafty.getState() == Leader && r.rafty.isRunning.Load() {
+			r.singleServerNewEntryChan <- request
+		}
+		return
+	}
+
 	r.disableHeartBeat.Store(true)
 	defer r.disableHeartBeat.Store(false)
 	for _, follower := range r.followerReplication {
@@ -311,6 +342,12 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 // as follower when the quorum of voters is unreachable
 func (r *leader) leasing() {
 	if r.rafty.getState() == Leader {
+		max := 500 * time.Millisecond
+		if r.rafty.options.IsSingleServerCluster {
+			r.leaseTimer.Reset(max)
+			return
+		}
+
 		var unreachable int
 		var newLease time.Duration
 		now := time.Now()
@@ -345,10 +382,9 @@ func (r *leader) leasing() {
 			r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
 			return
 		}
-		// we to that to prevent non-positive interval for Ticker.Reset
+		// To prevent non-positive interval for Ticker.Reset
 		// and having a new lease too low is not recommended
 		// so we resetted to max value
-		max := 500 * time.Millisecond
 		if newLease > max || newLease < 50*time.Millisecond {
 			newLease = max
 		}
@@ -475,5 +511,39 @@ func (r *leader) leadershipTransferLoop() {
 				r.leadershipTransferChanClosed.Store(true)
 			}
 		}
+	}
+}
+
+func (r *leader) setupSingleServerReplicationState() {
+	r.singleServerNewEntryChan = make(chan *onAppendEntriesRequest)
+	r.singleServerReplicationStopChan = make(chan struct{}, 1)
+	go r.startStopSingleServerReplication()
+
+	currentTerm := r.rafty.currentTerm.Load()
+	entries := []*raftypb.LogEntry{
+		{
+			LogType:   uint32(logNoop),
+			Timestamp: uint32(time.Now().Unix()),
+			Term:      currentTerm,
+			Command:   nil,
+		},
+	}
+
+	totalLogs := r.rafty.logs.appendEntries(entries, false)
+	request := &onAppendEntriesRequest{
+		totalFollowers:             r.totalFollowers.Load(),
+		quorum:                     uint64(r.rafty.quorum()),
+		term:                       currentTerm,
+		prevLogIndex:               r.rafty.lastLogIndex.Load(),
+		prevLogTerm:                r.rafty.lastLogTerm.Load(),
+		totalLogs:                  uint64(totalLogs),
+		uuid:                       uuid.NewString(),
+		commitIndex:                r.rafty.commitIndex.Load(),
+		entries:                    entries,
+		membershipChangeInProgress: &atomic.Bool{},
+	}
+
+	if r.rafty.getState() == Leader && r.rafty.isRunning.Load() {
+		r.singleServerNewEntryChan <- request
 	}
 }
