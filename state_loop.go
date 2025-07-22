@@ -1,9 +1,5 @@
 package rafty
 
-import (
-	"time"
-)
-
 // commonLoop handle all request that all
 // nodes have in common
 func (r *Rafty) commonLoop() {
@@ -23,16 +19,16 @@ func (r *Rafty) commonLoop() {
 		// handle ask node id
 		case data := <-r.rpcAskNodeIDChan:
 			r.askNodeIDResult(data)
+
+		// handle cluster bootstrap
+		case data := <-r.rpcBootstrapClusterRequestChan:
+			r.bootstrapCluster(data)
 		}
 	}
 }
 
 // stateLoop handle all needs required by all kind of nodes
 func (r *Rafty) stateLoop() {
-	r.mu.Lock()
-	r.timer = time.NewTicker(r.randomElectionTimeout())
-	r.mu.Unlock()
-
 	for r.getState() != Down {
 		switch r.getState() {
 		case ReadReplica:

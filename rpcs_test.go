@@ -147,3 +147,33 @@ func TestRpcs_membershipChangeResponse(t *testing.T) {
 		s.membershipChangeResponse(resp)
 	})
 }
+
+func TestRpcs_bootstrapCluster(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	s.State = Follower
+	s.options.BootstrapCluster = true
+	s.options.PersistDataOnDisk = true
+
+	responseChan := make(chan RPCResponse, 1)
+	request := RPCRequest{
+		RPCType:      BootstrapClusterRequest,
+		ResponseChan: responseChan,
+	}
+
+	t.Run("bootstrap_cluster", func(t *testing.T) {
+		s.bootstrapCluster(request)
+		data := <-responseChan
+		response := data.Response.(*raftypb.BootstrapClusterResponse)
+		assert.Equal(true, response.Success)
+	})
+
+	t.Run("bootstrap_cluster_error", func(t *testing.T) {
+		s.bootstrapCluster(request)
+		data := <-responseChan
+		assert.Error(ErrClusterAlreadyBootstrapped, data.Error)
+	})
+}

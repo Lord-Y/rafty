@@ -25,6 +25,19 @@ func TestClient_FakeCommand(t *testing.T) {
 		cc.testClustering(t)
 	})
 
+	t.Run("bootstrap", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+		s.isRunning.Store(true)
+		s.options.BootstrapCluster = true
+
+		_, err = s.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
+		assert.Error(err)
+	})
+
 	t.Run("no_leader", func(t *testing.T) {
 		assert := assert.New(t)
 
@@ -32,6 +45,7 @@ func TestClient_FakeCommand(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
 
 		_, err = s.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
 		assert.Error(err)

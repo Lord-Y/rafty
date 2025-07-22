@@ -154,6 +154,9 @@ func (r metaFile) restore() error {
 		r.rafty.lastApplied.Store(data.LastApplied)
 		r.rafty.lastAppliedConfigIndex.Store(data.LastAppliedConfigIndex)
 		r.rafty.lastAppliedConfigTerm.Store(data.LastAppliedConfigTerm)
+		if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() && data.LastAppliedConfigIndex > 0 {
+			r.rafty.isBootstrapped.Store(true)
+		}
 		if len(data.Configuration.ServerMembers) > 0 {
 			r.rafty.configuration.ServerMembers = data.Configuration.ServerMembers
 		} else {

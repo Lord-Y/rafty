@@ -31,6 +31,23 @@ func (r *follower) onTimeout() {
 		r.askForMembership()
 		return
 	}
+	r.rafty.Logger.Info().
+		Str("address", r.rafty.Address.String()).
+		Str("id", r.rafty.id).
+		Str("state", r.rafty.getState().String()).
+		Str("bootstrapCluster", fmt.Sprintf("%t", r.rafty.options.BootstrapCluster)).
+		Str("isBootstrapped", fmt.Sprintf("%t", r.rafty.isBootstrapped.Load())).
+		Msgf("XXXXXX")
+	if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() {
+		r.rafty.timer.Reset(30 * time.Second)
+		r.rafty.Logger.Warn().
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Msgf("Waiting for the cluster to be bootstrapped")
+		r.rafty.sendGetLeaderRequest()
+		return
+	}
 
 	leader := r.rafty.getLeader()
 	leaderLastContactDate := r.rafty.leaderLastContactDate.Load()

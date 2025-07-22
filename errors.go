@@ -21,4 +21,6 @@ var (
 	ErrMembershipChangeInProgress            = errors.New("membership change in progress")
 	ErrMembershipChangeNodeNotDemoted        = errors.New("node must be demoted before being removed")
 	ErrMembershipChangeNodeDemotionForbidden = errors.New("node cannot be demoted, breaking cluster")
+	ErrClusterNotBootstrapped                = errors.New("cluster not bootstrapped")
+	ErrClusterAlreadyBootstrapped            = errors.New("cluster already bootstrapped")
 )
