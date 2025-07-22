@@ -126,4 +126,24 @@ func TestStateLeader(t *testing.T) {
 		go state.leadershipTransferLoop()
 		time.Sleep(time.Second)
 	})
+
+	t.Run("release_single_server_cluster", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Leader
+		state := leader{rafty: s}
+
+		state.leaseDuration = state.rafty.heartbeatTimeout()
+		state.leaseTimer = time.NewTicker(state.leaseDuration * 3)
+		state.leadershipTransferDuration = state.rafty.heartbeatTimeout()
+		state.leadershipTransferTimer = time.NewTicker(state.leadershipTransferDuration)
+		state.singleServerReplicationStopChan = make(chan struct{}, 1)
+		s.options.IsSingleServerCluster = true
+
+		state.release()
+	})
 }

@@ -190,6 +190,9 @@ func (r *rpcManager) ClientGetLeader(ctx context.Context, in *raftypb.ClientGetL
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
+	if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() {
+		return nil, ErrClusterNotBootstrapped
+	}
 
 	state := r.rafty.getState()
 	leader := r.rafty.getLeader()
@@ -209,6 +212,9 @@ func (r *rpcManager) ClientGetLeader(ctx context.Context, in *raftypb.ClientGetL
 func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.ForwardCommandToLeaderRequest) (*raftypb.ForwardCommandToLeaderResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
+	}
+	if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() {
+		return nil, ErrClusterNotBootstrapped
 	}
 
 	cmd, err := decodeCommand(in.Command)
@@ -297,6 +303,44 @@ func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second * membershipTimeoutSeconds):
+		return nil, errTimeoutSendingRequest
+	}
+}
+
+func (r *rpcManager) SendBootstrapClusterRequest(ctx context.Context, in *raftypb.BootstrapClusterRequest) (*raftypb.BootstrapClusterResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
+		return nil, ErrShutdown
+	}
+
+	responseChan := make(chan RPCResponse, 1)
+	select {
+	case r.rafty.rpcBootstrapClusterRequestChan <- RPCRequest{
+		RPCType:      BootstrapClusterRequest,
+		Request:      in,
+		ResponseChan: responseChan,
+	}:
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(500 * time.Millisecond):
+		return nil, errTimeoutSendingRequest
+	}
+
+	select {
+	case response := <-responseChan:
+		return response.Response.(*raftypb.BootstrapClusterResponse), response.Error
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(time.Second):
 		return nil, errTimeoutSendingRequest
 	}
 }

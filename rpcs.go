@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"time"
 
@@ -37,6 +38,9 @@ const (
 	// MembershipChangeRequest is used during membership changes
 	// by a new node that wants to be part of the cluster
 	MembershipChangeRequest
+
+	// BootstrapClusterRequest is used to bootstrap the cluster
+	BootstrapClusterRequest
 )
 
 type RPCRequest struct {
@@ -622,4 +626,63 @@ func (r *Rafty) rpcMembershipNotLeader(data RPCRequest) {
 		Error:    ErrNotLeader,
 	}
 	data.ResponseChan <- rpcResponse
+}
+
+// bootstrapCluster is used by the current node
+// to bootstrap the cluster with all initial nodes.
+// This should be only call once and on one node.
+// If already bootstrapped, and error will be returned
+func (r *Rafty) bootstrapCluster(data RPCRequest) {
+	response := &raftypb.BootstrapClusterResponse{}
+	rpcResponse := RPCResponse{}
+	defer func() {
+		data.ResponseChan <- rpcResponse
+	}()
+	if r.isBootstrapped.Load() {
+		rpcResponse.Error = ErrClusterAlreadyBootstrapped
+		rpcResponse.Response = response
+		return
+	}
+
+	r.currentTerm.Add(1)
+	peers, _ := r.getAllPeers()
+	encodedPeers := encodePeers(peers)
+	entries := []*raftypb.LogEntry{
+		{
+			LogType:   uint32(logConfiguration),
+			Timestamp: uint32(time.Now().Unix()),
+			Term:      r.currentTerm.Load(),
+			Command:   encodedPeers,
+		},
+	}
+	_ = r.logs.appendEntries(entries, false)
+	_ = r.logs.applyConfigEntry(entries[0])
+	if r.options.PersistDataOnDisk {
+		if err := r.storage.data.storeWithEntryIndex(int(entries[0].Index)); err != nil {
+			r.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
+		}
+		if err := r.storage.metadata.store(); err != nil {
+			r.Logger.Fatal().Err(err).
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("state", r.getState().String()).
+				Str("term", fmt.Sprintf("%d", r.currentTerm.Load())).
+				Msgf("Fail to persist metadata")
+		}
+	}
+
+	response.Success = true
+	rpcResponse.Response = response
+	r.nextIndex.Add(1)
+	r.matchIndex.Add(1)
+	r.lastApplied.Add(1)
+	r.commitIndex.Add(1)
+	r.isBootstrapped.Store(true)
+	r.switchState(Leader, stepUp, true, r.currentTerm.Load())
+	r.timer.Reset(r.randomElectionTimeout())
+	r.Logger.Info().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Msgf("Cluster successfully bootstrapped")
 }

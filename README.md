@@ -37,6 +37,8 @@ Here is a list of the supported features of `rafty`:
   - [x] remove member (with shutdown if proper flag set)
   - [x] forceRemove member
   - [x] leaveOnTerminate
+- [x] Single server cluster
+- [x] Bootstrap cluster
 
 ## References
 

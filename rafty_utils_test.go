@@ -72,6 +72,7 @@ type clusterConfig struct {
 	readReplicaCount          uint64
 	disablePrevote            bool
 	isSingleServerCluster     bool
+	bootstrapCluster          bool
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
@@ -117,6 +118,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		options.logSource = cc.testName
 		options.DisablePrevote = cc.disablePrevote
 		options.TimeMultiplier = cc.timeMultiplier
+		options.BootstrapCluster = cc.bootstrapCluster
 		if cc.autoSetMinimumClusterSize {
 			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.readReplicaCount
 		}
@@ -415,6 +417,16 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	cc.startCluster(&wg)
 	dataDir := filepath.Dir(cc.cluster[0].options.DataDir)
 
+	time.Sleep(5 * time.Second)
+	// provoke errors on purpuse on non bootstrapped cluster
+	if cc.bootstrapCluster {
+		wg.Add(1)
+		cc.submitCommandOnAllNodes(&wg)
+		cc.bootstrap(&wg)
+		// provoke errors on purpuse on already bootstrapped cluster
+		cc.bootstrap(&wg)
+	}
+
 	go func() {
 		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
 			wg.Add(1)
@@ -630,7 +642,6 @@ func (cc *clusterConfig) membershipAction(wg *sync.WaitGroup, leader leaderMap, 
 			for retry := range 3 {
 				if noLeader {
 					leader = cc.waitForLeader(time.Second, 3)
-					// leader = &newLeader
 					noLeader = false
 				}
 				// we use retry here so r.rpcMembershipNotLeader from state_loop can be
@@ -685,4 +696,34 @@ func (r *Rafty) fillIDs() {
 		id = id[len(id)-2:]
 		r.configuration.ServerMembers[i].ID = id
 	}
+}
+
+func (cc *clusterConfig) bootstrap(wg *sync.WaitGroup) {
+	node := cc.cluster[0]
+	cc.t.Run(fmt.Sprintf("%s_bootstrap_node_%s", cc.testName, node.id), func(t *testing.T) {
+		wg.Add(1)
+		defer wg.Done()
+		node.Logger.Info().Msgf("Submitting command to bootstrap node %s", node.id)
+		conn, client, err := cc.getClient(node.Address.String())
+		if err != nil {
+			cc.assert.Errorf(err, "Node %s / %s fail to connect to grpc server", node.Address.String(), node.id)
+			return
+		}
+		defer func() {
+			_ = conn.Close()
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		response, err := client.SendBootstrapClusterRequest(ctx, &raftypb.BootstrapClusterRequest{})
+		if err != nil {
+			cc.t.Logf("Fail to bootstrap cluster node %s / %s with error %s", node.Address.String(), node.id, err)
+			cc.assert.Errorf(err, "Fail to bootstrap cluster node %s / %s", node.Address.String(), node.id)
+			return
+		}
+		if response.Success {
+			node.Logger.Info().Msgf("Cluster bootstrapped on node %s / %s ", node.Address.String(), node.id)
+			return
+		}
+	})
 }

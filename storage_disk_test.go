@@ -14,40 +14,36 @@ import (
 
 func TestStorageDisk(t *testing.T) {
 	assert := assert.New(t)
-
-	cc := clusterConfig{
-		t:           t,
-		clusterSize: 1,
-	}
 	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
 
-	makeStorage := func(node *Rafty, only bool) {
+	// makeStorage is an helper when only set to true
+	// will only initialize s.storage.metadata.rafty and s.storage.data.rafty
+	makeStorage := func(s *Rafty, only bool) {
 		if only {
-			node.storage.metadata.rafty = node
-			node.storage.data.rafty = node
+			s.storage.metadata.rafty = s
+			s.storage.data.rafty = s
 			return
 		}
 
-		metaFile, dataFile, err := node.newStorage()
+		metaFile, dataFile, err := s.newStorage()
 		assert.Nil(err)
-		node.storage = storage{
+		s.storage = storage{
 			metadata: metaFile,
 			data:     dataFile,
 		}
-		node.storage.metadata.rafty = node
-		node.storage.data.rafty = node
-		node.logs = node.newLogs()
+		s.storage.metadata.rafty = s
+		s.storage.data.rafty = s
+		s.logs = s.newLogs()
 	}
 
-	makeNewNode := func(node *Rafty) *Rafty {
+	makeNewNode := func(s *Rafty) *Rafty {
 		id, currentTerm, votedFor := "test", uint64(1), "a"
-		node.id = id
-		node.currentTerm.Store(currentTerm)
-		node.votedFor = votedFor
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
-		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
-		node.options.PersistDataOnDisk = true
-		return node
+		s.id = id
+		s.currentTerm.Store(currentTerm)
+		s.votedFor = votedFor
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
+		s.options.PersistDataOnDisk = true
+		return s
 	}
 
 	t.Run("createDirectoryIfNotExist", func(t *testing.T) {
@@ -55,63 +51,62 @@ func TestStorageDisk(t *testing.T) {
 	})
 
 	t.Run("newStorage_success", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
+		s := &Rafty{}
+		s.Logger = &logger
 
-		metadata, data, err := node.newStorage()
+		metadata, data, err := s.newStorage()
 		assert.Nil(err)
 		assert.Equal(metaFile{}, metadata)
 		assert.Equal(dataFile{}, data)
 	})
 
 	t.Run("newStorage_error", func(t *testing.T) {
-		node := &Rafty{}
-		node.Logger = &logger
+		s := &Rafty{}
+		s.Logger = &logger
 
-		_, _, err := node.newStorage()
+		_, _, err := s.newStorage()
 		assert.Nil(err)
 
-		node.options.PersistDataOnDisk = true
-		_, _, err = node.newStorage()
+		s.options.PersistDataOnDisk = true
+		_, _, err = s.newStorage()
 		assert.Nil(err)
 
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_newStorage_error")
-		_, _, err = node.newStorage()
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_newStorage_error")
+		_, _, err = s.newStorage()
 		assert.Nil(err)
 
-		_ = os.RemoveAll(node.options.DataDir)
-		_ = os.MkdirAll(node.options.DataDir, 0750)
-		tmpFile := filepath.Join(node.options.DataDir, dataStateDir)
+		_ = os.RemoveAll(s.options.DataDir)
+		_ = os.MkdirAll(s.options.DataDir, 0750)
+		tmpFile := filepath.Join(s.options.DataDir, dataStateDir)
 		_, err = os.Create(tmpFile)
 		assert.Nil(err)
-		_, _, err = node.newStorage()
+		_, _, err = s.newStorage()
 		assert.Error(err)
-		_ = os.RemoveAll(node.options.DataDir)
+		_ = os.RemoveAll(s.options.DataDir)
 
-		tmpFile = filepath.Join(node.options.DataDir, metadataFile)
+		tmpFile = filepath.Join(s.options.DataDir, metadataFile)
 		_ = os.MkdirAll(tmpFile, 0750)
-		_, _, err = node.newStorage()
+		_, _, err = s.newStorage()
 		assert.Error(err)
-		_ = os.RemoveAll(node.options.DataDir)
+		_ = os.RemoveAll(s.options.DataDir)
 
-		tmpFile = filepath.Join(node.options.DataDir, dataStateDir, dataStateFile)
+		tmpFile = filepath.Join(s.options.DataDir, dataStateDir, dataStateFile)
 		_ = os.MkdirAll(tmpFile, 0750)
-		_, _, err = node.newStorage()
+		_, _, err = s.newStorage()
 		assert.Error(err)
-		_ = os.RemoveAll(node.options.DataDir)
+		_ = os.RemoveAll(s.options.DataDir)
 
-		_, _, err = node.newStorage()
+		_, _, err = s.newStorage()
 		assert.Nil(err)
-		_ = os.RemoveAll(node.options.DataDir)
+		_ = os.RemoveAll(s.options.DataDir)
 	})
 
 	t.Run("restore_error", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
 
-		metadata, data, err := node.newStorage()
+		metadata, data, err := s.newStorage()
 		assert.Nil(err)
 		tmpFile, err := os.CreateTemp("", "invalid_metadata")
 		assert.Nil(err)
@@ -123,12 +118,12 @@ func TestStorageDisk(t *testing.T) {
 		assert.Error(metadata.restore())
 
 		// fake json
-		node.options.PersistDataOnDisk = true
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_newStorage_error")
-		_, _, err = node.newStorage()
+		s.options.PersistDataOnDisk = true
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_newStorage_error")
+		_, _, err = s.newStorage()
 		assert.Nil(err)
 
-		file := filepath.Join(node.options.DataDir, metadataFile)
+		file := filepath.Join(s.options.DataDir, metadataFile)
 		tmpFile, err = os.Create(file)
 		assert.Nil(err)
 		_, _ = tmpFile.WriteString("{invalid json")
@@ -147,333 +142,273 @@ func TestStorageDisk(t *testing.T) {
 		}
 		assert.Error(storage.restore())
 
-		storage.metadata = metaFile{rafty: node, file: nil}
+		storage.metadata = metaFile{rafty: s, file: nil}
 		storage.data = data
 		assert.Error(storage.restore())
 
-		storage.data = dataFile{rafty: node, file: nil}
+		storage.data = dataFile{rafty: s, file: nil}
 		assert.Nil(storage.restore())
-		_ = os.RemoveAll(node.options.DataDir)
+		_ = os.RemoveAll(s.options.DataDir)
 	})
 
 	t.Run("restore_close", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-		node.options.PersistDataOnDisk = true
-		node.options.DataDir = filepath.Join(os.TempDir(), "restore_close")
-		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
-		makeStorage(node, false)
-		node.logs.rafty = node
-		assert.Nil(node.storage.restore())
-		node.storage.close()
-	})
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
 
-	t.Run("restore_metadata", func(t *testing.T) {
-		x := basicNodeSetup()
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-		makeStorage(node, false)
-		node.options.Peers = x.options.Peers
-		node.logs.rafty = node
-		assert.Nil(node.storage.metadata.restore())
-		node.storage.metadata.close()
+		s.options.PersistDataOnDisk = true
+		s.options.DataDir = filepath.Join(os.TempDir(), "restore_close")
+		assert.Nil(s.storage.restore())
+		s.storage.close()
 	})
 
 	t.Run("persist_metadata_basic", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
 
 		id, currentTerm, votedFor := "test", uint64(1), "a"
-		node.id = id
-		node.currentTerm.Store(currentTerm)
-		node.votedFor = votedFor
+		s.id = id
+		s.currentTerm.Store(currentTerm)
+		s.votedFor = votedFor
 
-		err := node.storage.metadata.store()
+		err = s.storage.metadata.store()
 		assert.Nil(err)
 
-		node.options.PersistDataOnDisk = true
-		makeStorage(node, false)
-		err = node.storage.metadata.restore()
+		s.options.PersistDataOnDisk = true
+		err = s.storage.metadata.restore()
 		assert.Nil(err)
 
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_persist_metadata_basic")
-		makeStorage(node, false)
-		err = node.storage.metadata.restore()
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_persist_metadata_basic")
+		err = s.storage.metadata.restore()
 		assert.Nil(err)
-		node.storage.metadata.close()
+		s.storage.metadata.close()
 
-		err = os.RemoveAll(node.options.DataDir)
+		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 	})
 
 	t.Run("restore_metadata_with_persistence_and_filepath", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-
-		node.options.PersistDataOnDisk = true
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
-		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
-
-		makeStorage(node, true)
-		err := node.storage.metadata.restore()
+		s := basicNodeSetup()
+		err := s.parsePeers()
 		assert.Nil(err)
-		err = os.RemoveAll(node.options.DataDir)
+
+		s.options.PersistDataOnDisk = true
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
+		makeStorage(s, false)
+		err = s.storage.metadata.restore()
+		assert.Nil(err)
+		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 	})
 
 	t.Run("restore_and_persist_metadata", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		x := basicNodeSetup()
-		id, currentTerm := "test", uint64(1)
-		node := cc.cluster[0]
-		node.Logger = &logger
-		node.options.Peers = x.options.Peers
-		makeStorage(node, true)
-
-		err := node.storage.metadata.restore()
-		assert.Nil(err)
-		assert.Equal("", node.id)
-		assert.Equal(uint64(0), node.currentTerm.Load())
-		node = makeNewNode(node)
-		makeStorage(node, false)
-
-		err = node.storage.metadata.restore()
-		assert.Nil(err)
-		err = node.storage.metadata.store()
+		s := basicNodeSetup()
+		err := s.parsePeers()
 		assert.Nil(err)
 
-		err = node.storage.metadata.restore()
+		makeStorage(s, true)
+		currentTerm := uint64(1)
+		err = s.storage.metadata.restore()
+		assert.Nil(err)
+		assert.Equal(uint64(0), s.currentTerm.Load())
+		err = s.storage.metadata.store()
+		assert.Nil(err)
+		err = s.storage.metadata.restore()
+		assert.Nil(err)
+		s.storage.metadata.close()
+
+		s = nil
+		s = basicNodeSetup()
+		err = s.parsePeers()
 		assert.Nil(err)
 
-		assert.Equal(id, node.id)
-		assert.Equal(currentTerm, node.currentTerm.Load())
-		node.storage.metadata.close()
-
-		node = nil
-		cc.cluster = cc.makeCluster()
-		node = cc.cluster[0]
-		node.Logger = &logger
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
-		node.options.PersistDataOnDisk = true
-		makeStorage(node, false)
-		err = node.storage.metadata.restore()
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
+		s.options.PersistDataOnDisk = true
+		makeStorage(s, false)
+		err = s.storage.metadata.restore()
 		assert.Nil(err)
-		node.storage.metadata.close()
+		s.storage.metadata.close()
 
-		err = os.RemoveAll(node.options.DataDir)
+		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 
-		node = nil
-		cc.cluster = cc.makeCluster()
-		node = cc.cluster[0]
-		node.Logger = &logger
-
-		node = makeNewNode(node)
-		makeStorage(node, false)
-
-		node.options.Peers = x.options.Peers
-		err = node.storage.metadata.store()
-		assert.Nil(err)
-		err = node.storage.metadata.restore()
-		assert.Nil(err)
-		assert.NotNil(node.configuration.ServerMembers)
-
-		err = node.storage.metadata.restore()
+		s = nil
+		s = basicNodeSetup()
+		err = s.parsePeers()
 		assert.Nil(err)
 
-		err = os.RemoveAll(node.options.DataDir)
+		s = makeNewNode(s)
+		makeStorage(s, false)
+
+		err = s.storage.metadata.store()
 		assert.Nil(err)
-	})
-
-	t.Run("restore_data_basic", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-
-		err := node.storage.data.restore()
+		err = s.storage.metadata.restore()
 		assert.Nil(err)
-		node.storage.data.close()
-	})
+		assert.Equal(currentTerm, s.currentTerm.Load())
+		assert.NotNil(s.configuration.ServerMembers)
 
-	t.Run("restore_data_with_persistence_but_no_filepath", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-
-		node.options.PersistDataOnDisk = true
-		makeStorage(node, false)
-
-		err := node.storage.data.restore()
+		s.configuration.ServerMembers = nil
+		err = s.storage.metadata.store()
 		assert.Nil(err)
-		node.storage.data.close()
+		err = s.storage.metadata.restore()
+		assert.Nil(err)
+
+		err = os.RemoveAll(s.options.DataDir)
+		assert.Nil(err)
 	})
 
 	t.Run("persist_data_basic", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-		makeStorage(node, false)
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
 		buffer := new(bytes.Buffer)
-		err := encodeCommand(userCommand, buffer)
+		err = encodeCommand(userCommand, buffer)
 		assert.Nil(err)
-		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: buffer.Bytes()}
-		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
-		err = node.storage.data.store(&entry)
-		assert.Nil(err)
-
-		node.options.PersistDataOnDisk = true
-		makeStorage(node, false)
-
-		err = node.storage.data.store(&entry)
+		entry := raftypb.LogEntry{Timestamp: now, Term: s.currentTerm.Load(), Command: buffer.Bytes()}
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		err = s.storage.data.store(&entry)
 		assert.Nil(err)
 
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_persist_data_basic")
-		makeStorage(node, false)
-
-		err = node.storage.data.store(&entry)
+		s.options.PersistDataOnDisk = true
+		err = s.storage.data.store(&entry)
 		assert.Nil(err)
-		node.storage.data.close()
 
-		err = os.RemoveAll(node.options.DataDir)
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_persist_data_basic")
+		err = s.storage.data.store(&entry)
 		assert.Nil(err)
-	})
+		s.storage.data.close()
 
-	t.Run("restore_data_with_persistence_and_filepath", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-
-		node.options.PersistDataOnDisk = true
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
-		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
-
-		makeStorage(node, false)
-		err := node.storage.data.restore()
-		assert.Nil(err)
-		node.storage.data.close()
-
-		err = os.RemoveAll(node.options.DataDir)
+		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 	})
 
 	t.Run("restore_and_persist_data", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-		node.options.PersistDataOnDisk = true
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
-		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
-		makeStorage(node, false)
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.options.PersistDataOnDisk = true
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
+		makeStorage(s, false)
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
 		buffer := new(bytes.Buffer)
-		err := encodeCommand(userCommand, buffer)
+		err = encodeCommand(userCommand, buffer)
 		assert.Nil(err)
-		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: buffer.Bytes()}
-		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
-		assert.Equal(1, len(node.logs.log))
-		err = node.storage.data.store(&entry)
-		assert.Nil(err)
-
-		node.logs.log = nil
-		err = node.storage.data.restore()
-		assert.Nil(err)
-		assert.Equal(1, len(node.logs.log))
-		assert.Equal(now, node.logs.log[0].Timestamp)
-
-		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
-		assert.Equal(2, len(node.logs.log))
-		err = node.storage.data.store(&entry)
-		assert.Nil(err)
-		node.logs.log = nil
-		err = node.storage.data.restore()
-		assert.Nil(err)
-		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
-		assert.GreaterOrEqual(node.logs.log[0].Index, uint64(0))
-		assert.Greater(node.logs.log[1].Index, uint64(0))
-
-		node.storage.data.close()
-
-		node = nil
-		cc.cluster = cc.makeCluster()
-		node = cc.cluster[0]
-		node.Logger = &logger
-		node.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
-		node.options.PersistDataOnDisk = true
-		err = node.storage.data.restore()
+		entry := raftypb.LogEntry{Timestamp: now, Term: s.currentTerm.Load(), Command: buffer.Bytes()}
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		assert.Equal(1, len(s.logs.log))
+		err = s.storage.data.store(&entry)
 		assert.Nil(err)
 
-		node.storage.data.close()
-		err = os.RemoveAll(node.options.DataDir)
+		s.logs.log = nil
+		err = s.storage.data.restore()
+		assert.Nil(err)
+		assert.Equal(1, len(s.logs.log))
+		assert.Equal(now, s.logs.log[0].Timestamp)
+
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		assert.Equal(2, len(s.logs.log))
+		err = s.storage.data.store(&entry)
+		assert.Nil(err)
+		s.logs.log = nil
+		err = s.storage.data.restore()
+		assert.Nil(err)
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		assert.GreaterOrEqual(s.logs.log[0].Index, uint64(0))
+		assert.Greater(s.logs.log[1].Index, uint64(0))
+		s.options.BootstrapCluster = true
+		s.timer = time.NewTicker(s.randomElectionTimeout())
+		peers, _ := s.getAllPeers()
+		encoded := encodePeers(peers)
+		entryConfig := &raftypb.LogEntry{LogType: uint32(logConfiguration), Timestamp: now, Term: s.currentTerm.Load(), Command: encoded}
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{entryConfig}, false)
+		err = s.logs.applyConfigEntry(entryConfig)
+		assert.Nil(err)
+		err = s.storage.metadata.store()
+		assert.Nil(err)
+		err = s.storage.data.store(entryConfig)
+		assert.Nil(err)
+		s.storage.data.close()
+
+		s = nil
+		s = basicNodeSetup()
+		err = s.parsePeers()
+		assert.Nil(err)
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
+		s.options.PersistDataOnDisk = true
+		s.options.BootstrapCluster = true
+		makeStorage(s, false)
+		err = s.storage.metadata.restore()
+		assert.Nil(err)
+		err = s.storage.data.restore()
+		assert.Nil(err)
+		assert.Greater(s.lastAppliedConfigIndex.Load(), uint64(0))
+
+		s.storage.data.close()
+		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 	})
 
 	t.Run("storeWithEntryIndex_file_nil", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-		node.options.PersistDataOnDisk = true
-		node.options.DataDir = filepath.Join(os.TempDir(), "storeWithEntryIndex")
-		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
-		node.logs.rafty = node
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+		s.options.PersistDataOnDisk = true
+		s.options.DataDir = filepath.Join(os.TempDir(), "storeWithEntryIndex")
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
 		buffer := new(bytes.Buffer)
-		err := encodeCommand(userCommand, buffer)
+		err = encodeCommand(userCommand, buffer)
 		assert.Nil(err)
 
-		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: buffer.Bytes()}
-		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
-		err = node.storage.data.storeWithEntryIndex(0)
+		entry := raftypb.LogEntry{Timestamp: now, Term: s.currentTerm.Load(), Command: buffer.Bytes()}
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		err = s.storage.data.storeWithEntryIndex(0)
 		assert.Nil(err)
 
-		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
-		assert.Equal(2, len(node.logs.log))
-		err = node.storage.data.store(&entry)
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		assert.Equal(2, len(s.logs.log))
+		err = s.storage.data.store(&entry)
 		assert.Nil(err)
-		node.storage.data.close()
-		err = os.RemoveAll(node.options.DataDir)
+		s.storage.data.close()
+		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
-		node.wg.Wait()
+		s.wg.Wait()
 	})
 
 	t.Run("storeWithEntryIndex_file_not_nil", func(t *testing.T) {
-		cc.cluster = cc.makeCluster()
-		node := cc.cluster[0]
-		node.Logger = &logger
-		node.options.PersistDataOnDisk = true
-		node.options.DataDir = filepath.Join(os.TempDir(), "storeWithEntryIndex")
-		node.Logger.Debug().Msgf("node.options.DataDir %s", node.options.DataDir)
-		makeStorage(node, false)
-		node.logs.rafty = node
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+		s.options.PersistDataOnDisk = true
+		s.options.DataDir = filepath.Join(os.TempDir(), "storeWithEntryIndex")
+		makeStorage(s, false)
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
 		buffer := new(bytes.Buffer)
-		err := encodeCommand(userCommand, buffer)
+		err = encodeCommand(userCommand, buffer)
 		assert.Nil(err)
 
-		entry := raftypb.LogEntry{Timestamp: now, Term: node.currentTerm.Load(), Command: buffer.Bytes()}
-		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
-		err = node.storage.data.storeWithEntryIndex(0)
+		entry := raftypb.LogEntry{Timestamp: now, Term: s.currentTerm.Load(), Command: buffer.Bytes()}
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		err = s.storage.data.storeWithEntryIndex(0)
 		assert.Nil(err)
 
-		_ = node.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
-		assert.Equal(2, len(node.logs.log))
-		err = node.storage.data.store(&entry)
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		assert.Equal(2, len(s.logs.log))
+		err = s.storage.data.store(&entry)
 		assert.Nil(err)
-		node.storage.data.close()
-		err = os.RemoveAll(node.options.DataDir)
+		s.storage.data.close()
+		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
-		node.wg.Wait()
+		s.wg.Wait()
 	})
 }

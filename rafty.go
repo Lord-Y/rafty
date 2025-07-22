@@ -207,6 +207,10 @@ type Options struct {
 	// IsSingleServerCluster indicate that it's a single server cluster.
 	// This is useful for development for example
 	IsSingleServerCluster bool
+
+	// BootstrapCluster indicate if the cluster must be bootstrapped before
+	// proceeding to normal cluster operations
+	BootstrapCluster bool
 }
 
 // Rafty is a struct representing the raft requirements
@@ -273,6 +277,10 @@ type Rafty struct {
 
 	// rpcMembershipChangeChan will be used to handle rpc call from the leader
 	rpcMembershipChangeChan chan RPCResponse
+
+	// rpcBootstrapClusterRequestChan will be used by the nodes when bootstrap cluster
+	// is needed
+	rpcBootstrapClusterRequestChan chan RPCRequest
 
 	// leaderFound is only related to rpc call GetLeader
 	leaderFound atomic.Bool
@@ -407,6 +415,11 @@ type Rafty struct {
 	// It's done like to to allow the node to cleanly reply to the requester before
 	// shutting down
 	shutdownOnRemove atomic.Bool
+
+	// isBootstrapped is an helper that indicate if the current cluster
+	// has already been bootstrapped. Election timeout will be reset to 30s
+	// while waiting. Once boostrapped, it will switched back to initial election timeout
+	isBootstrapped atomic.Bool
 }
 
 // NewRafty instantiate rafty with default configuration
@@ -422,6 +435,7 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 		rpcClientGetLeaderChan:               make(chan RPCResponse),
 		rpcMembershipChangeRequestChan:       make(chan RPCRequest),
 		rpcMembershipChangeChan:              make(chan RPCResponse),
+		rpcBootstrapClusterRequestChan:       make(chan RPCRequest),
 	}
 	r.Address = address
 	r.id = id
@@ -495,6 +509,7 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 	if r.options.IsSingleServerCluster {
 		r.leadershipTransferDisabled.Store(true)
 	}
+	r.timer = time.NewTicker(r.randomElectionTimeout())
 	return r, err
 }
 

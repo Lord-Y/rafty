@@ -17,6 +17,9 @@ func (r *Rafty) SubmitCommand(command Command) ([]byte, error) {
 }
 
 func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
+	if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
+		return nil, ErrClusterNotBootstrapped
+	}
 	cmd, err := decodeCommand(command)
 	if err != nil {
 		return nil, err

@@ -97,8 +97,25 @@ func TestStateLoop_runAsLeader(t *testing.T) {
 	s.isRunning.Store(true)
 	s.State = Leader
 	s.timer = time.NewTicker(s.randomElectionTimeout())
-	s.currentTerm.Store(1)
+	s.currentTerm.Store(2)
 	id := 1
+
+	t.Run("handleSendVoteRequest", func(t *testing.T) {
+		go s.runAsLeader()
+		responseChan := make(chan RPCResponse, 1)
+		s.rpcVoteRequestChan <- RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
+				CandidateId:      s.configuration.ServerMembers[id].ID,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      1,
+			},
+			ResponseChan: responseChan,
+		}
+
+		data := <-responseChan
+		assert.Equal(nil, data.Error)
+	})
 
 	t.Run("handleSendAppendEntriesRequest", func(t *testing.T) {
 		go s.runAsLeader()

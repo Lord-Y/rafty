@@ -267,3 +267,16 @@ func TestStartSingleServerCluster(t *testing.T) {
 	cc.assert = assert.New(t)
 	cc.testClustering(t)
 }
+
+func TestStart3Nodes_bootstrap_cluster(t *testing.T) {
+	cc := clusterConfig{
+		t:           t,
+		testName:    "3_nodes_bootstrap_cluster",
+		clusterSize: 3,
+		// runTestInParallel: true,
+		portStartRange:   43000,
+		bootstrapCluster: true,
+	}
+	cc.assert = assert.New(t)
+	cc.testClustering(t)
+}

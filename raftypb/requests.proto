@@ -132,6 +132,12 @@ message MembershipChangeResponse {
   string leaderAddress = 3;
 }
 
+message BootstrapClusterRequest {}
+
+message BootstrapClusterResponse {
+  bool   success = 1;
+}
+
 service Rafty {
   rpc SendPreVoteRequest(PreVoteRequest) returns (PreVoteResponse) {}
   rpc SendVoteRequest(VoteRequest) returns (VoteResponse) {}
@@ -142,4 +148,5 @@ service Rafty {
   rpc ForwardCommandToLeader(ForwardCommandToLeaderRequest) returns (ForwardCommandToLeaderResponse) {}
   rpc SendTimeoutNowRequest(TimeoutNowRequest) returns (TimeoutNowResponse) {}
   rpc SendMembershipChangeRequest(MembershipChangeRequest) returns (MembershipChangeResponse) {}
+  rpc SendBootstrapClusterRequest(BootstrapClusterRequest) returns (BootstrapClusterResponse) {}
 }

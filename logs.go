@@ -289,6 +289,10 @@ func (r *logs) applyConfigEntry(entry *raftypb.LogEntry) error {
 
 			r.rafty.lastAppliedConfigIndex.Store(entry.Index)
 			r.rafty.lastAppliedConfigTerm.Store(entry.Term)
+			if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() {
+				r.rafty.isBootstrapped.Store(true)
+				r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
+			}
 		}
 		return nil
 	default:
