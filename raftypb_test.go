@@ -3,6 +3,7 @@ package rafty
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"os/signal"
@@ -76,95 +77,247 @@ func TestRaftypb_GetLeader(t *testing.T) {
 
 func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	rpcm := rpcManager{rafty: s}
 	request := &raftypb.PreVoteRequest{}
-	t.Run("timeout", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
+
+	t.Run("down", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.State = Down
+		rpcm := rpcManager{rafty: s}
+
 		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
-		assert.NotNil(err)
+		assert.Equal(ErrShutdown, err)
 	})
 
-	t.Run("timeout_context", func(t *testing.T) {
-		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
-		defer func() {
-			s.stopCtx()
-			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	t.Run("context_done_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
 		}()
-		_, err = rpcm.SendPreVoteRequest(s.quitCtx, request)
-		assert.NotNil(err)
+
+		_, err = rpcm.SendPreVoteRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
-		s.wg.Add(1)
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
 		go func() {
-			defer s.wg.Done()
 			data := <-s.rpcPreVoteRequestChan
 			data.ResponseChan <- RPCResponse{
 				Response: &raftypb.PreVoteResponse{PeerID: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
 			}
 		}()
+
 		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
 		assert.Nil(err)
-		s.wg.Wait()
+	})
+
+	t.Run("context_done_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			<-s.rpcPreVoteRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.SendPreVoteRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			<-s.rpcPreVoteRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
+		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
 		s.State = Follower
-		s.wg.Add(1)
+		rpcm := rpcManager{rafty: s}
+
 		go func() {
-			defer s.wg.Done()
 			<-s.rpcPreVoteRequestChan
 			time.Sleep(time.Second)
 		}()
-		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
-		assert.NotNil(err)
-		s.wg.Wait()
-	})
 
-	t.Run("down", func(t *testing.T) {
-		s.State = Down
 		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
-		assert.Equal(ErrShutdown, err)
+		assert.Error(err)
 	})
 }
 
 func TestRaftypb_SendVoteRequest(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	rpcm := rpcManager{rafty: s}
 	request := &raftypb.VoteRequest{}
-	t.Run("timeout", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
+
+	t.Run("down", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.State = Down
+		rpcm := rpcManager{rafty: s}
+
 		_, err = rpcm.SendVoteRequest(context.Background(), request)
-		assert.NotNil(err)
+		assert.Equal(ErrShutdown, err)
 	})
 
-	t.Run("timeout_context", func(t *testing.T) {
-		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
-		defer func() {
-			s.stopCtx()
-			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	t.Run("context_done_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
 		}()
-		_, err = rpcm.SendVoteRequest(s.quitCtx, request)
-		assert.NotNil(err)
+
+		_, err = rpcm.SendVoteRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
 		s.State = Follower
-		s.wg.Add(1)
+		rpcm := rpcManager{rafty: s}
+
 		go func() {
-			defer s.wg.Done()
 			data := <-s.rpcVoteRequestChan
 			data.ResponseChan <- RPCResponse{
 				Response: &raftypb.VoteResponse{PeerID: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
@@ -172,60 +325,159 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		}()
 		_, err = rpcm.SendVoteRequest(context.Background(), request)
 		assert.Nil(err)
-		s.wg.Wait()
+	})
+
+	t.Run("context_done_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			<-s.rpcVoteRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.SendVoteRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			<-s.rpcVoteRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
+		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
 		s.State = Follower
-		s.wg.Add(1)
+		rpcm := rpcManager{rafty: s}
+
 		go func() {
-			defer s.wg.Done()
 			<-s.rpcVoteRequestChan
 			time.Sleep(time.Second)
 		}()
-		_, err = rpcm.SendVoteRequest(context.Background(), request)
-		assert.NotNil(err)
-		s.wg.Wait()
-	})
 
-	t.Run("down", func(t *testing.T) {
-		s.State = Down
 		_, err = rpcm.SendVoteRequest(context.Background(), request)
-		assert.Equal(ErrShutdown, err)
+		assert.Error(err)
 	})
 }
 
 func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	rpcm := rpcManager{rafty: s}
 	request := &raftypb.AppendEntryRequest{}
-	t.Run("timeout", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
+
+	t.Run("down", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.State = Down
+		rpcm := rpcManager{rafty: s}
+
 		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
-		assert.NotNil(err)
+		assert.Equal(ErrShutdown, err)
 	})
 
-	t.Run("timeout_context", func(t *testing.T) {
-		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
-		defer func() {
-			s.stopCtx()
-			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	t.Run("context_done_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
 		}()
-		_, err = rpcm.SendAppendEntriesRequest(s.quitCtx, request)
-		assert.NotNil(err)
+
+		_, err = rpcm.SendAppendEntriesRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
 		s.State = Follower
-		s.wg.Add(1)
+		rpcm := rpcManager{rafty: s}
+
 		go func() {
-			defer s.wg.Done()
 			data := <-s.rpcAppendEntriesRequestChan
 			data.ResponseChan <- RPCResponse{
 				Response: &raftypb.AppendEntryResponse{Success: false},
@@ -233,26 +485,74 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		}()
 		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
 		assert.Nil(err)
-		s.wg.Wait()
+	})
+
+	t.Run("context_done_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			<-s.rpcAppendEntriesRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.SendAppendEntriesRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			<-s.rpcAppendEntriesRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
+		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
 		s.State = Follower
-		s.wg.Add(1)
+		rpcm := rpcManager{rafty: s}
+
 		go func() {
-			defer s.wg.Done()
 			<-s.rpcAppendEntriesRequestChan
 			time.Sleep(time.Second)
 		}()
-		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
-		assert.NotNil(err)
-		s.wg.Wait()
-	})
 
-	t.Run("down", func(t *testing.T) {
-		s.State = Down
 		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
-		assert.Equal(ErrShutdown, err)
+		assert.Error(err)
 	})
 }
 
@@ -299,99 +599,283 @@ func TestRaftypb_ClientGetLeader(t *testing.T) {
 
 func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
 
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	i := 0
-	s.State = Follower
-	s.isRunning.Store(true)
-	rpcm := rpcManager{rafty: s}
-	command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
-	buffer := new(bytes.Buffer)
-	err = encodeCommand(command, buffer)
-	assert.Nil(err)
-
-	t.Run("up_command_fake", func(t *testing.T) {
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
-		assert.Equal(nil, err)
-	})
-
-	t.Run("up_command_set", func(t *testing.T) {
-		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
-		buffer := new(bytes.Buffer)
-		err := encodeCommand(command, buffer)
+	t.Run("down", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.wg.Add(1)
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.State = Down
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
+		assert.Nil(err)
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Equal(ErrShutdown, err)
+	})
+
+	t.Run("decode_command", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		buffer := new(bytes.Buffer)
+		_ = binary.Write(buffer, binary.LittleEndian, uint32(1)) // Kind
+		_ = binary.Write(buffer, binary.LittleEndian, uint64(3)) // KeyLen
+		buffer.Write([]byte("abc"))                              // Key
+		_ = binary.Write(buffer, binary.LittleEndian, uint64(2)) // ValueLen
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Error(err)
+		fmt.Println("err", err)
+	})
+
+	t.Run("bootstrap_cluster", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
+		assert.Nil(err)
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Equal(ErrClusterNotBootstrapped, err)
+	})
+
+	t.Run("context_done_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
+		assert.Nil(err)
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		go func() {
-			defer s.wg.Done()
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.ForwardCommandToLeader(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
+		assert.Nil(err)
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
+		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
+		assert.Nil(err)
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("up", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
+		assert.Nil(err)
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		go func() {
 			data := <-s.rpcForwardCommandToLeaderRequestChan
 			data.ResponseChan <- RPCResponse{
 				Response: &raftypb.ForwardCommandToLeaderResponse{},
 			}
 		}()
 
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Nil(err)
-		s.wg.Wait()
 	})
 
-	t.Run("up_command_bootstrap_cluster", func(t *testing.T) {
+	t.Run("context_done_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err := encodeCommand(command, buffer)
+		err = encodeCommand(command, buffer)
 		assert.Nil(err)
-		s.options.BootstrapCluster = true
-		defer func() {
-			s.options.BootstrapCluster = false
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			<-s.rpcForwardCommandToLeaderRequestChan
 		}()
 
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.ForwardCommandToLeader(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
+		assert.Nil(err)
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
+		go func() {
+			<-s.rpcForwardCommandToLeaderRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Error(err)
-		s.wg.Wait()
 	})
 
-	t.Run("timeout_second_sending", func(t *testing.T) {
+	t.Run("timeout_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
 		err = encodeCommand(command, buffer)
 		assert.Nil(err)
-
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
-		assert.NotNil(err)
-	})
 
-	t.Run("timeout_second_response", func(t *testing.T) {
-		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
-		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
-
-		s.wg.Add(1)
 		go func() {
-			defer s.wg.Done()
 			<-s.rpcForwardCommandToLeaderRequestChan
 			time.Sleep(time.Second)
 		}()
 
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
-		assert.NotNil(err)
-		s.wg.Wait()
+		assert.Error(err)
 	})
 
-	t.Run("down", func(t *testing.T) {
-		s.State = Down
+	t.Run("fake_command", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
 		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(command, buffer)
+		assert.Nil(err)
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
+
 		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
-		assert.NotNil(err)
+		assert.Nil(err)
 	})
 }
 
@@ -416,54 +900,175 @@ func TestRaftypb_SendTimeoutNowRequest(t *testing.T) {
 
 func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	rpcm := rpcManager{rafty: s}
-	request := &raftypb.MembershipChangeRequest{Id: "newnode", Address: "127.0.0.1:60000", Action: uint32(Add)}
+	request := &raftypb.MembershipChangeRequest{}
 
 	t.Run("down", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.State = Down
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.NotNil(err)
-	})
-
-	t.Run("timeout", func(t *testing.T) {
-		s.State = Leader
-		s.isRunning.Store(true)
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.NotNil(err)
-	})
-
-	t.Run("timeout_context", func(t *testing.T) {
-		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
-		defer func() {
-			s.stopCtx()
-			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		}()
-		_, err = rpcm.SendMembershipChangeRequest(s.quitCtx, request)
-		assert.NotNil(err)
-	})
-
-	t.Run("timeout_second_response", func(t *testing.T) {
 		rpcm := rpcManager{rafty: s}
 
-		s.wg.Add(1)
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.Equal(ErrShutdown, err)
+	})
+
+	t.Run("bootstrap_cluster", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		rpcm := rpcManager{rafty: s}
+
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.Equal(ErrClusterNotBootstrapped, err)
+	})
+
+	t.Run("context_done_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		go func() {
-			defer s.wg.Done()
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.SendMembershipChangeRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("up", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			data := <-s.rpcMembershipChangeRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.MembershipChangeResponse{},
+			}
+		}()
+
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.Nil(err)
+	})
+
+	t.Run("context_done_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			<-s.rpcMembershipChangeRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.SendMembershipChangeRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			<-s.rpcMembershipChangeRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
+		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
 			<-s.rpcMembershipChangeRequestChan
 			time.Sleep(time.Second)
 		}()
 
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.NotNil(err)
-		s.wg.Wait()
-	})
-
-	t.Run("up_timeout", func(t *testing.T) {
-		rpcm := rpcManager{rafty: s}
 		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
 		assert.Error(err)
 	})
@@ -471,55 +1076,160 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 
 func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-	s.options.BootstrapCluster = true
-
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	rpcm := rpcManager{rafty: s}
 	request := &raftypb.BootstrapClusterRequest{}
 
 	t.Run("down", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.State = Down
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
-		assert.NotNil(err)
-	})
-
-	t.Run("timeout", func(t *testing.T) {
-		s.State = Follower
-		s.isRunning.Store(true)
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
-		assert.NotNil(err)
-	})
-
-	t.Run("timeout_context", func(t *testing.T) {
-		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
-		defer func() {
-			s.stopCtx()
-			s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		}()
-		_, err = rpcm.SendBootstrapClusterRequest(s.quitCtx, request)
-		assert.NotNil(err)
-	})
-
-	t.Run("timeout_second_response", func(t *testing.T) {
 		rpcm := rpcManager{rafty: s}
 
-		s.wg.Add(1)
+		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		assert.Equal(ErrShutdown, err)
+	})
+
+	t.Run("context_done_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		go func() {
-			defer s.wg.Done()
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.SendBootstrapClusterRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("up", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			data := <-s.rpcBootstrapClusterRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.BootstrapClusterResponse{},
+			}
+		}()
+
+		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		assert.Nil(err)
+	})
+
+	t.Run("context_done_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			<-s.rpcBootstrapClusterRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err = rpcm.SendBootstrapClusterRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			<-s.rpcBootstrapClusterRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
+		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
 			<-s.rpcBootstrapClusterRequestChan
 			time.Sleep(time.Second)
 		}()
 
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
-		assert.NotNil(err)
-		s.wg.Wait()
-	})
-
-	t.Run("up_timeout", func(t *testing.T) {
-		rpcm := rpcManager{rafty: s}
 		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
 		assert.Error(err)
 	})
