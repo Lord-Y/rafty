@@ -273,6 +273,9 @@ func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftyp
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
 	}
+	if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() {
+		return nil, ErrClusterNotBootstrapped
+	}
 
 	responseChan := make(chan RPCResponse, 1)
 	select {
@@ -302,7 +305,7 @@ func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftyp
 	case <-r.rafty.quitCtx.Done():
 		return nil, ErrShutdown
 
-	case <-time.After(time.Second * membershipTimeoutSeconds):
+	case <-time.After(membershipTimeoutSeconds * time.Second):
 		return nil, errTimeoutSendingRequest
 	}
 }
