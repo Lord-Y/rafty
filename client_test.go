@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestClient_FakeCommand(t *testing.T) {
+func TestClient_submitCommand(t *testing.T) {
 	t.Run("fake_command", func(t *testing.T) {
 		cc := clusterConfig{
 			t:           t,
@@ -48,6 +48,49 @@ func TestClient_FakeCommand(t *testing.T) {
 		s.isBootstrapped.Store(true)
 
 		_, err = s.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
+		assert.Error(err)
+	})
+
+	t.Run("decode_command_error", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+		s.isRunning.Store(true)
+		s.State = Follower
+
+		_, err = s.submitCommand([]byte("a=b"))
+		assert.Error(err)
+	})
+
+	t.Run("command_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+		s.fillIDs()
+		s.isRunning.Store(true)
+		s.State = Follower
+		s.setLeader(leaderMap{address: s.configuration.ServerMembers[0].address.String(), id: s.configuration.ServerMembers[0].ID})
+		fmt.Println("xxxx", s.configuration.ServerMembers[0].address.String(), s.configuration.ServerMembers[0].ID)
+
+		_, err = s.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
+		assert.Error(err)
+	})
+
+	t.Run("command_not_found", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+		s.fillIDs()
+		s.isRunning.Store(true)
+		s.State = Follower
+
+		_, err = s.SubmitCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
 		assert.Error(err)
 	})
 }
