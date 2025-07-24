@@ -219,9 +219,9 @@ func makeRPCAskNodeIDResponse(data *raftypb.AskNodeIDResponse) RPCAskNodeIDRespo
 		return RPCAskNodeIDResponse{}
 	}
 	return RPCAskNodeIDResponse{
-		LeaderID:         data.LeaderID,
+		LeaderID:         data.LeaderId,
 		LeaderAddress:    data.LeaderAddress,
-		PeerID:           data.PeerID,
+		PeerID:           data.PeerId,
 		ReadReplica:      data.ReadReplica,
 		AskForMembership: data.AskForMembership,
 	}
@@ -230,7 +230,7 @@ func makeRPCAskNodeIDResponse(data *raftypb.AskNodeIDResponse) RPCAskNodeIDRespo
 // makeRPCGetLeaderRequest build get leader request
 func makeRPCGetLeaderRequest(data RPCGetLeaderRequest) *raftypb.GetLeaderRequest {
 	return &raftypb.GetLeaderRequest{
-		PeerID:      data.PeerID,
+		PeerId:      data.PeerID,
 		PeerAddress: data.PeerAddress,
 	}
 }
@@ -241,9 +241,9 @@ func makeRPCGetLeaderResponse(data *raftypb.GetLeaderResponse, totalPeers int) R
 		return RPCGetLeaderResponse{}
 	}
 	return RPCGetLeaderResponse{
-		LeaderID:         data.LeaderID,
+		LeaderID:         data.LeaderId,
 		LeaderAddress:    data.LeaderAddress,
-		PeerID:           data.PeerID,
+		PeerID:           data.PeerId,
 		TotalPeers:       totalPeers,
 		AskForMembership: data.AskForMembership,
 	}
@@ -286,7 +286,7 @@ func makeRPCVoteResponse(data *raftypb.VoteResponse, term uint64) RPCVoteRespons
 		return RPCVoteResponse{RequesterTerm: term}
 	}
 	return RPCVoteResponse{
-		PeerID:        data.PeerID,
+		PeerID:        data.PeerId,
 		RequesterTerm: term,
 		CurrentTerm:   data.CurrentTerm,
 		Granted:       data.Granted,
@@ -320,7 +320,7 @@ func makeRPCMembershipChangeResponse(data *raftypb.MembershipChangeResponse, act
 	}
 	return RPCMembershipChangeResponse{
 		ActionPerformed: action,
-		LeaderID:        data.LeaderID,
+		LeaderID:        data.LeaderId,
 		LeaderAddress:   data.LeaderAddress,
 		Success:         data.Success,
 	}
@@ -635,7 +635,7 @@ func (r *Rafty) sendMembershipChangeLeaveOnTerminate() {
 // when membership is sent to a non leader node
 func (r *Rafty) rpcMembershipNotLeader(data RPCRequest) {
 	leader := r.getLeader()
-	response := &raftypb.MembershipChangeResponse{LeaderID: leader.id, LeaderAddress: leader.address}
+	response := &raftypb.MembershipChangeResponse{LeaderId: leader.id, LeaderAddress: leader.address}
 	rpcResponse := RPCResponse{
 		Response: response,
 		Error:    ErrNotLeader,

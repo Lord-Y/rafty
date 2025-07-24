@@ -33,9 +33,9 @@ func (r *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest
 	}
 
 	return &raftypb.AskNodeIDResponse{
-		PeerID:           r.rafty.id,
+		PeerId:           r.rafty.id,
 		ReadReplica:      r.rafty.options.ReadReplica,
-		LeaderID:         lid,
+		LeaderId:         lid,
 		LeaderAddress:    lad,
 		AskForMembership: mustAskForMembership,
 	}, nil
@@ -50,12 +50,12 @@ func (r *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest
 	}
 
 	var mustAskForMembership bool
-	if !r.rafty.isPartOfTheCluster(peer{ID: in.PeerID, Address: in.PeerAddress}) {
+	if !r.rafty.isPartOfTheCluster(peer{ID: in.PeerId, Address: in.PeerAddress}) {
 		mustAskForMembership = true
 	}
 
 	response := &raftypb.GetLeaderResponse{
-		PeerID:           r.rafty.id,
+		PeerId:           r.rafty.id,
 		AskForMembership: mustAskForMembership,
 	}
 
@@ -64,18 +64,18 @@ func (r *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest
 		Str("id", r.rafty.id).
 		Str("state", r.rafty.getState().String()).
 		Str("peerAddress", in.PeerAddress).
-		Str("peerId", in.PeerID).
+		Str("peerId", in.PeerId).
 		Str("mustAskForMembership", fmt.Sprintf("%t", mustAskForMembership)).
 		Msgf("Peer is looking for the leader")
 
 	if r.rafty.getState() == Leader {
-		response.LeaderID = r.rafty.id
+		response.LeaderId = r.rafty.id
 		response.LeaderAddress = r.rafty.Address.String()
 		return response, nil
 	}
 
 	leader := r.rafty.getLeader()
-	response.LeaderID = leader.id
+	response.LeaderId = leader.id
 	response.LeaderAddress = leader.address
 	return response, nil
 }
@@ -219,7 +219,7 @@ func (r *rpcManager) ClientGetLeader(ctx context.Context, in *raftypb.ClientGetL
 	}
 
 	return &raftypb.ClientGetLeaderResponse{
-		LeaderID:      lid,
+		LeaderId:      lid,
 		LeaderAddress: lad,
 	}, nil
 }

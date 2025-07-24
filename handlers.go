@@ -14,7 +14,7 @@ func (r *Rafty) handleSendPreVoteRequest(data RPCRequest) {
 	leader := r.getLeader()
 	currentTerm := r.currentTerm.Load()
 	response := &raftypb.PreVoteResponse{
-		PeerID:      r.id,
+		PeerId:      r.id,
 		CurrentTerm: r.currentTerm.Load(),
 	}
 	rpcResponse := RPCResponse{
@@ -41,7 +41,7 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 	lastLogIndex := r.lastLogIndex.Load()
 	totalLogs := r.logs.total().total
 	response := &raftypb.VoteResponse{
-		PeerID: r.id,
+		PeerId: r.id,
 	}
 	rpcResponse := RPCResponse{
 		Response: response,
@@ -231,7 +231,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("state", r.getState().String()).
 				Str("term", fmt.Sprintf("%d", currentTerm)).
 				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderID).
+				Str("leaderId", request.LeaderId).
 				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 				Msgf("My term is higher than peer")
 			return
@@ -246,7 +246,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("state", r.getState().String()).
 				Str("term", fmt.Sprintf("%d", currentTerm)).
 				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderID).
+				Str("leaderId", request.LeaderId).
 				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 				Msgf("Rejecting append entries because of leadership transfer")
 			return
@@ -259,7 +259,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("state", r.getState().String()).
 				Str("term", fmt.Sprintf("%d", currentTerm)).
 				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderID).
+				Str("leaderId", request.LeaderId).
 				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 				Msgf("My term is lower than peer")
 		}
@@ -276,7 +276,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	}
 
 	r.setLeader(leaderMap{
-		id:      request.LeaderID,
+		id:      request.LeaderId,
 		address: request.LeaderAddress,
 	})
 	r.leaderLastContactDate.Store(time.Now())
@@ -297,7 +297,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
 				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
 				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderID).
+				Str("leaderId", request.LeaderId).
 				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 				Str("leaderPrevLogIndex", fmt.Sprintf("%d", request.PrevLogIndex)).
 				Str("leaderPrevLogTerm", fmt.Sprintf("%d", request.PrevLogTerm)).
@@ -317,7 +317,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("term", fmt.Sprintf("%d", currentTerm)).
 				Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
 				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderID).
+				Str("leaderId", request.LeaderId).
 				Str("leaderCommitIndex", fmt.Sprintf("%d", request.LeaderCommitIndex)).
 				Str("leaderPrevLogIndex", fmt.Sprintf("%d", request.PrevLogIndex)).
 				Str("leaderNewTotalLogs", fmt.Sprintf("%d", len(request.Entries))).
@@ -344,7 +344,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 							Str("rangeFrom", fmt.Sprintf("%d", entry.Index)).
 							Str("rangeTo", fmt.Sprintf("%d", lastLogIndex)).
 							Str("leaderAddress", request.LeaderAddress).
-							Str("leaderId", request.LeaderID).
+							Str("leaderId", request.LeaderId).
 							Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 							Msgf("Fail to remove conflicting log from range")
 						data.ResponseChan <- rpcResponse
@@ -384,7 +384,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 						Str("state", r.getState().String()).
 						Str("term", fmt.Sprintf("%d", currentTerm)).
 						Str("leaderAddress", request.LeaderAddress).
-						Str("leaderId", request.LeaderID).
+						Str("leaderId", request.LeaderId).
 						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 						Msgf("Fail to apply config entry")
 				}
@@ -396,7 +396,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 						Str("state", r.getState().String()).
 						Str("term", fmt.Sprintf("%d", currentTerm)).
 						Str("leaderAddress", request.LeaderAddress).
-						Str("leaderId", request.LeaderID).
+						Str("leaderId", request.LeaderId).
 						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 						Msgf("Fail to persist metadata")
 				}
@@ -422,7 +422,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("term", fmt.Sprintf("%d", currentTerm)).
 				Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
 				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderID).
+				Str("leaderId", request.LeaderId).
 				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 				Str("leaderCommitIndex", fmt.Sprintf("%d", request.LeaderCommitIndex)).
 				Str("leaderPrevLogIndex", fmt.Sprintf("%d", request.PrevLogIndex)).
@@ -463,7 +463,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
 		Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
 		Str("leaderAddress", request.LeaderAddress).
-		Str("leaderId", request.LeaderID).
+		Str("leaderId", request.LeaderId).
 		Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 		Str("leaderPrevLogIndex", fmt.Sprintf("%d", request.PrevLogIndex)).
 		Str("leaderPrevLogTerm", fmt.Sprintf("%d", request.PrevLogTerm)).

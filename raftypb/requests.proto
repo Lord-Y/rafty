@@ -4,68 +4,67 @@ option go_package = "github.com/Lord-Y/rafty/raftypb";
 
 package raftypb;
 
+/*
+
+Naming convention:
+https://protobuf.dev/programming-guides/style/
+
+*/
+
 message PreVoteRequest {
-  string id          = 1;
-  uint64 currentTerm = 2;
+  string id           = 1;
+  uint64 current_term = 2;
 }
 
 message PreVoteResponse {
-  string peerID      = 1;
-  uint64 currentTerm = 2;
-  bool granted       = 3;
+  string peer_id      = 1;
+  uint64 current_term = 2;
+  bool   granted      = 3;
 }
 
 message VoteRequest {
-  string candidateId                    = 1;
-  string candidateAddress               = 2;
-  uint64 currentTerm                    = 3;
-  uint64 lastLogIndex                   = 4;
-  uint64 lastLogTerm                    = 5;
-  bool   candidateForleadershipTransfer = 6;
+  string candidate_id                      = 1;
+  string candidate_address                 = 2;
+  uint64 current_term                      = 3;
+  uint64 last_log_index                    = 4;
+  uint64 last_log_term                     = 5;
+  bool   candidate_for_leadership_transfer = 6;
 }
 
 message VoteResponse {
-  bool granted       = 1;
-  uint64 currentTerm = 2;
-  string peerID      = 3;
+  bool   granted      = 1;
+  uint64 current_term = 2;
+  string peer_id      = 3;
 }
 
 message LogEntry {
-  // should be uint8 but doesn't exist in pb,
-  // so we take the closest type
-  uint32 fileFormat = 1;
-
-  // should be uint8 but doesn't exist in pb,
-  // so we take the closest type
-  uint32 tombstone  = 2;
-
-  // should be uint8 but doesn't exist in pb,
-  // so we take the closest type
-  uint32 logType    = 3;
-  uint32 timestamp  = 4;
-  uint64 term       = 5;
-  uint64 index      = 6;
-  bytes  command    = 7;
+  uint32 file_format = 1;
+  uint32 tombstone   = 2;
+  uint32 log_type    = 3;
+  uint32 timestamp   = 4;
+  uint64 term        = 5;
+  uint64 index       = 6;
+  bytes  command     = 7;
 }
 
 message AppendEntryRequest {
-  string   leaderID          = 1;
-  string   leaderAddress     = 2;
-  uint64   term              = 3;
-  uint64   prevLogIndex      = 4;
-  int64    prevLogTerm       = 5;
-  repeated LogEntry entries  = 6;
-  uint64   leaderCommitIndex = 7;
-  bool     heartbeat         = 8;
-  bool     catchup           = 9;
+  string   leader_id           = 1;
+  string   leader_address      = 2;
+  uint64   term                = 3;
+  uint64   prev_log_index      = 4;
+  int64    prev_log_term       = 5;
+  repeated LogEntry entries    = 6;
+  uint64   leader_commit_index = 7;
+  bool     heartbeat           = 8;
+  bool     catchup             = 9;
 }
 
 message AppendEntryResponse {
-  uint64 term         = 1; // what for?
-  bool   success      = 2;
-  bool   logNotFound  = 3;
-  uint64 lastLogIndex = 4;
-  uint64 lastLogTerm  = 5;
+  uint64 term           = 1;
+  bool   success        = 2;
+  bool   log_not_found  = 3;
+  uint64 last_log_index = 4;
+  uint64 last_log_term  = 5;
 }
 
 message AskNodeIDRequest {
@@ -74,11 +73,11 @@ message AskNodeIDRequest {
 }
 
 message AskNodeIDResponse {
-  string peerID           = 1;
-  bool   readReplica      = 2;
-  string leaderID         = 3;
-  string leaderAddress    = 4;
-  bool   askForMembership = 5;
+  string peer_id            = 1;
+  bool   read_replica       = 2;
+  string leader_id          = 3;
+  string leader_address     = 4;
+  bool   ask_for_membership = 5;
 }
 
 message ClientGetLeaderRequest {
@@ -86,20 +85,20 @@ message ClientGetLeaderRequest {
 }
 
 message ClientGetLeaderResponse {
-  string leaderID      = 1;
-  string leaderAddress = 2;
+  string leader_id      = 1;
+  string leader_address = 2;
 }
 
 message GetLeaderRequest {
-  string peerID      = 1;
+  string peer_id     = 1;
   string peerAddress = 2;
 }
 
 message GetLeaderResponse {
-  string leaderID         = 1;
-  string leaderAddress    = 2;
-  string peerID           = 3;
-  bool   askForMembership = 4;
+  string leader_id          = 1;
+  string leader_address     = 2;
+  string peer_id            = 3;
+  bool   ask_for_membership = 4;
 }
 
 message ForwardCommandToLeaderRequest {
@@ -107,35 +106,37 @@ message ForwardCommandToLeaderRequest {
 }
 
 message ForwardCommandToLeaderResponse {
-  bytes data   = 1;
-  string error = 2;
+  string leader_id      = 1;
+  string leader_address = 2;
+  bytes  data           = 3;
+  string error          = 4;
 }
 
 message TimeoutNowRequest {}
 
 message TimeoutNowResponse {
-  bool   success = 1;
+  bool success = 1;
 }
 
 message MembershipChangeRequest {
-  string id           = 1;
-  string address      = 2;
-  bool   readReplica  = 3;
-  uint32 action       = 4;
-  uint64 lastLogIndex = 5;
-  uint64 lastLogTerm  = 6;
+  string id             = 1;
+  string address        = 2;
+  bool   read_replica   = 3;
+  uint32 action         = 4;
+  uint64 last_log_index = 5;
+  uint64 last_log_term  = 6;
 }
 
 message MembershipChangeResponse {
-  bool   success       = 1;
-  string leaderID      = 2;
-  string leaderAddress = 3;
+  bool   success        = 1;
+  string leader_id      = 2;
+  string leader_address = 3;
 }
 
 message BootstrapClusterRequest {}
 
 message BootstrapClusterResponse {
-  bool   success = 1;
+  bool success = 1;
 }
 
 service Rafty {

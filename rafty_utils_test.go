@@ -394,9 +394,9 @@ func (cc *clusterConfig) waitForLeader(timeout time.Duration, maxRound int) (lea
 			cc.assert.Errorf(err, "Node %d reports fail to ask %s who is the leader", nodeId, node.Address.String())
 			return
 		}
-		if response.LeaderAddress != "" && response.LeaderID != "" {
-			leader.id, leader.address = response.LeaderID, response.LeaderAddress
-			node.Logger.Info().Msgf("Node %d reports that %s / %s is the leader", nodeId, response.LeaderAddress, response.LeaderID)
+		if response.LeaderAddress != "" && response.LeaderId != "" {
+			leader.id, leader.address = response.LeaderId, response.LeaderAddress
+			node.Logger.Info().Msgf("Node %d reports that %s / %s is the leader", nodeId, response.LeaderAddress, response.LeaderId)
 			return
 		}
 		node.Logger.Info().Msgf("Node %d reports no leader found", nodeId)
