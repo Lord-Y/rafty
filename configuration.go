@@ -4,6 +4,7 @@ import (
 	"net"
 )
 
+// peer hold configuration needed by a peer node
 type peer struct {
 	// Address is the address of a peer node, must be just the ip or ip:port
 	Address string `json:"address"`

@@ -24,7 +24,7 @@ const (
 	logConfiguration
 )
 
-// logs hold qll requirements to manipulate logs
+// logs hold all requirements to manipulate logs
 type logs struct {
 	// rafty holds rafty config
 	rafty *Rafty

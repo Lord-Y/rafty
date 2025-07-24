@@ -121,6 +121,7 @@ const (
 	membershipTimeoutSeconds = 10
 )
 
+// Peer holds address of the peer
 type Peer struct {
 	// Address is the address of a peer node, must be just the ip or ip:port
 	Address string
@@ -129,6 +130,7 @@ type Peer struct {
 	address net.TCPAddr
 }
 
+// leaderMap holds the address and id of the leader
 type leaderMap struct {
 	// address is the address of a peer node with explicit host and port
 	address string
@@ -137,7 +139,10 @@ type leaderMap struct {
 	id string
 }
 
+// rpcManager holds the requirements for grpc server
 type rpcManager struct {
+	// raftypb.RaftyServer is an interface to access to all
+	// grpc funcs
 	raftypb.RaftyServer
 
 	// rafty holds rafty config

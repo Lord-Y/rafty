@@ -165,7 +165,7 @@ type onAppendEntriesRequest struct {
 	membershipChangeID string
 }
 
-// startStopFollowerReplication is instanciate for every
+// startStopFollowerReplication is instantiate for every
 // follower by the leader in order to replicate append entries.
 // It will automatically stop to send append entries when quitCtx or
 // replicationStopChan chans are hit.

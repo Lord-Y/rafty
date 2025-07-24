@@ -7,6 +7,8 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
+// handleSendPreVoteRequest allow the current node to manage
+// pre vote requests coming from other nodes
 func (r *Rafty) handleSendPreVoteRequest(data RPCRequest) {
 	request := data.Request.(*raftypb.PreVoteRequest)
 	leader := r.getLeader()
@@ -30,6 +32,8 @@ func (r *Rafty) handleSendPreVoteRequest(data RPCRequest) {
 	data.ResponseChan <- rpcResponse
 }
 
+// handleSendVoteRequest allow the current node to manage
+// vote requests coming from other nodes
 func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 	request := data.Request.(*raftypb.VoteRequest)
 	currentTerm := r.currentTerm.Load()
@@ -199,6 +203,8 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 	data.ResponseChan <- rpcResponse
 }
 
+// handleSendAppendEntriesRequest allow the current node to manage
+// vote requests coming from other nodes
 func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	// if our local term is greater than leader term
 	// reply false §5.1

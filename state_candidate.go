@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// candidate hold all requirements by a node in candidate state
 type candidate struct {
 	// rafty holds rafty config
 	rafty *Rafty
@@ -289,6 +290,8 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 	}
 }
 
+// isSingleServerCluster is only used by a single server cluster.
+// It will switch to Candidate state and then become the Leader
 func (r *candidate) isSingleServerCluster() {
 	currentTerm := r.rafty.currentTerm.Add(1)
 	r.rafty.switchState(Candidate, stepUp, true, currentTerm)
