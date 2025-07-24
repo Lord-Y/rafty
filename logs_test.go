@@ -1,10 +1,6 @@
 package rafty
 
 import (
-	"context"
-	"os"
-	"os/signal"
-	"syscall"
 	"testing"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -19,7 +15,6 @@ func TestLogs(t *testing.T) {
 	assert.Nil(err)
 	s.fillIDs()
 
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	entries := []*raftypb.LogEntry{{Term: 1}}
 	_ = s.logs.appendEntries(entries, false)
 

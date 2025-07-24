@@ -53,6 +53,22 @@ func basicNodeSetup() *Rafty {
 	return s
 }
 
+// singleServerClusterSetup is only a helper for other unit testing
+func singleServerClusterSetup() *Rafty {
+	addr := net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: int(GRPCPort),
+	}
+
+	id := fmt.Sprintf("%d", addr.Port)
+	id = id[len(id)-2:]
+	options := Options{
+		IsSingleServerCluster: true,
+	}
+	s, _ := NewRafty(addr, id, options)
+	return s
+}
+
 type clusterConfig struct {
 	t                         *testing.T
 	assert                    *assert.Assertions

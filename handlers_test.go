@@ -1,11 +1,7 @@
 package rafty
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"testing"
 	"time"
 
@@ -102,7 +98,6 @@ func TestHandleSendVoteRequest(t *testing.T) {
 	err := s.parsePeers()
 	assert.Nil(err)
 
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	s.isRunning.Store(true)
 
 	t.Run("lower", func(t *testing.T) {
@@ -375,7 +370,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -410,7 +404,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
 		s.switchState(Candidate, stepUp, false, s.currentTerm.Load())
@@ -446,7 +439,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -481,7 +473,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
 		s.switchState(Leader, stepUp, false, s.currentTerm.Load())
@@ -516,7 +507,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -558,7 +548,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -604,7 +593,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -650,7 +638,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -703,7 +690,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -778,7 +764,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -850,7 +835,6 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
 		s.switchState(Candidate, stepUp, false, s.currentTerm.Load())

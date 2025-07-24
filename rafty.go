@@ -515,6 +515,7 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 		r.leadershipTransferDisabled.Store(true)
 	}
 	r.timer = time.NewTicker(r.randomElectionTimeout())
+	r.quitCtx, r.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	return r, err
 }
 
@@ -555,10 +556,6 @@ func (r *Rafty) Start() error {
 	raftypb.RegisterRaftyServer(r.grpcServer, &rpcManager)
 	reflection.Register(r.grpcServer)
 	channelzservice.RegisterChannelzServiceToServer(r.grpcServer)
-
-	r.mu.Lock()
-	r.quitCtx, r.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	r.mu.Unlock()
 
 	r.wg.Add(1)
 	errChan := make(chan error, 1)

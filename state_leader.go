@@ -425,6 +425,8 @@ func (r *leader) selectNodeForLeadershipTransfer() (p peer, found bool) {
 	return
 }
 
+// timeoutNowRequest is used by the leader to send
+// its leadership to the select node
 func (r *leader) timeoutNowRequest() {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
@@ -522,12 +524,11 @@ func (r *leader) setupSingleServerReplicationState() {
 	r.singleServerReplicationStopChan = make(chan struct{}, 1)
 	go r.startStopSingleServerReplication()
 
-	currentTerm := r.rafty.currentTerm.Load()
 	entries := []*raftypb.LogEntry{
 		{
 			LogType:   uint32(logNoop),
 			Timestamp: uint32(time.Now().Unix()),
-			Term:      currentTerm,
+			Term:      r.rafty.currentTerm.Load(),
 			Command:   nil,
 		},
 	}
@@ -536,7 +537,7 @@ func (r *leader) setupSingleServerReplicationState() {
 	request := &onAppendEntriesRequest{
 		totalFollowers:             r.totalFollowers.Load(),
 		quorum:                     uint64(r.rafty.quorum()),
-		term:                       currentTerm,
+		term:                       r.rafty.currentTerm.Load(),
 		prevLogIndex:               r.rafty.lastLogIndex.Load(),
 		prevLogTerm:                r.rafty.lastLogTerm.Load(),
 		totalLogs:                  uint64(totalLogs),
