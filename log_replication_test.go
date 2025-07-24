@@ -129,7 +129,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 			entries:                    entries,
 			membershipChangeInProgress: &atomic.Bool{},
 			replyToClient:              true,
-			replyToClientChan:          make(chan appendEntriesResponse),
+			replyToClientChan:          make(chan appendEntriesResponse), // use unbuffered chan on purpose to make test fail
 		}
 
 		state.singleServerAppendEntries(request)
