@@ -123,7 +123,7 @@ func TestStateLoop_runAsLeader(t *testing.T) {
 		s.rpcAppendEntriesRequestChan <- RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:      s.configuration.ServerMembers[id].ID,
+				LeaderId:      s.configuration.ServerMembers[id].ID,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          1,
 			},

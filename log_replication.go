@@ -237,7 +237,7 @@ func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, requ
 		ctx,
 		&raftypb.AppendEntryRequest{
 			LeaderAddress:     r.rafty.Address.String(),
-			LeaderID:          r.rafty.id,
+			LeaderId:          r.rafty.id,
 			Term:              request.term,
 			PrevLogIndex:      request.prevLogIndex,
 			PrevLogTerm:       int64(request.prevLogTerm),
@@ -360,7 +360,10 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 							}
 
 							if request.replyToForwardedCommand {
-								response := &raftypb.ForwardCommandToLeaderResponse{}
+								response := &raftypb.ForwardCommandToLeaderResponse{
+									LeaderId:      r.rafty.id,
+									LeaderAddress: r.rafty.Address.String(),
+								}
 								rpcResponse := RPCResponse{
 									Response: response,
 								}

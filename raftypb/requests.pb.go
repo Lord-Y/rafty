@@ -24,7 +24,7 @@ const (
 type PreVoteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	CurrentTerm   uint64                 `protobuf:"varint,2,opt,name=currentTerm,proto3" json:"currentTerm,omitempty"`
+	CurrentTerm   uint64                 `protobuf:"varint,2,opt,name=current_term,json=currentTerm,proto3" json:"current_term,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -75,8 +75,8 @@ func (x *PreVoteRequest) GetCurrentTerm() uint64 {
 
 type PreVoteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	PeerID        string                 `protobuf:"bytes,1,opt,name=peerID,proto3" json:"peerID,omitempty"`
-	CurrentTerm   uint64                 `protobuf:"varint,2,opt,name=currentTerm,proto3" json:"currentTerm,omitempty"`
+	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	CurrentTerm   uint64                 `protobuf:"varint,2,opt,name=current_term,json=currentTerm,proto3" json:"current_term,omitempty"`
 	Granted       bool                   `protobuf:"varint,3,opt,name=granted,proto3" json:"granted,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -112,9 +112,9 @@ func (*PreVoteResponse) Descriptor() ([]byte, []int) {
 	return file_raftypb_requests_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *PreVoteResponse) GetPeerID() string {
+func (x *PreVoteResponse) GetPeerId() string {
 	if x != nil {
-		return x.PeerID
+		return x.PeerId
 	}
 	return ""
 }
@@ -135,12 +135,12 @@ func (x *PreVoteResponse) GetGranted() bool {
 
 type VoteRequest struct {
 	state                          protoimpl.MessageState `protogen:"open.v1"`
-	CandidateId                    string                 `protobuf:"bytes,1,opt,name=candidateId,proto3" json:"candidateId,omitempty"`
-	CandidateAddress               string                 `protobuf:"bytes,2,opt,name=candidateAddress,proto3" json:"candidateAddress,omitempty"`
-	CurrentTerm                    uint64                 `protobuf:"varint,3,opt,name=currentTerm,proto3" json:"currentTerm,omitempty"`
-	LastLogIndex                   uint64                 `protobuf:"varint,4,opt,name=lastLogIndex,proto3" json:"lastLogIndex,omitempty"`
-	LastLogTerm                    uint64                 `protobuf:"varint,5,opt,name=lastLogTerm,proto3" json:"lastLogTerm,omitempty"`
-	CandidateForleadershipTransfer bool                   `protobuf:"varint,6,opt,name=candidateForleadershipTransfer,proto3" json:"candidateForleadershipTransfer,omitempty"`
+	CandidateId                    string                 `protobuf:"bytes,1,opt,name=candidate_id,json=candidateId,proto3" json:"candidate_id,omitempty"`
+	CandidateAddress               string                 `protobuf:"bytes,2,opt,name=candidate_address,json=candidateAddress,proto3" json:"candidate_address,omitempty"`
+	CurrentTerm                    uint64                 `protobuf:"varint,3,opt,name=current_term,json=currentTerm,proto3" json:"current_term,omitempty"`
+	LastLogIndex                   uint64                 `protobuf:"varint,4,opt,name=last_log_index,json=lastLogIndex,proto3" json:"last_log_index,omitempty"`
+	LastLogTerm                    uint64                 `protobuf:"varint,5,opt,name=last_log_term,json=lastLogTerm,proto3" json:"last_log_term,omitempty"`
+	CandidateForLeadershipTransfer bool                   `protobuf:"varint,6,opt,name=candidate_for_leadership_transfer,json=candidateForLeadershipTransfer,proto3" json:"candidate_for_leadership_transfer,omitempty"`
 	unknownFields                  protoimpl.UnknownFields
 	sizeCache                      protoimpl.SizeCache
 }
@@ -210,9 +210,9 @@ func (x *VoteRequest) GetLastLogTerm() uint64 {
 	return 0
 }
 
-func (x *VoteRequest) GetCandidateForleadershipTransfer() bool {
+func (x *VoteRequest) GetCandidateForLeadershipTransfer() bool {
 	if x != nil {
-		return x.CandidateForleadershipTransfer
+		return x.CandidateForLeadershipTransfer
 	}
 	return false
 }
@@ -220,8 +220,8 @@ func (x *VoteRequest) GetCandidateForleadershipTransfer() bool {
 type VoteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Granted       bool                   `protobuf:"varint,1,opt,name=granted,proto3" json:"granted,omitempty"`
-	CurrentTerm   uint64                 `protobuf:"varint,2,opt,name=currentTerm,proto3" json:"currentTerm,omitempty"`
-	PeerID        string                 `protobuf:"bytes,3,opt,name=peerID,proto3" json:"peerID,omitempty"`
+	CurrentTerm   uint64                 `protobuf:"varint,2,opt,name=current_term,json=currentTerm,proto3" json:"current_term,omitempty"`
+	PeerId        string                 `protobuf:"bytes,3,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -270,28 +270,22 @@ func (x *VoteResponse) GetCurrentTerm() uint64 {
 	return 0
 }
 
-func (x *VoteResponse) GetPeerID() string {
+func (x *VoteResponse) GetPeerId() string {
 	if x != nil {
-		return x.PeerID
+		return x.PeerId
 	}
 	return ""
 }
 
 type LogEntry struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// should be uint8 but doesn't exist in pb,
-	// so we take the closest type
-	FileFormat uint32 `protobuf:"varint,1,opt,name=fileFormat,proto3" json:"fileFormat,omitempty"`
-	// should be uint8 but doesn't exist in pb,
-	// so we take the closest type
-	Tombstone uint32 `protobuf:"varint,2,opt,name=tombstone,proto3" json:"tombstone,omitempty"`
-	// should be uint8 but doesn't exist in pb,
-	// so we take the closest type
-	LogType       uint32 `protobuf:"varint,3,opt,name=logType,proto3" json:"logType,omitempty"`
-	Timestamp     uint32 `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	Term          uint64 `protobuf:"varint,5,opt,name=term,proto3" json:"term,omitempty"`
-	Index         uint64 `protobuf:"varint,6,opt,name=index,proto3" json:"index,omitempty"`
-	Command       []byte `protobuf:"bytes,7,opt,name=command,proto3" json:"command,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FileFormat    uint32                 `protobuf:"varint,1,opt,name=file_format,json=fileFormat,proto3" json:"file_format,omitempty"`
+	Tombstone     uint32                 `protobuf:"varint,2,opt,name=tombstone,proto3" json:"tombstone,omitempty"`
+	LogType       uint32                 `protobuf:"varint,3,opt,name=log_type,json=logType,proto3" json:"log_type,omitempty"`
+	Timestamp     uint32                 `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Term          uint64                 `protobuf:"varint,5,opt,name=term,proto3" json:"term,omitempty"`
+	Index         uint64                 `protobuf:"varint,6,opt,name=index,proto3" json:"index,omitempty"`
+	Command       []byte                 `protobuf:"bytes,7,opt,name=command,proto3" json:"command,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -377,13 +371,13 @@ func (x *LogEntry) GetCommand() []byte {
 
 type AppendEntryRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	LeaderID          string                 `protobuf:"bytes,1,opt,name=leaderID,proto3" json:"leaderID,omitempty"`
-	LeaderAddress     string                 `protobuf:"bytes,2,opt,name=leaderAddress,proto3" json:"leaderAddress,omitempty"`
+	LeaderId          string                 `protobuf:"bytes,1,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	LeaderAddress     string                 `protobuf:"bytes,2,opt,name=leader_address,json=leaderAddress,proto3" json:"leader_address,omitempty"`
 	Term              uint64                 `protobuf:"varint,3,opt,name=term,proto3" json:"term,omitempty"`
-	PrevLogIndex      uint64                 `protobuf:"varint,4,opt,name=prevLogIndex,proto3" json:"prevLogIndex,omitempty"`
-	PrevLogTerm       int64                  `protobuf:"varint,5,opt,name=prevLogTerm,proto3" json:"prevLogTerm,omitempty"`
+	PrevLogIndex      uint64                 `protobuf:"varint,4,opt,name=prev_log_index,json=prevLogIndex,proto3" json:"prev_log_index,omitempty"`
+	PrevLogTerm       int64                  `protobuf:"varint,5,opt,name=prev_log_term,json=prevLogTerm,proto3" json:"prev_log_term,omitempty"`
 	Entries           []*LogEntry            `protobuf:"bytes,6,rep,name=entries,proto3" json:"entries,omitempty"`
-	LeaderCommitIndex uint64                 `protobuf:"varint,7,opt,name=leaderCommitIndex,proto3" json:"leaderCommitIndex,omitempty"`
+	LeaderCommitIndex uint64                 `protobuf:"varint,7,opt,name=leader_commit_index,json=leaderCommitIndex,proto3" json:"leader_commit_index,omitempty"`
 	Heartbeat         bool                   `protobuf:"varint,8,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
 	Catchup           bool                   `protobuf:"varint,9,opt,name=catchup,proto3" json:"catchup,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -420,9 +414,9 @@ func (*AppendEntryRequest) Descriptor() ([]byte, []int) {
 	return file_raftypb_requests_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *AppendEntryRequest) GetLeaderID() string {
+func (x *AppendEntryRequest) GetLeaderId() string {
 	if x != nil {
-		return x.LeaderID
+		return x.LeaderId
 	}
 	return ""
 }
@@ -485,11 +479,11 @@ func (x *AppendEntryRequest) GetCatchup() bool {
 
 type AppendEntryResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Term          uint64                 `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"` // what for?
+	Term          uint64                 `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
 	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
-	LogNotFound   bool                   `protobuf:"varint,3,opt,name=logNotFound,proto3" json:"logNotFound,omitempty"`
-	LastLogIndex  uint64                 `protobuf:"varint,4,opt,name=lastLogIndex,proto3" json:"lastLogIndex,omitempty"`
-	LastLogTerm   uint64                 `protobuf:"varint,5,opt,name=lastLogTerm,proto3" json:"lastLogTerm,omitempty"`
+	LogNotFound   bool                   `protobuf:"varint,3,opt,name=log_not_found,json=logNotFound,proto3" json:"log_not_found,omitempty"`
+	LastLogIndex  uint64                 `protobuf:"varint,4,opt,name=last_log_index,json=lastLogIndex,proto3" json:"last_log_index,omitempty"`
+	LastLogTerm   uint64                 `protobuf:"varint,5,opt,name=last_log_term,json=lastLogTerm,proto3" json:"last_log_term,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -613,11 +607,11 @@ func (x *AskNodeIDRequest) GetAddress() string {
 
 type AskNodeIDResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
-	PeerID           string                 `protobuf:"bytes,1,opt,name=peerID,proto3" json:"peerID,omitempty"`
-	ReadReplica      bool                   `protobuf:"varint,2,opt,name=readReplica,proto3" json:"readReplica,omitempty"`
-	LeaderID         string                 `protobuf:"bytes,3,opt,name=leaderID,proto3" json:"leaderID,omitempty"`
-	LeaderAddress    string                 `protobuf:"bytes,4,opt,name=leaderAddress,proto3" json:"leaderAddress,omitempty"`
-	AskForMembership bool                   `protobuf:"varint,5,opt,name=askForMembership,proto3" json:"askForMembership,omitempty"`
+	PeerId           string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	ReadReplica      bool                   `protobuf:"varint,2,opt,name=read_replica,json=readReplica,proto3" json:"read_replica,omitempty"`
+	LeaderId         string                 `protobuf:"bytes,3,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	LeaderAddress    string                 `protobuf:"bytes,4,opt,name=leader_address,json=leaderAddress,proto3" json:"leader_address,omitempty"`
+	AskForMembership bool                   `protobuf:"varint,5,opt,name=ask_for_membership,json=askForMembership,proto3" json:"ask_for_membership,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -652,9 +646,9 @@ func (*AskNodeIDResponse) Descriptor() ([]byte, []int) {
 	return file_raftypb_requests_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *AskNodeIDResponse) GetPeerID() string {
+func (x *AskNodeIDResponse) GetPeerId() string {
 	if x != nil {
-		return x.PeerID
+		return x.PeerId
 	}
 	return ""
 }
@@ -666,9 +660,9 @@ func (x *AskNodeIDResponse) GetReadReplica() bool {
 	return false
 }
 
-func (x *AskNodeIDResponse) GetLeaderID() string {
+func (x *AskNodeIDResponse) GetLeaderId() string {
 	if x != nil {
-		return x.LeaderID
+		return x.LeaderId
 	}
 	return ""
 }
@@ -733,8 +727,8 @@ func (x *ClientGetLeaderRequest) GetMessage() string {
 
 type ClientGetLeaderResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	LeaderID      string                 `protobuf:"bytes,1,opt,name=leaderID,proto3" json:"leaderID,omitempty"`
-	LeaderAddress string                 `protobuf:"bytes,2,opt,name=leaderAddress,proto3" json:"leaderAddress,omitempty"`
+	LeaderId      string                 `protobuf:"bytes,1,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	LeaderAddress string                 `protobuf:"bytes,2,opt,name=leader_address,json=leaderAddress,proto3" json:"leader_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -769,9 +763,9 @@ func (*ClientGetLeaderResponse) Descriptor() ([]byte, []int) {
 	return file_raftypb_requests_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *ClientGetLeaderResponse) GetLeaderID() string {
+func (x *ClientGetLeaderResponse) GetLeaderId() string {
 	if x != nil {
-		return x.LeaderID
+		return x.LeaderId
 	}
 	return ""
 }
@@ -785,7 +779,7 @@ func (x *ClientGetLeaderResponse) GetLeaderAddress() string {
 
 type GetLeaderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	PeerID        string                 `protobuf:"bytes,1,opt,name=peerID,proto3" json:"peerID,omitempty"`
+	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
 	PeerAddress   string                 `protobuf:"bytes,2,opt,name=peerAddress,proto3" json:"peerAddress,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -821,9 +815,9 @@ func (*GetLeaderRequest) Descriptor() ([]byte, []int) {
 	return file_raftypb_requests_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *GetLeaderRequest) GetPeerID() string {
+func (x *GetLeaderRequest) GetPeerId() string {
 	if x != nil {
-		return x.PeerID
+		return x.PeerId
 	}
 	return ""
 }
@@ -837,10 +831,10 @@ func (x *GetLeaderRequest) GetPeerAddress() string {
 
 type GetLeaderResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
-	LeaderID         string                 `protobuf:"bytes,1,opt,name=leaderID,proto3" json:"leaderID,omitempty"`
-	LeaderAddress    string                 `protobuf:"bytes,2,opt,name=leaderAddress,proto3" json:"leaderAddress,omitempty"`
-	PeerID           string                 `protobuf:"bytes,3,opt,name=peerID,proto3" json:"peerID,omitempty"`
-	AskForMembership bool                   `protobuf:"varint,4,opt,name=askForMembership,proto3" json:"askForMembership,omitempty"`
+	LeaderId         string                 `protobuf:"bytes,1,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	LeaderAddress    string                 `protobuf:"bytes,2,opt,name=leader_address,json=leaderAddress,proto3" json:"leader_address,omitempty"`
+	PeerId           string                 `protobuf:"bytes,3,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	AskForMembership bool                   `protobuf:"varint,4,opt,name=ask_for_membership,json=askForMembership,proto3" json:"ask_for_membership,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -875,9 +869,9 @@ func (*GetLeaderResponse) Descriptor() ([]byte, []int) {
 	return file_raftypb_requests_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *GetLeaderResponse) GetLeaderID() string {
+func (x *GetLeaderResponse) GetLeaderId() string {
 	if x != nil {
-		return x.LeaderID
+		return x.LeaderId
 	}
 	return ""
 }
@@ -889,9 +883,9 @@ func (x *GetLeaderResponse) GetLeaderAddress() string {
 	return ""
 }
 
-func (x *GetLeaderResponse) GetPeerID() string {
+func (x *GetLeaderResponse) GetPeerId() string {
 	if x != nil {
-		return x.PeerID
+		return x.PeerId
 	}
 	return ""
 }
@@ -949,8 +943,10 @@ func (x *ForwardCommandToLeaderRequest) GetCommand() []byte {
 
 type ForwardCommandToLeaderResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	LeaderId      string                 `protobuf:"bytes,1,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	LeaderAddress string                 `protobuf:"bytes,2,opt,name=leader_address,json=leaderAddress,proto3" json:"leader_address,omitempty"`
+	Data          []byte                 `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	Error         string                 `protobuf:"bytes,4,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -983,6 +979,20 @@ func (x *ForwardCommandToLeaderResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ForwardCommandToLeaderResponse.ProtoReflect.Descriptor instead.
 func (*ForwardCommandToLeaderResponse) Descriptor() ([]byte, []int) {
 	return file_raftypb_requests_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ForwardCommandToLeaderResponse) GetLeaderId() string {
+	if x != nil {
+		return x.LeaderId
+	}
+	return ""
+}
+
+func (x *ForwardCommandToLeaderResponse) GetLeaderAddress() string {
+	if x != nil {
+		return x.LeaderAddress
+	}
+	return ""
 }
 
 func (x *ForwardCommandToLeaderResponse) GetData() []byte {
@@ -1083,10 +1093,10 @@ type MembershipChangeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Address       string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
-	ReadReplica   bool                   `protobuf:"varint,3,opt,name=readReplica,proto3" json:"readReplica,omitempty"`
+	ReadReplica   bool                   `protobuf:"varint,3,opt,name=read_replica,json=readReplica,proto3" json:"read_replica,omitempty"`
 	Action        uint32                 `protobuf:"varint,4,opt,name=action,proto3" json:"action,omitempty"`
-	LastLogIndex  uint64                 `protobuf:"varint,5,opt,name=lastLogIndex,proto3" json:"lastLogIndex,omitempty"`
-	LastLogTerm   uint64                 `protobuf:"varint,6,opt,name=lastLogTerm,proto3" json:"lastLogTerm,omitempty"`
+	LastLogIndex  uint64                 `protobuf:"varint,5,opt,name=last_log_index,json=lastLogIndex,proto3" json:"last_log_index,omitempty"`
+	LastLogTerm   uint64                 `protobuf:"varint,6,opt,name=last_log_term,json=lastLogTerm,proto3" json:"last_log_term,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1166,8 +1176,8 @@ func (x *MembershipChangeRequest) GetLastLogTerm() uint64 {
 type MembershipChangeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	LeaderID      string                 `protobuf:"bytes,2,opt,name=leaderID,proto3" json:"leaderID,omitempty"`
-	LeaderAddress string                 `protobuf:"bytes,3,opt,name=leaderAddress,proto3" json:"leaderAddress,omitempty"`
+	LeaderId      string                 `protobuf:"bytes,2,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	LeaderAddress string                 `protobuf:"bytes,3,opt,name=leader_address,json=leaderAddress,proto3" json:"leader_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1209,9 +1219,9 @@ func (x *MembershipChangeResponse) GetSuccess() bool {
 	return false
 }
 
-func (x *MembershipChangeResponse) GetLeaderID() string {
+func (x *MembershipChangeResponse) GetLeaderId() string {
 	if x != nil {
-		return x.LeaderID
+		return x.LeaderId
 	}
 	return ""
 }
@@ -1307,92 +1317,93 @@ var File_raftypb_requests_proto protoreflect.FileDescriptor
 
 const file_raftypb_requests_proto_rawDesc = "" +
 	"\n" +
-	"\x16raftypb/requests.proto\x12\araftypb\"B\n" +
+	"\x16raftypb/requests.proto\x12\araftypb\"C\n" +
 	"\x0ePreVoteRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12 \n" +
-	"\vcurrentTerm\x18\x02 \x01(\x04R\vcurrentTerm\"e\n" +
-	"\x0fPreVoteResponse\x12\x16\n" +
-	"\x06peerID\x18\x01 \x01(\tR\x06peerID\x12 \n" +
-	"\vcurrentTerm\x18\x02 \x01(\x04R\vcurrentTerm\x12\x18\n" +
-	"\agranted\x18\x03 \x01(\bR\agranted\"\x8b\x02\n" +
-	"\vVoteRequest\x12 \n" +
-	"\vcandidateId\x18\x01 \x01(\tR\vcandidateId\x12*\n" +
-	"\x10candidateAddress\x18\x02 \x01(\tR\x10candidateAddress\x12 \n" +
-	"\vcurrentTerm\x18\x03 \x01(\x04R\vcurrentTerm\x12\"\n" +
-	"\flastLogIndex\x18\x04 \x01(\x04R\flastLogIndex\x12 \n" +
-	"\vlastLogTerm\x18\x05 \x01(\x04R\vlastLogTerm\x12F\n" +
-	"\x1ecandidateForleadershipTransfer\x18\x06 \x01(\bR\x1ecandidateForleadershipTransfer\"b\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
+	"\fcurrent_term\x18\x02 \x01(\x04R\vcurrentTerm\"g\n" +
+	"\x0fPreVoteResponse\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12!\n" +
+	"\fcurrent_term\x18\x02 \x01(\x04R\vcurrentTerm\x12\x18\n" +
+	"\agranted\x18\x03 \x01(\bR\agranted\"\x95\x02\n" +
+	"\vVoteRequest\x12!\n" +
+	"\fcandidate_id\x18\x01 \x01(\tR\vcandidateId\x12+\n" +
+	"\x11candidate_address\x18\x02 \x01(\tR\x10candidateAddress\x12!\n" +
+	"\fcurrent_term\x18\x03 \x01(\x04R\vcurrentTerm\x12$\n" +
+	"\x0elast_log_index\x18\x04 \x01(\x04R\flastLogIndex\x12\"\n" +
+	"\rlast_log_term\x18\x05 \x01(\x04R\vlastLogTerm\x12I\n" +
+	"!candidate_for_leadership_transfer\x18\x06 \x01(\bR\x1ecandidateForLeadershipTransfer\"d\n" +
 	"\fVoteResponse\x12\x18\n" +
-	"\agranted\x18\x01 \x01(\bR\agranted\x12 \n" +
-	"\vcurrentTerm\x18\x02 \x01(\x04R\vcurrentTerm\x12\x16\n" +
-	"\x06peerID\x18\x03 \x01(\tR\x06peerID\"\xc4\x01\n" +
-	"\bLogEntry\x12\x1e\n" +
-	"\n" +
-	"fileFormat\x18\x01 \x01(\rR\n" +
+	"\agranted\x18\x01 \x01(\bR\agranted\x12!\n" +
+	"\fcurrent_term\x18\x02 \x01(\x04R\vcurrentTerm\x12\x17\n" +
+	"\apeer_id\x18\x03 \x01(\tR\x06peerId\"\xc6\x01\n" +
+	"\bLogEntry\x12\x1f\n" +
+	"\vfile_format\x18\x01 \x01(\rR\n" +
 	"fileFormat\x12\x1c\n" +
-	"\ttombstone\x18\x02 \x01(\rR\ttombstone\x12\x18\n" +
-	"\alogType\x18\x03 \x01(\rR\alogType\x12\x1c\n" +
+	"\ttombstone\x18\x02 \x01(\rR\ttombstone\x12\x19\n" +
+	"\blog_type\x18\x03 \x01(\rR\alogType\x12\x1c\n" +
 	"\ttimestamp\x18\x04 \x01(\rR\ttimestamp\x12\x12\n" +
 	"\x04term\x18\x05 \x01(\x04R\x04term\x12\x14\n" +
 	"\x05index\x18\x06 \x01(\x04R\x05index\x12\x18\n" +
-	"\acommand\x18\a \x01(\fR\acommand\"\xc3\x02\n" +
-	"\x12AppendEntryRequest\x12\x1a\n" +
-	"\bleaderID\x18\x01 \x01(\tR\bleaderID\x12$\n" +
-	"\rleaderAddress\x18\x02 \x01(\tR\rleaderAddress\x12\x12\n" +
-	"\x04term\x18\x03 \x01(\x04R\x04term\x12\"\n" +
-	"\fprevLogIndex\x18\x04 \x01(\x04R\fprevLogIndex\x12 \n" +
-	"\vprevLogTerm\x18\x05 \x01(\x03R\vprevLogTerm\x12+\n" +
-	"\aentries\x18\x06 \x03(\v2\x11.raftypb.LogEntryR\aentries\x12,\n" +
-	"\x11leaderCommitIndex\x18\a \x01(\x04R\x11leaderCommitIndex\x12\x1c\n" +
+	"\acommand\x18\a \x01(\fR\acommand\"\xcb\x02\n" +
+	"\x12AppendEntryRequest\x12\x1b\n" +
+	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x12%\n" +
+	"\x0eleader_address\x18\x02 \x01(\tR\rleaderAddress\x12\x12\n" +
+	"\x04term\x18\x03 \x01(\x04R\x04term\x12$\n" +
+	"\x0eprev_log_index\x18\x04 \x01(\x04R\fprevLogIndex\x12\"\n" +
+	"\rprev_log_term\x18\x05 \x01(\x03R\vprevLogTerm\x12+\n" +
+	"\aentries\x18\x06 \x03(\v2\x11.raftypb.LogEntryR\aentries\x12.\n" +
+	"\x13leader_commit_index\x18\a \x01(\x04R\x11leaderCommitIndex\x12\x1c\n" +
 	"\theartbeat\x18\b \x01(\bR\theartbeat\x12\x18\n" +
-	"\acatchup\x18\t \x01(\bR\acatchup\"\xab\x01\n" +
+	"\acatchup\x18\t \x01(\bR\acatchup\"\xb1\x01\n" +
 	"\x13AppendEntryResponse\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\x04R\x04term\x12\x18\n" +
-	"\asuccess\x18\x02 \x01(\bR\asuccess\x12 \n" +
-	"\vlogNotFound\x18\x03 \x01(\bR\vlogNotFound\x12\"\n" +
-	"\flastLogIndex\x18\x04 \x01(\x04R\flastLogIndex\x12 \n" +
-	"\vlastLogTerm\x18\x05 \x01(\x04R\vlastLogTerm\"<\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess\x12\"\n" +
+	"\rlog_not_found\x18\x03 \x01(\bR\vlogNotFound\x12$\n" +
+	"\x0elast_log_index\x18\x04 \x01(\x04R\flastLogIndex\x12\"\n" +
+	"\rlast_log_term\x18\x05 \x01(\x04R\vlastLogTerm\"<\n" +
 	"\x10AskNodeIDRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aaddress\x18\x02 \x01(\tR\aaddress\"\xbb\x01\n" +
-	"\x11AskNodeIDResponse\x12\x16\n" +
-	"\x06peerID\x18\x01 \x01(\tR\x06peerID\x12 \n" +
-	"\vreadReplica\x18\x02 \x01(\bR\vreadReplica\x12\x1a\n" +
-	"\bleaderID\x18\x03 \x01(\tR\bleaderID\x12$\n" +
-	"\rleaderAddress\x18\x04 \x01(\tR\rleaderAddress\x12*\n" +
-	"\x10askForMembership\x18\x05 \x01(\bR\x10askForMembership\"2\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\"\xc1\x01\n" +
+	"\x11AskNodeIDResponse\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12!\n" +
+	"\fread_replica\x18\x02 \x01(\bR\vreadReplica\x12\x1b\n" +
+	"\tleader_id\x18\x03 \x01(\tR\bleaderId\x12%\n" +
+	"\x0eleader_address\x18\x04 \x01(\tR\rleaderAddress\x12,\n" +
+	"\x12ask_for_membership\x18\x05 \x01(\bR\x10askForMembership\"2\n" +
 	"\x16ClientGetLeaderRequest\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"[\n" +
-	"\x17ClientGetLeaderResponse\x12\x1a\n" +
-	"\bleaderID\x18\x01 \x01(\tR\bleaderID\x12$\n" +
-	"\rleaderAddress\x18\x02 \x01(\tR\rleaderAddress\"L\n" +
-	"\x10GetLeaderRequest\x12\x16\n" +
-	"\x06peerID\x18\x01 \x01(\tR\x06peerID\x12 \n" +
-	"\vpeerAddress\x18\x02 \x01(\tR\vpeerAddress\"\x99\x01\n" +
-	"\x11GetLeaderResponse\x12\x1a\n" +
-	"\bleaderID\x18\x01 \x01(\tR\bleaderID\x12$\n" +
-	"\rleaderAddress\x18\x02 \x01(\tR\rleaderAddress\x12\x16\n" +
-	"\x06peerID\x18\x03 \x01(\tR\x06peerID\x12*\n" +
-	"\x10askForMembership\x18\x04 \x01(\bR\x10askForMembership\"9\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"]\n" +
+	"\x17ClientGetLeaderResponse\x12\x1b\n" +
+	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x12%\n" +
+	"\x0eleader_address\x18\x02 \x01(\tR\rleaderAddress\"M\n" +
+	"\x10GetLeaderRequest\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12 \n" +
+	"\vpeerAddress\x18\x02 \x01(\tR\vpeerAddress\"\x9e\x01\n" +
+	"\x11GetLeaderResponse\x12\x1b\n" +
+	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x12%\n" +
+	"\x0eleader_address\x18\x02 \x01(\tR\rleaderAddress\x12\x17\n" +
+	"\apeer_id\x18\x03 \x01(\tR\x06peerId\x12,\n" +
+	"\x12ask_for_membership\x18\x04 \x01(\bR\x10askForMembership\"9\n" +
 	"\x1dForwardCommandToLeaderRequest\x12\x18\n" +
-	"\acommand\x18\x01 \x01(\fR\acommand\"J\n" +
-	"\x1eForwardCommandToLeaderResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\x12\x14\n" +
-	"\x05error\x18\x02 \x01(\tR\x05error\"\x13\n" +
+	"\acommand\x18\x01 \x01(\fR\acommand\"\x8e\x01\n" +
+	"\x1eForwardCommandToLeaderResponse\x12\x1b\n" +
+	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x12%\n" +
+	"\x0eleader_address\x18\x02 \x01(\tR\rleaderAddress\x12\x12\n" +
+	"\x04data\x18\x03 \x01(\fR\x04data\x12\x14\n" +
+	"\x05error\x18\x04 \x01(\tR\x05error\"\x13\n" +
 	"\x11TimeoutNowRequest\".\n" +
 	"\x12TimeoutNowResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xc3\x01\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\xc8\x01\n" +
 	"\x17MembershipChangeRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aaddress\x18\x02 \x01(\tR\aaddress\x12 \n" +
-	"\vreadReplica\x18\x03 \x01(\bR\vreadReplica\x12\x16\n" +
-	"\x06action\x18\x04 \x01(\rR\x06action\x12\"\n" +
-	"\flastLogIndex\x18\x05 \x01(\x04R\flastLogIndex\x12 \n" +
-	"\vlastLogTerm\x18\x06 \x01(\x04R\vlastLogTerm\"v\n" +
+	"\aaddress\x18\x02 \x01(\tR\aaddress\x12!\n" +
+	"\fread_replica\x18\x03 \x01(\bR\vreadReplica\x12\x16\n" +
+	"\x06action\x18\x04 \x01(\rR\x06action\x12$\n" +
+	"\x0elast_log_index\x18\x05 \x01(\x04R\flastLogIndex\x12\"\n" +
+	"\rlast_log_term\x18\x06 \x01(\x04R\vlastLogTerm\"x\n" +
 	"\x18MembershipChangeResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1a\n" +
-	"\bleaderID\x18\x02 \x01(\tR\bleaderID\x12$\n" +
-	"\rleaderAddress\x18\x03 \x01(\tR\rleaderAddress\"\x19\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1b\n" +
+	"\tleader_id\x18\x02 \x01(\tR\bleaderId\x12%\n" +
+	"\x0eleader_address\x18\x03 \x01(\tR\rleaderAddress\"\x19\n" +
 	"\x17BootstrapClusterRequest\"4\n" +
 	"\x18BootstrapClusterResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess2\xde\x06\n" +

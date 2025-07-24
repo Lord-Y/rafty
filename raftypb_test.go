@@ -159,7 +159,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		go func() {
 			data := <-s.rpcPreVoteRequestChan
 			data.ResponseChan <- RPCResponse{
-				Response: &raftypb.PreVoteResponse{PeerID: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
+				Response: &raftypb.PreVoteResponse{PeerId: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
 			}
 		}()
 
@@ -320,7 +320,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		go func() {
 			data := <-s.rpcVoteRequestChan
 			data.ResponseChan <- RPCResponse{
-				Response: &raftypb.VoteResponse{PeerID: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
+				Response: &raftypb.VoteResponse{PeerId: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
 			}
 		}()
 		_, err = rpcm.SendVoteRequest(context.Background(), request)

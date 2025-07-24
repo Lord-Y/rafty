@@ -300,11 +300,11 @@ func (r *Rafty) waitForLeader() bool {
 		if client != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
-			response, _ := client.GetLeader(ctx, &raftypb.GetLeaderRequest{PeerID: r.id, PeerAddress: r.Address.String()})
-			if response != nil && response.LeaderAddress != "" && response.LeaderID != "" {
+			response, _ := client.GetLeader(ctx, &raftypb.GetLeaderRequest{PeerId: r.id, PeerAddress: r.Address.String()})
+			if response != nil && response.LeaderAddress != "" && response.LeaderId != "" {
 				r.setLeader(leaderMap{
 					address: response.LeaderAddress,
-					id:      response.LeaderID,
+					id:      response.LeaderId,
 				})
 				return true
 			}

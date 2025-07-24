@@ -76,7 +76,7 @@ func (r *leader) handleSendMembershipChangeRequest(data RPCRequest) {
 	}()
 
 	response.LeaderAddress = r.rafty.Address.String()
-	response.LeaderID = r.rafty.id
+	response.LeaderId = r.rafty.id
 
 	if r.membershipChangeInProgress.Load() {
 		rpcResponse.Error = ErrMembershipChangeInProgress

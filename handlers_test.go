@@ -253,7 +253,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		data := <-responseChan
 		response := data.Response.(*raftypb.VoteResponse)
 		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
-		assert.Equal(s.id, response.PeerID)
+		assert.Equal(s.id, response.PeerId)
 		assert.Equal(Follower, s.getState())
 		assert.Equal(true, response.Granted)
 		s.wg.Wait()
@@ -387,7 +387,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:      idx,
+				LeaderId:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          1,
 			},
@@ -423,7 +423,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:      idx,
+				LeaderId:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 			},
@@ -459,7 +459,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:      idx,
+				LeaderId:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 			},
@@ -494,7 +494,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:      idx,
+				LeaderId:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 			},
@@ -535,7 +535,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:      idx,
+				LeaderId:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 				Heartbeat:     true,
@@ -573,7 +573,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:          idx,
+				LeaderId:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
 				PrevLogIndex:      0,
@@ -619,7 +619,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:          idx,
+				LeaderId:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
 				PrevLogIndex:      1,
@@ -666,7 +666,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:          idx,
+				LeaderId:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              1,
 				PrevLogIndex:      1,
@@ -722,7 +722,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:          idx,
+				LeaderId:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
 				PrevLogIndex:      3,
@@ -794,7 +794,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:          idx,
+				LeaderId:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
 				PrevLogIndex:      3,
@@ -870,7 +870,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
-				LeaderID:      idx,
+				LeaderId:      idx,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
 				Term:          2,
 				Heartbeat:     true,
