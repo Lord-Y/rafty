@@ -5,9 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"testing"
 	"time"
 
@@ -21,7 +18,6 @@ func TestRaftypb_AskNodeID(t *testing.T) {
 	err := s.parsePeers()
 	assert.Nil(err)
 
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.AskNodeIDRequest{}
 	t.Run("up", func(t *testing.T) {
@@ -51,7 +47,6 @@ func TestRaftypb_GetLeader(t *testing.T) {
 	err := s.parsePeers()
 	assert.Nil(err)
 
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.GetLeaderRequest{}
 	t.Run("up", func(t *testing.T) {
@@ -84,7 +79,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
@@ -97,7 +91,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -119,7 +112,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -137,7 +129,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -151,7 +142,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -172,7 +162,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -198,7 +187,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -221,7 +209,6 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -245,7 +232,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
@@ -258,7 +244,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -280,7 +265,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -298,7 +282,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -312,7 +295,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -332,7 +314,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -358,7 +339,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -381,7 +361,6 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -405,7 +384,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
@@ -418,7 +396,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -440,7 +417,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -458,7 +434,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -472,7 +447,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -492,7 +466,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -518,7 +491,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -541,7 +513,6 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -562,7 +533,6 @@ func TestRaftypb_ClientGetLeader(t *testing.T) {
 	err := s.parsePeers()
 	assert.Nil(err)
 
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.ClientGetLeaderRequest{}
 	t.Run("down", func(t *testing.T) {
@@ -605,7 +575,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
@@ -625,7 +594,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -647,7 +615,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		s.options.BootstrapCluster = true
@@ -669,7 +636,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -698,7 +664,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -724,7 +689,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -745,7 +709,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -773,7 +736,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -806,7 +768,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -836,7 +797,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -862,7 +822,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -885,7 +844,6 @@ func TestRaftypb_SendTimeoutNowRequest(t *testing.T) {
 	err := s.parsePeers()
 	assert.Nil(err)
 
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	t.Run("up", func(t *testing.T) {
 		s.State = Follower
 		s.isRunning.Store(true)
@@ -907,7 +865,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
@@ -920,7 +877,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		s.options.BootstrapCluster = true
@@ -935,7 +891,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -957,7 +912,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -975,7 +929,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -989,7 +942,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1010,7 +962,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1036,7 +987,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1059,7 +1009,6 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1083,7 +1032,6 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
@@ -1096,7 +1044,6 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1118,7 +1065,6 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1136,7 +1082,6 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1150,7 +1095,6 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1171,7 +1115,6 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1197,7 +1140,6 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1220,7 +1162,6 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		err := s.parsePeers()
 		assert.Nil(err)
 
-		s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}

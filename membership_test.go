@@ -3,9 +3,6 @@ package rafty
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"testing"
 	"time"
 
@@ -438,7 +435,6 @@ func TestMembership_changeRequest(t *testing.T) {
 	assert.Nil(err)
 	s.fillIDs()
 	s.State = Leader
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	s.isRunning.Store(true)
 
 	state := leader{rafty: s}
@@ -489,7 +485,6 @@ func TestMembership_catchupNewMember(t *testing.T) {
 	assert.Nil(err)
 	s.fillIDs()
 	s.State = Leader
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	s.isRunning.Store(true)
 
 	state := leader{rafty: s}

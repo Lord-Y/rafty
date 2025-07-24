@@ -2,9 +2,6 @@ package rafty
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 	"testing"
 	"time"
 
@@ -17,7 +14,6 @@ func TestStateReadReplica(t *testing.T) {
 	err := s.parsePeers()
 	assert.Nil(err)
 
-	s.quitCtx, s.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	s.isRunning.Store(true)
 	s.State = ReadReplica
 	state := readReplica{rafty: s}
