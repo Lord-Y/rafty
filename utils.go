@@ -96,6 +96,8 @@ func (r *Rafty) IsRunning() bool {
 	return r.isRunning.Load()
 }
 
+// parsePeers will parse all peers to validate their addresses.
+// When invalid, an error will be returned
 func (r *Rafty) parsePeers() error {
 	var uniqPeers []peer
 	for _, server := range r.configuration.ServerMembers {

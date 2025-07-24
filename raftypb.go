@@ -8,6 +8,11 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
+// AskNodeID allow the current node to exchange its node id
+// with other nodes. It will also provide the leader address and id
+// if found.
+// If the requester is not part of the current cluster, membership will
+// be set to true
 func (r *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest) (*raftypb.AskNodeIDResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
@@ -36,6 +41,9 @@ func (r *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest
 	}, nil
 }
 
+// GetLeader is used only between nodes to find leader address and id.
+// If the requester is not part of the current cluster, membership will
+// be set to true
 func (r *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest) (*raftypb.GetLeaderResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
@@ -72,6 +80,8 @@ func (r *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest
 	return response, nil
 }
 
+// SendPreVoteRequest allow the current node received
+// and treat pre vote requests from other nodes
 func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVoteRequest) (*raftypb.PreVoteResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
@@ -110,6 +120,8 @@ func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVote
 	}
 }
 
+// SendVoteRequest allow the current node received
+// and treat vote requests from other nodes
 func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteRequest) (*raftypb.VoteResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
@@ -148,6 +160,8 @@ func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteReques
 	}
 }
 
+// SendAppendEntriesRequest allow the current node received
+// and treat append entries requests from the leader
 func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.AppendEntryRequest) (*raftypb.AppendEntryResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
@@ -186,6 +200,7 @@ func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.A
 	}
 }
 
+// ClientGetLeader is used only by clients to find leader address and id
 func (r *rpcManager) ClientGetLeader(ctx context.Context, in *raftypb.ClientGetLeaderRequest) (*raftypb.ClientGetLeaderResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
@@ -209,6 +224,9 @@ func (r *rpcManager) ClientGetLeader(ctx context.Context, in *raftypb.ClientGetL
 	}, nil
 }
 
+// ForwardCommandToLeader allow the current node received
+// and forward commands to the leader.
+// If the current node is not the leader, it will provide leader address and id
 func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.ForwardCommandToLeaderRequest) (*raftypb.ForwardCommandToLeaderResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
@@ -257,6 +275,9 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 	return nil, nil
 }
 
+// SendTimeoutNowRequest allow the current node received
+// and treat leadership transfer from the leader when it
+// needs to step down
 func (r *rpcManager) SendTimeoutNowRequest(_ context.Context, in *raftypb.TimeoutNowRequest) (*raftypb.TimeoutNowResponse, error) {
 	r.rafty.candidateForLeadershipTransfer.Store(true)
 	r.rafty.switchState(Candidate, stepUp, false, r.rafty.currentTerm.Load()+1)
@@ -269,6 +290,8 @@ func (r *rpcManager) SendTimeoutNowRequest(_ context.Context, in *raftypb.Timeou
 	return &raftypb.TimeoutNowResponse{Success: true}, nil
 }
 
+// SendMembershipChangeRequest allow the current leader node received
+// and treat membership requests from other nodes or devops to manage the cluster
 func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftypb.MembershipChangeRequest) (*raftypb.MembershipChangeResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown
@@ -310,6 +333,7 @@ func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftyp
 	}
 }
 
+// SendBootstrapClusterRequest allow the current node to bootstrap the cluster
 func (r *rpcManager) SendBootstrapClusterRequest(ctx context.Context, in *raftypb.BootstrapClusterRequest) (*raftypb.BootstrapClusterResponse, error) {
 	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
 		return nil, ErrShutdown

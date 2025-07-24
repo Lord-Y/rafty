@@ -57,6 +57,8 @@ func (s MembershipChange) String() string {
 	return "add"
 }
 
+// handleSendMembershipChangeRequest allow the current node to manage
+// membership change requests coming from other nodes or devops
 func (r *leader) handleSendMembershipChangeRequest(data RPCRequest) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()

@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// NewLogger instantiate zerolog configuration
 func NewLogger() *zerolog.Logger {
 	var logger zerolog.Logger
 	switch strings.TrimSpace(os.Getenv("RAFTY_LOG_LEVEL")) {

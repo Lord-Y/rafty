@@ -8,6 +8,7 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
+// SubmitCommand allow clients to submit command to the leader
 func (r *Rafty) SubmitCommand(command Command) ([]byte, error) {
 	buffer := new(bytes.Buffer)
 	if err := encodeCommand(command, buffer); err != nil {
@@ -16,6 +17,8 @@ func (r *Rafty) SubmitCommand(command Command) ([]byte, error) {
 	return r.submitCommand(buffer.Bytes())
 }
 
+// submitCommand is a private func that allow clients to submit command
+// to the leader. It's used by SubmitCommand
 func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 	if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
 		return nil, ErrClusterNotBootstrapped

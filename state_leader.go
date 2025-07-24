@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// leader hold all requirements by a node in leader state
 type leader struct {
 	// rafty holds rafty config
 	rafty *Rafty
@@ -127,7 +128,7 @@ func (r *leader) release() {
 	r.stopAllReplication()
 }
 
-// setupFollowersReplicationStates is build by the leader
+// setupFollowersReplicationStates is build by the leader.
 // It will create all requirements to replicate
 // append entries for the followers
 func (r *leader) setupFollowersReplicationStates() {
@@ -514,6 +515,8 @@ func (r *leader) leadershipTransferLoop() {
 	}
 }
 
+// setupSingleServerReplicationState is build by the leader.
+// It will create all requirements to append entries to its logs
 func (r *leader) setupSingleServerReplicationState() {
 	r.singleServerNewEntryChan = make(chan *onAppendEntriesRequest)
 	r.singleServerReplicationStopChan = make(chan struct{}, 1)
