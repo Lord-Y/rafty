@@ -108,7 +108,6 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 		currentTerm := s.currentTerm.Add(1)
 		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
 		s.stopCtx()
-		time.Sleep(100 * time.Millisecond) // make sure test always fail
 
 		entries := []*raftypb.LogEntry{
 			{
@@ -130,7 +129,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 			entries:                    entries,
 			membershipChangeInProgress: &atomic.Bool{},
 			replyToClient:              true,
-			replyToClientChan:          make(chan appendEntriesResponse, 1),
+			replyToClientChan:          make(chan appendEntriesResponse),
 		}
 
 		state.singleServerAppendEntries(request)
