@@ -24,10 +24,12 @@ So let's try to redo the wheel with more explanations.
 Here is a list of the supported features of `rafty`:
 - [x] PreVote election
 - [x] Leader election
+- [x] Leader lease
 - [x] Leadership transfer
 - [] Logs
   - [x] Log replication
   - [x] Submit write commands
+  - [x] Forward commands to leader
   - [] Submit read commands
   - [] Log compaction
 - [x] Membership changes
