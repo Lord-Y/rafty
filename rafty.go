@@ -174,6 +174,10 @@ type Options struct {
 	// The default value is 1 and the maximum is 10
 	TimeMultiplier uint
 
+	// ForceStopTimeout is the timeout after which grpc server will forced to stop.
+	// Default to 60s
+	ForceStopTimeout time.Duration
+
 	// MinimumClusterSize is the size minimum to have before starting prevote or election campaign
 	// default is 3
 	// all members of the cluster will be contacted before any other tasks
@@ -486,6 +490,10 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 		options.ElectionTimeout, options.HeartbeatTimeout = options.HeartbeatTimeout, options.ElectionTimeout
 	}
 
+	if options.ForceStopTimeout == 0 {
+		options.ForceStopTimeout = 60 * time.Second
+	}
+
 	if options.DataDir == "" {
 		options.DataDir = filepath.Join(os.TempDir(), "rafty")
 	}
@@ -623,7 +631,7 @@ func (r *Rafty) stop() {
 	r.switchState(Down, stepDown, true, r.currentTerm.Load())
 	r.release()
 
-	timer := time.AfterFunc(60*time.Second, func() {
+	timer := time.AfterFunc(r.options.ForceStopTimeout, func() {
 		r.Logger.Info().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
