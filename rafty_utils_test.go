@@ -349,6 +349,7 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup) (count atomic.Uint64) {
 	// it will look weird to have 2 synchronizations but the first defer
 	// make sure that all subtests will finish properly before nillify cc variable
+	wg.Add(1)
 	defer wg.Done()
 	var wgi sync.WaitGroup
 	for i, node := range cc.cluster {
@@ -439,7 +440,6 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	// provoke errors on purpuse on non bootstrapped cluster
 	if cc.bootstrapCluster {
-		wg.Add(1)
 		cc.submitCommandOnAllNodes(&wg)
 		cc.bootstrap(&wg)
 		// provoke errors on purpuse on already bootstrapped cluster
@@ -448,7 +448,6 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 
 	go func() {
 		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
-			wg.Add(1)
 			go cc.submitCommandOnAllNodes(&wg)
 		}
 	}()
@@ -470,7 +469,6 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 
 	go func() {
 		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
-			wg.Add(1)
 			go func() {
 				_ = cc.submitCommandOnAllNodes(&wg)
 			}()
@@ -505,7 +503,6 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	var leader leaderMap
 	go func() {
 		if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
-			wg.Add(1)
 			go cc.submitCommandOnAllNodes(&wg)
 		}
 	}()
