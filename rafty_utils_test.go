@@ -318,16 +318,14 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 			<-time.After(time.Second)
 			if !node.isRunning.Load() {
 				stop = true
+
+				id := node.id
+				address := node.Address
+				options := node.options
+				node = nil
+				node, err := NewRafty(address, id, options)
 				// reset this part to prevent errors
-				metaFile, dataFile, err := node.newStorage()
 				cc.assert.Nil(err)
-				node.storage = storage{
-					metadata: metaFile,
-					data:     dataFile,
-				}
-				node.storage.metadata.rafty = node
-				node.storage.data.rafty = node
-				node.logs = node.newLogs()
 				go func() {
 					node.Logger.Info().Msgf("Restart node %s / %d", node.Address.String(), nodeId)
 					if err := node.Start(); err != nil {
