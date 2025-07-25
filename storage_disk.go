@@ -241,7 +241,9 @@ func (r dataFile) restore() error {
 			if data, err = unmarshalBinary(scanner.Bytes()); err != nil && err != io.EOF {
 				return err
 			}
-			r.rafty.logs.appendEntries([]*raftypb.LogEntry{data}, true)
+			if data != nil {
+				r.rafty.logs.appendEntries([]*raftypb.LogEntry{data}, true)
+			}
 		}
 	}
 
