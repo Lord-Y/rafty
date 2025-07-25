@@ -202,6 +202,32 @@ func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
 		enc = buffer.Bytes()
 		assert.Nil(err)
 		assert.NotNil(enc)
+
+		// Testing error on buffer write
+		w = &failWriter{failOn: 1}
+		err = marshalBinaryWithChecksum(buffer, w)
+		assert.Error(err)
+
+		// Testing error on checksum write
+		w = &failWriter{failOn: 2}
+		err = marshalBinaryWithChecksum(buffer, w)
+		assert.Error(err)
+
+		// Testing error on data too short
+		_, err = unmarshalBinaryWithChecksum([]byte(""))
+		assert.Error(err)
+
+		// Testing error on CRC32 checksum mistmatch
+		_, err = unmarshalBinaryWithChecksum(enc)
+		assert.Error(err)
+
+		// No errors expected here
+		bufferChecksum := new(bytes.Buffer)
+		err = marshalBinaryWithChecksum(buffer, bufferChecksum)
+		assert.Nil(err)
+		_, err = unmarshalBinaryWithChecksum(bufferChecksum.Bytes())
+		assert.Nil(err)
+
 		dec, err = unmarshalBinary(enc)
 		assert.Nil(err)
 		assert.Equal(cmd.FileFormat, uint8(dec.FileFormat))
@@ -276,6 +302,7 @@ func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
 		_ = binary.Write(buf, binary.LittleEndian, uint64(1)) // Term
 		_ = binary.Write(buf, binary.LittleEndian, uint64(1)) // Index
 		_ = binary.Write(buf, binary.LittleEndian, uint64(5)) // Command length
+
 		// Not enough bytes for Command
 		_, err = unmarshalBinary(buf.Bytes())
 		assert.Error(err)

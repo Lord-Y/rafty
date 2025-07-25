@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
 	"io"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -150,6 +151,39 @@ func unmarshalBinary(data []byte) (*raftypb.LogEntry, error) {
 		Command:    entry.Command,
 	}
 	return &logEntry, nil
+}
+
+// marshalBinaryWithChecksum permit to encode data in binary format
+// with checksum before being written to disk
+func marshalBinaryWithChecksum(buffer *bytes.Buffer, w io.Writer) error {
+	checksum := crc32.ChecksumIEEE(buffer.Bytes())
+
+	if _, err := w.Write(buffer.Bytes()); err != nil {
+		return err
+	}
+
+	if err := binary.Write(w, binary.LittleEndian, checksum); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// unmarshalBinaryWithChecksum permit to decode data in binary format
+// by validating its checksum before moving further
+func unmarshalBinaryWithChecksum(data []byte) (entry *raftypb.LogEntry, err error) {
+	if len(data) < 4 {
+		return nil, ErrChecksumDataTooShort
+	}
+
+	body := data[:len(data)-4]
+	checksum := binary.LittleEndian.Uint32(data[len(data)-4:])
+
+	if crc32.ChecksumIEEE(body) != checksum {
+		return nil, ErrChecksumMistmatch
+	}
+
+	return unmarshalBinary(body)
 }
 
 // encodePeers permits to encode peers and return bytes

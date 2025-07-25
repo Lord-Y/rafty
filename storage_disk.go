@@ -238,7 +238,7 @@ func (r dataFile) restore() error {
 	for scanner.Scan() {
 		if len(scanner.Bytes()) > 0 {
 			var data *raftypb.LogEntry
-			if data, err = unmarshalBinary(scanner.Bytes()); err != nil && err != io.EOF {
+			if data, err = unmarshalBinaryWithChecksum(scanner.Bytes()); err != nil && err != io.EOF {
 				return err
 			}
 			if data != nil {
@@ -272,13 +272,17 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 	}
 
 	var err error
-	buffer := new(bytes.Buffer)
+	buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
 	if err = marshalBinary(logEntry, buffer); err != nil {
 		return err
 	}
-	writer := bufio.NewWriter(r.file)
 
-	if _, err = writer.Write(buffer.Bytes()); err != nil {
+	if err = marshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
+		return err
+	}
+
+	writer := bufio.NewWriter(r.file)
+	if _, err = writer.Write(bufferChecksum.Bytes()); err != nil {
 		return err
 	}
 
@@ -318,13 +322,17 @@ func (r dataFile) storeWithEntryIndex(entryIndex int) error {
 	}
 
 	var err error
-	buffer := new(bytes.Buffer)
+	buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
 	if err = marshalBinary(logEntry, buffer); err != nil {
 		return err
 	}
-	writer := bufio.NewWriter(r.file)
 
-	if _, err = writer.Write(buffer.Bytes()); err != nil {
+	if err = marshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
+		return err
+	}
+
+	writer := bufio.NewWriter(r.file)
+	if _, err = writer.Write(bufferChecksum.Bytes()); err != nil {
 		return err
 	}
 
