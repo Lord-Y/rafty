@@ -287,7 +287,14 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 		return err
 	}
 
+	// Flush() only flushes the buffered data to the OS file cache
 	if err = writer.Flush(); err != nil {
+		return err
+	}
+
+	// Sync() force the OS to flush its cache to disk guaranteeing the data
+	// is physically written to disk.
+	if err = r.file.Sync(); err != nil {
 		return err
 	}
 	return nil
@@ -326,7 +333,14 @@ func (r dataFile) storeWithEntryIndex(entryIndex int) error {
 		return err
 	}
 
+	// Flush() only flushes the buffered data to the OS file cache
 	if err = writer.Flush(); err != nil {
+		return err
+	}
+
+	// Sync() force the OS to flush its cache to disk guaranteeing the data
+	// is physically written to disk.
+	if err = r.file.Sync(); err != nil {
 		return err
 	}
 	return nil
