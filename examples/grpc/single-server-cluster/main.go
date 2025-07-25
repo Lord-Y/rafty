@@ -33,8 +33,8 @@ func main() {
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := rafty.Options{
-		PersistDataOnDisk:     *disablePersistance,
-		DataDir:               filepath.Join(os.TempDir(), "rafty_single_server"+id),
+		PersistDataOnDisk:     !*disablePersistance,
+		DataDir:               filepath.Join(os.TempDir(), "rafty", "single_server"+id),
 		IsSingleServerCluster: true,
 	}
 	s, _ := rafty.NewRafty(addr, id, options)
