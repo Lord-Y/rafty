@@ -98,7 +98,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("single_server_append_entries_quit_context", func(t *testing.T) {
-		s := singleServerClusterSetup()
+		s := singleServerClusterSetup("")
 		s.isRunning.Store(true)
 		s.State = Leader
 		s.options.IsSingleServerCluster = true
@@ -142,7 +142,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 	})
 
 	t.Run("single_server_append_timeout", func(t *testing.T) {
-		s := singleServerClusterSetup()
+		s := singleServerClusterSetup("")
 		s.isRunning.Store(true)
 		s.State = Leader
 		s.options.PersistDataOnDisk = true
@@ -191,7 +191,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 	})
 
 	t.Run("reply_to_chan", func(t *testing.T) {
-		s := singleServerClusterSetup()
+		s := singleServerClusterSetup("")
 		s.isRunning.Store(true)
 		s.State = Leader
 		s.options.PersistDataOnDisk = true

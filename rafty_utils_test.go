@@ -54,10 +54,13 @@ func basicNodeSetup() *Rafty {
 }
 
 // singleServerClusterSetup is only a helper for other unit testing
-func singleServerClusterSetup() *Rafty {
+func singleServerClusterSetup(address string) *Rafty {
 	addr := net.TCPAddr{
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: int(GRPCPort),
+	}
+	if address != "" {
+		addr = getNetAddress(address)
 	}
 
 	id := fmt.Sprintf("%d", addr.Port)
