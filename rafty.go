@@ -200,9 +200,9 @@ type Options struct {
 	// Peers hold the list of the peers
 	Peers []Peer
 
-	// Disable pre vote is a boolean the allow us to directly start
+	// PrevoteDisabled is a boolean the allow us to directly start
 	// vote election without pre vote step
-	DisablePrevote bool
+	PrevoteDisabled bool
 
 	// ShutdownOnRemove is a boolean that allow the current node to shut down
 	// when Remove command as been sent during membership change request

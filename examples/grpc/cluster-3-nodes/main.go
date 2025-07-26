@@ -23,7 +23,7 @@ var timeMultiplier = flag.Uint("time-multiplier", 0, "TimeMultiplier is a scalin
 var disablePersistance = flag.Bool("disable-persistance", false, "if true persistance will be disabled")
 var submitCommands = flag.Bool("submit-commands", false, "if true submit commands to leader")
 var maxCommands = flag.Uint("max-commands", 10, "Max command to submit")
-var disablePreVote = flag.Bool("disable-prevote", false, "if true pre vote will be disabled")
+var prevoteDisabled = flag.Bool("prevote-disabled", false, "if true pre vote will be disabled")
 var readReplica = flag.Bool("read-replica", false, "only when last node for membership")
 var shutdownOnRemove = flag.Bool("shutdown-on-remove", false, "only when last node for membership")
 
@@ -77,7 +77,7 @@ func main() {
 		PersistDataOnDisk: !*disablePersistance,
 		DataDir:           filepath.Join(os.TempDir(), "rafty_"+id),
 		TimeMultiplier:    *timeMultiplier,
-		DisablePrevote:    *disablePreVote,
+		PrevoteDisabled:   *prevoteDisabled,
 	}
 	if *nodeId == 3 {
 		if *readReplica {
