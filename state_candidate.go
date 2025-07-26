@@ -47,7 +47,7 @@ func (r *candidate) init() {
 		r.quorum = r.rafty.quorum()
 		r.preVotes = 1 // vote for myself
 		r.votes = 1    // vote for myself
-		if r.rafty.options.DisablePrevote || r.rafty.candidateForLeadershipTransfer.Load() {
+		if r.rafty.options.PrevoteDisabled || r.rafty.candidateForLeadershipTransfer.Load() {
 			r.startElection()
 			return
 		}
@@ -75,7 +75,7 @@ func (r *candidate) onTimeout() {
 
 	r.preVotes = 1 // vote for myself
 	r.votes = 1    // vote for myself
-	if r.rafty.options.DisablePrevote || r.rafty.candidateForLeadershipTransfer.Load() {
+	if r.rafty.options.PrevoteDisabled || r.rafty.candidateForLeadershipTransfer.Load() {
 		r.startElection()
 		return
 	}
@@ -193,7 +193,7 @@ func (r *candidate) startElection() {
 	lastLogIndex := r.rafty.lastLogIndex.Load()
 	lastLogTerm := r.rafty.lastLogTerm.Load()
 	var peers []peer
-	if r.rafty.options.DisablePrevote || r.rafty.candidateForLeadershipTransfer.Load() {
+	if r.rafty.options.PrevoteDisabled || r.rafty.candidateForLeadershipTransfer.Load() {
 		peers, _ = r.rafty.getPeers()
 	} else {
 		peers = r.preCandidatePeers

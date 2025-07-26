@@ -23,4 +23,6 @@ var (
 	ErrMembershipChangeNodeDemotionForbidden = errors.New("node cannot be demoted, breaking cluster")
 	ErrClusterNotBootstrapped                = errors.New("cluster not bootstrapped")
 	ErrClusterAlreadyBootstrapped            = errors.New("cluster already bootstrapped")
+	ErrChecksumDataTooShort                  = errors.New("data to short for checksum")
+	ErrChecksumMistmatch                     = errors.New("CRC32 checksum mistmatch")
 )

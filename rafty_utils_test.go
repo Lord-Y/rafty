@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -89,7 +88,7 @@ type clusterConfig struct {
 	noNodeID                  bool
 	maxAppendEntries          uint64
 	readReplicaCount          uint64
-	disablePrevote            bool
+	prevoteDisabled           bool
 	isSingleServerCluster     bool
 	bootstrapCluster          bool
 }
@@ -135,7 +134,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		}
 
 		options.logSource = cc.testName
-		options.DisablePrevote = cc.disablePrevote
+		options.PrevoteDisabled = cc.prevoteDisabled
 		options.TimeMultiplier = cc.timeMultiplier
 		options.BootstrapCluster = cc.bootstrapCluster
 		if cc.autoSetMinimumClusterSize {
@@ -318,16 +317,14 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 			<-time.After(time.Second)
 			if !node.isRunning.Load() {
 				stop = true
-				// reset this part to prevent errors
-				metaFile, dataFile, err := node.newStorage()
+
+				id := node.id
+				address := node.Address
+				options := node.options
+				node = nil
+				node, err := NewRafty(address, id, options)
 				cc.assert.Nil(err)
-				node.storage = storage{
-					metadata: metaFile,
-					data:     dataFile,
-				}
-				node.storage.metadata.rafty = node
-				node.storage.data.rafty = node
-				node.logs = node.newLogs()
+				cc.cluster[nodeId] = node
 				go func() {
 					node.Logger.Info().Msgf("Restart node %s / %d", node.Address.String(), nodeId)
 					if err := node.Start(); err != nil {
@@ -346,32 +343,22 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 	})
 }
 
-func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup) (count atomic.Uint64) {
-	// it will look weird to have 2 synchronizations but the first defer
-	// make sure that all subtests will finish properly before nillify cc variable
-	defer wg.Done()
-	var wgi sync.WaitGroup
+func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup) {
 	for i, node := range cc.cluster {
-		wgi.Add(1)
-		go func() {
-			defer wgi.Done()
-			cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d", cc.testName, i), func(t *testing.T) {
+		cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d", cc.testName, i), func(t *testing.T) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				node.Logger.Info().Msgf("Submitting command to node %d", i)
-				_, err := node.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)})
-				if err != nil {
+				if _, err := node.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)}); err != nil {
 					node.Logger.Error().Err(err).
 						Str("node", fmt.Sprintf("%d", i)).
 						Msgf("Failed to submit commmand to node")
 					cc.assert.Error(err)
-				} else {
-					count.Add(1)
-					cc.assert.Nil(err)
 				}
-			})
-		}()
+			}()
+		})
 	}
-	wgi.Wait()
-	return
 }
 
 func (cc *clusterConfig) submitFakeCommandOnAllNodes() {
@@ -439,7 +426,6 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	time.Sleep(5 * time.Second)
 	// provoke errors on purpuse on non bootstrapped cluster
 	if cc.bootstrapCluster {
-		wg.Add(1)
 		cc.submitCommandOnAllNodes(&wg)
 		cc.bootstrap(&wg)
 		// provoke errors on purpuse on already bootstrapped cluster
@@ -448,7 +434,6 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 
 	go func() {
 		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
-			wg.Add(1)
 			go cc.submitCommandOnAllNodes(&wg)
 		}
 	}()
@@ -470,9 +455,8 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 
 	go func() {
 		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
-			wg.Add(1)
 			go func() {
-				_ = cc.submitCommandOnAllNodes(&wg)
+				cc.submitCommandOnAllNodes(&wg)
 			}()
 		}
 	}()
@@ -505,7 +489,6 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	var leader leaderMap
 	go func() {
 		if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
-			wg.Add(1)
 			go cc.submitCommandOnAllNodes(&wg)
 		}
 	}()

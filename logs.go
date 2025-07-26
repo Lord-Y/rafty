@@ -235,7 +235,7 @@ func (r *logs) appendEntries(entries []*raftypb.LogEntry, restore bool) int {
 	totalLogs = len(r.rafty.logs.log)
 	if totalLogs > 0 {
 		r.rafty.lastLogIndex.Store(uint64(totalLogs - 1))
-		r.rafty.lastLogTerm.Store(uint64(r.rafty.logs.log[r.rafty.lastLogIndex.Load()].Term))
+		r.rafty.lastLogTerm.Store(r.rafty.logs.log[r.rafty.lastLogIndex.Load()].Term)
 	}
 	return totalLogs
 }
