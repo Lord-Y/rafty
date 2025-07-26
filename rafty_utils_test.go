@@ -323,8 +323,8 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 				options := node.options
 				node = nil
 				node, err := NewRafty(address, id, options)
-				// reset this part to prevent errors
 				cc.assert.Nil(err)
+				cc.cluster[nodeId] = node
 				go func() {
 					node.Logger.Info().Msgf("Restart node %s / %d", node.Address.String(), nodeId)
 					if err := node.Start(); err != nil {
