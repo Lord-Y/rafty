@@ -236,8 +236,8 @@ func TestStart3Nodes_PrevoteDisabled(t *testing.T) {
 		testName:    "3_nodes_prevote_disabled",
 		clusterSize: 3,
 		// runTestInParallel: true,
-		portStartRange: 40000,
-		disablePrevote: true,
+		portStartRange:  40000,
+		prevoteDisabled: true,
 	}
 	cc.assert = assert.New(t)
 	cc.testClustering(t)

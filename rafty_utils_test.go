@@ -88,7 +88,7 @@ type clusterConfig struct {
 	noNodeID                  bool
 	maxAppendEntries          uint64
 	readReplicaCount          uint64
-	disablePrevote            bool
+	prevoteDisabled           bool
 	isSingleServerCluster     bool
 	bootstrapCluster          bool
 }
@@ -134,7 +134,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		}
 
 		options.logSource = cc.testName
-		options.DisablePrevote = cc.disablePrevote
+		options.PrevoteDisabled = cc.prevoteDisabled
 		options.TimeMultiplier = cc.timeMultiplier
 		options.BootstrapCluster = cc.bootstrapCluster
 		if cc.autoSetMinimumClusterSize {
