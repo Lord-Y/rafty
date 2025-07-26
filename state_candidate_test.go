@@ -48,6 +48,31 @@ func TestStateCandidate(t *testing.T) {
 		assert.Equal(Follower, s.getState())
 	})
 
+	t.Run("onTimeout_prevote_enabled", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.isRunning.Store(true)
+		s.State = Candidate
+		state := candidate{rafty: s}
+		state.onTimeout()
+		assert.Equal(Candidate, s.getState())
+	})
+
+	t.Run("onTimeout_prevote_disabled", func(t *testing.T) {
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+
+		s.isRunning.Store(true)
+		s.options.PrevoteDisabled = true
+		s.State = Candidate
+		state := candidate{rafty: s}
+		state.onTimeout()
+		assert.Equal(Candidate, s.getState())
+	})
+
 	t.Run("handlePreVoteResponse_not_candidate", func(t *testing.T) {
 		s := basicNodeSetup()
 		err := s.parsePeers()
