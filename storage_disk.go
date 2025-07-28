@@ -304,56 +304,6 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 	return nil
 }
 
-// store allow to persist data logs on disk
-func (r dataFile) storeWithEntryIndex(entryIndex int) error {
-	if r.file == nil {
-		return nil
-	}
-
-	entry := r.rafty.logs.fromIndex(uint64(entryIndex)).logs[0]
-	logEntry := &logEntry{
-		FileFormat: uint8(entry.FileFormat),
-		Tombstone:  uint8(entry.Tombstone),
-		LogType:    uint8(entry.LogType),
-		Timestamp:  entry.Timestamp,
-		Term:       entry.Term,
-		Index:      entry.Index,
-		Command:    entry.Command,
-	}
-
-	var err error
-	buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
-	if err = marshalBinary(logEntry, buffer); err != nil {
-		return err
-	}
-
-	if err = marshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
-		return err
-	}
-
-	writer := bufio.NewWriter(r.file)
-	if _, err = writer.Write(bufferChecksum.Bytes()); err != nil {
-		return err
-	}
-
-	// Write a newline after each struct
-	if _, err = writer.WriteString("\n"); err != nil {
-		return err
-	}
-
-	// Flush() only flushes the buffered data to the OS file cache
-	if err = writer.Flush(); err != nil {
-		return err
-	}
-
-	// Sync() force the OS to flush its cache to disk guaranteeing the data
-	// is physically written to disk.
-	if err = r.file.Sync(); err != nil {
-		return err
-	}
-	return nil
-}
-
 // close allow to close opened file
 func (r dataFile) close() {
 	if r.file != nil {

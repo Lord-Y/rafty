@@ -673,7 +673,7 @@ func (r *Rafty) bootstrapCluster(data RPCRequest) {
 	_ = r.logs.appendEntries(entries, false)
 	_ = r.logs.applyConfigEntry(entries[0])
 	if r.options.PersistDataOnDisk {
-		if err := r.storage.data.storeWithEntryIndex(int(entries[0].Index)); err != nil {
+		if err := r.storage.data.store(entries[0]); err != nil {
 			r.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
 		}
 		if err := r.storage.metadata.store(); err != nil {

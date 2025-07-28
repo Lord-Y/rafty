@@ -102,10 +102,6 @@ type onAppendEntriesRequest struct {
 	// term is the current term of the leader
 	term uint64
 
-	// entryIndex is the index of the entry that will be used later
-	// to store it on disk
-	entryIndex int
-
 	// hearbeat stand here if the leader have to send hearbeat append entries
 	heartbeat bool
 
@@ -297,7 +293,7 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 					if !request.heartbeat {
 						if request.totalLogs > 0 && !request.committed.Load() {
 							if r.rafty.options.PersistDataOnDisk && !request.committed.Load() {
-								if err := r.rafty.storage.data.storeWithEntryIndex(request.entryIndex); err != nil {
+								if err := r.rafty.storage.data.store(request.entries[0]); err != nil {
 									r.rafty.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
 								}
 							}
@@ -386,7 +382,7 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 						Str("id", r.rafty.id).
 						Str("state", r.rafty.getState().String()).
 						Str("term", fmt.Sprintf("%d", request.term)).
-						Str("index", fmt.Sprintf("%d", request.entryIndex)).
+						Str("index", fmt.Sprintf("%d", request.entries[0].Index)).
 						Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
 						Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 						Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
@@ -578,7 +574,7 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 	defer r.rafty.wg.Done()
 
 	if r.rafty.options.PersistDataOnDisk {
-		if err := r.rafty.storage.data.storeWithEntryIndex(request.entryIndex); err != nil {
+		if err := r.rafty.storage.data.store(request.entries[0]); err != nil {
 			r.rafty.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
 		}
 	}
