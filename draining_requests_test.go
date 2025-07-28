@@ -93,7 +93,6 @@ func TestDrainVoteRequests(t *testing.T) {
 		s.drainVoteRequests()
 	}()
 
-	go s.drainVoteRequests()
 	go func() {
 		defer s.wg.Done()
 		for {
@@ -144,7 +143,6 @@ func TestDrainAppendEntriesRequests(t *testing.T) {
 		s.drainAppendEntriesRequests()
 	}()
 
-	go s.drainAppendEntriesRequests()
 	go func() {
 		defer s.wg.Done()
 		for {
@@ -201,7 +199,116 @@ func TestDrainMembershipChangeRequests(t *testing.T) {
 		s.drainMembershipChangeRequests()
 	}()
 
-	go s.drainMembershipChangeRequests()
+	go func() {
+		defer s.wg.Done()
+		for {
+			select {
+			case <-responseChan:
+			case <-time.After(500 * time.Millisecond):
+				return
+			}
+		}
+	}()
+	s.wg.Wait()
+}
+
+func TestDrainSendAskNodeIDRequest(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	s.currentTerm.Store(1)
+
+	response := RPCResponse{
+		Response: &raftypb.AskNodeIDResponse{},
+		Error:    err,
+	}
+	s.wg.Add(2)
+	go func() {
+		defer s.wg.Done()
+		for {
+			select {
+			case s.rpcAskNodeIDChan <- response:
+			case <-time.After(500 * time.Millisecond):
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer s.wg.Done()
+		time.Sleep(100 * time.Millisecond) // Ensure the request is sent before draining
+		s.drainSendAskNodeIDRequests()
+	}()
+	s.wg.Wait()
+}
+
+func TestDrainGetLeaderRequest(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	s.currentTerm.Store(1)
+
+	response := RPCResponse{
+		Response: &raftypb.AskNodeIDResponse{},
+		Error:    err,
+	}
+	s.wg.Add(2)
+	go func() {
+		defer s.wg.Done()
+		for {
+			select {
+			case s.rpcClientGetLeaderChan <- response:
+			case <-time.After(500 * time.Millisecond):
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer s.wg.Done()
+		time.Sleep(100 * time.Millisecond) // Ensure the request is sent before draining
+		s.drainGetLeaderResult()
+	}()
+	s.wg.Wait()
+}
+
+func TestDrainBootstrapClusterRequests(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	err := s.parsePeers()
+	assert.Nil(err)
+	s.currentTerm.Store(1)
+
+	responseChan := make(chan RPCResponse, 1)
+	request := RPCRequest{
+		RPCType:      BootstrapClusterRequest,
+		Request:      &raftypb.BootstrapClusterRequest{},
+		Timeout:      time.Second,
+		ResponseChan: responseChan,
+	}
+	s.wg.Add(3)
+	go func() {
+		defer s.wg.Done()
+		for {
+			select {
+			case s.rpcBootstrapClusterRequestChan <- request:
+			case <-time.After(500 * time.Millisecond):
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer s.wg.Done()
+		time.Sleep(100 * time.Millisecond) // Ensure the request is sent before draining
+		s.drainBootstrapClusterRequests()
+	}()
+
 	go func() {
 		defer s.wg.Done()
 		for {
