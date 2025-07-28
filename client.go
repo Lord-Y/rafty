@@ -35,8 +35,13 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}
 
 			// answer back to the client
-			response := <-responseChan
-			return response.Data, response.Error
+			select {
+			case response := <-responseChan:
+				return response.Data, response.Error
+
+			case <-time.After(500 * time.Millisecond):
+				return nil, errTimeoutSendingRequest
+			}
 		} else {
 			leader := r.getLeader()
 			if leader == (leaderMap{}) {
