@@ -382,7 +382,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 						Str("id", r.rafty.id).
 						Str("state", r.rafty.getState().String()).
 						Str("term", fmt.Sprintf("%d", request.term)).
-						Str("index", fmt.Sprintf("%d", request.entries[0].Index)).
 						Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
 						Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 						Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
