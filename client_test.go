@@ -91,7 +91,26 @@ func TestClient_submitCommand(t *testing.T) {
 		assert.Error(err)
 	})
 
-	t.Run("timeout", func(t *testing.T) {
+	t.Run("timeout_first", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		err := s.parsePeers()
+		assert.Nil(err)
+		s.fillIDs()
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		buffer := new(bytes.Buffer)
+		err = encodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
+		assert.Nil(err)
+
+		_, err = s.submitCommand(buffer.Bytes())
+		assert.Error(err)
+	})
+
+	t.Run("timeout_second", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
