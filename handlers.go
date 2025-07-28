@@ -98,7 +98,7 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 		return
 	}
 
-	if votedFor != "" && votedForTerm == request.CurrentTerm {
+	if votedFor != request.CandidateId && votedForTerm == request.CurrentTerm {
 		response.CurrentTerm = currentTerm
 		r.Logger.Trace().
 			Str("address", r.Address.String()).

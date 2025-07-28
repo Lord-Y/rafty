@@ -360,6 +360,38 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		assert.Equal(true, response.Granted)
 		s.wg.Wait()
 	})
+
+	t.Run("candidate_5", func(t *testing.T) {
+		// I'm candidate and I receive send vote request
+		// from other nodes
+		s.votedFor = s.configuration.ServerMembers[1].ID
+		s.votedForTerm.Store(1)
+		s.currentTerm.Store(1)
+		s.switchState(Candidate, stepUp, false, s.currentTerm.Load())
+		s.logs.log = nil
+
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: VoteRequest,
+			Request: &raftypb.VoteRequest{
+				CandidateId:      candidateId,
+				CandidateAddress: s.configuration.ServerMembers[id].address.String(),
+				CurrentTerm:      1,
+			},
+			ResponseChan: responseChan,
+		}
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.handleSendVoteRequest(request)
+		}()
+		data := <-responseChan
+		response := data.Response.(*raftypb.VoteResponse)
+		assert.Equal(s.currentTerm.Load(), response.CurrentTerm)
+		assert.Equal(false, response.Granted)
+		s.wg.Wait()
+	})
 }
 
 func TestHandleSendAppendEntriesRequest(t *testing.T) {
