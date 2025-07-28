@@ -400,6 +400,8 @@ func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup, fake bool) 
 }
 
 func (cc *clusterConfig) waitForLeader(wg *sync.WaitGroup, timeout time.Duration, maxRound int) (leader leaderMap) {
+	wg.Add(1)
+	defer wg.Done()
 	round := 0
 	for {
 		<-time.After(timeout)
