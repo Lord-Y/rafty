@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -518,7 +519,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	time.Sleep(sleep)
 	cc.stopCluster(&wg)
 	// pprof here is only to debug remaining go routines
-	//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+	_ = pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 	wg.Wait()
 
 	t.Logf("Test %s ran for %s", cc.testName, time.Since(now))
