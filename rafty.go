@@ -641,13 +641,13 @@ func (r *Rafty) stop() {
 	})
 	defer timer.Stop()
 	r.grpcServer.GracefulStop()
+	r.wg.Wait()
+	r.storage.close()
 	r.Logger.Info().
 		Str("address", r.Address.String()).
 		Str("id", r.id).
 		Str("state", r.getState().String()).
 		Msgf("Node successfully stopped with term %d", r.currentTerm.Load())
-	r.storage.close()
-	r.wg.Wait()
 }
 
 // checkNodeIDs check if we gather all node ids.
