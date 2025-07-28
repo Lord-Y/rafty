@@ -91,6 +91,7 @@ type clusterConfig struct {
 	prevoteDisabled           bool
 	isSingleServerCluster     bool
 	bootstrapCluster          bool
+	mu                        sync.Mutex
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
@@ -345,10 +346,12 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 				id := node.id
 				address := node.Address
 				options := node.options
+				cc.mu.Lock()
 				node = nil
 				node, err := NewRafty(address, id, options)
 				cc.assert.Nil(err)
 				cc.cluster[nodeId] = node
+				cc.mu.Unlock()
 				go func() {
 					node.Logger.Info().Msgf("Restart node %s / %d", node.Address.String(), nodeId)
 					if err := node.Start(); err != nil {
@@ -395,12 +398,14 @@ func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup, fake bool) 
 	}
 }
 
-func (cc *clusterConfig) waitForLeader(timeout time.Duration, maxRound int) (leader leaderMap) {
+func (cc *clusterConfig) waitForLeader(wg *sync.WaitGroup, timeout time.Duration, maxRound int) (leader leaderMap) {
 	round := 0
 	for {
 		<-time.After(timeout)
 		nodeId := rand.IntN(int(cc.clusterSize))
+		cc.mu.Lock()
 		node := cc.cluster[nodeId]
+		cc.mu.Unlock()
 
 		conn, client, err := cc.getClient(node.Address.String())
 		if err != nil {
@@ -471,7 +476,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	}
 
 	go func() {
-		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+		if leader := cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
 			go cc.submitCommandOnAllNodes(&wg, false)
 		}
 	}()
@@ -492,14 +497,14 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 			time.Sleep(2 * time.Second)
 		}
 
-		if leader := cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+		if leader := cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
 			go cc.submitCommandOnAllNodes(&wg, false)
 			go cc.submitCommandOnAllNodes(&wg, true)
 		}
 
 	case <-timeoutGetLeader:
 		go func() {
-			if leader := cc.waitForLeader(time.Second, 3); leader != (leaderMap{}) {
+			if leader := cc.waitForLeader(&wg, time.Second, 3); leader != (leaderMap{}) {
 				cc.submitCommandOnAllNodes(&wg, false)
 			}
 		}()
@@ -541,7 +546,7 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 
 	var leader leaderMap
 	go func() {
-		if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+		if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
 			go cc.submitCommandOnAllNodes(&wg, false)
 			go cc.submitCommandOnAllNodes(&wg, true)
 		}
@@ -568,20 +573,20 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	response.Success = true
 	cc.membershipAction(&wg, leader, "55", ForceRemove, true, response)
 
-	if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
 		response.Success = true
 		cc.membershipAction(&wg, leader, leader.id, ForceRemove, true, response)
 	}
 
 	time.Sleep(2 * time.Second)
 	response.Success = true
-	if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, leader, leader.id, Demote, false, response)
 	}
 
 	time.Sleep(2 * time.Second)
 	response.Success = true
-	if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, leader, "56", Demote, false, response)
 	}
 
@@ -610,7 +615,7 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 	response.Success = true
-	if leader = cc.waitForLeader(2*time.Second, 5); leader != (leaderMap{}) {
+	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, leader, leader.id, Demote, false, response)
 	}
 
@@ -699,7 +704,7 @@ func (cc *clusterConfig) membershipAction(wg *sync.WaitGroup, leader leaderMap, 
 			var noLeader bool
 			for retry := range 3 {
 				if noLeader {
-					leader = cc.waitForLeader(time.Second, 3)
+					leader = cc.waitForLeader(wg, time.Second, 3)
 					noLeader = false
 				}
 				// we use retry here so r.rpcMembershipNotLeader from state_loop can be
