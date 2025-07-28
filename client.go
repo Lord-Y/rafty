@@ -32,7 +32,11 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 	case CommandSet:
 		if r.getState() == Leader {
 			responseChan := make(chan appendEntriesResponse, 1)
-			r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}
+			select {
+			case r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}:
+			case <-time.After(500 * time.Millisecond):
+				return nil, errTimeoutSendingRequest
+			}
 
 			// answer back to the client
 			select {
