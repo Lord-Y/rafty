@@ -223,7 +223,7 @@ func (r *leader) isReplicableForHearbeat(follower *followerReplication) bool {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
-	return r.rafty.getState() == Leader && follower != nil && (!follower.replicationStopped.Load() && !follower.WaitToBePromoted || !r.disableHeartBeat.Load() || r.rafty.isRunning.Load())
+	return r.rafty.getState() == Leader && r.rafty.isRunning.Load() && follower != nil && (!follower.replicationStopped.Load() && !follower.WaitToBePromoted || !r.disableHeartBeat.Load())
 }
 
 // isReplicable will check if node is replicable when adding new logs
@@ -231,7 +231,7 @@ func (r *leader) isReplicable(follower *followerReplication) bool {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
-	return r.rafty.getState() == Leader && follower != nil && (!follower.replicationStopped.Load() && !follower.WaitToBePromoted || r.rafty.isRunning.Load())
+	return r.rafty.getState() == Leader && r.rafty.isRunning.Load() && follower != nil && !follower.replicationStopped.Load() && !follower.WaitToBePromoted
 }
 
 // stopReplication will stop ongoing follower replication. When deferred is set to true,
