@@ -10,6 +10,9 @@ func (r *Rafty) commonLoop() {
 		select {
 		// exiting for loop
 		case <-r.quitCtx.Done():
+			r.drainGetLeaderResult()
+			r.drainSendAskNodeIDRequests()
+			r.drainBootstrapClusterRequests()
 			return
 
 		// handle client get leader

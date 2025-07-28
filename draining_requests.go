@@ -102,3 +102,65 @@ func (r *Rafty) drainMembershipChangeRequests() {
 		}
 	}
 }
+
+// drainGetLeaderResult will drain all remaining requests in the chan
+func (r *Rafty) drainGetLeaderResult() {
+	r.Logger.Trace().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Msgf("Draining get leader result chan")
+
+	for {
+		select {
+		case <-r.rpcClientGetLeaderChan:
+		//nolint staticcheck
+		default:
+			return
+		}
+	}
+}
+
+// drainSendAskNodeIDRequests will drain all remaining requests in the chan
+func (r *Rafty) drainSendAskNodeIDRequests() {
+	r.Logger.Trace().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Msgf("Draining send ask node id requests chan")
+
+	for {
+		select {
+		case <-r.rpcAskNodeIDChan:
+		//nolint staticcheck
+		default:
+			return
+		}
+	}
+}
+
+// drainBootstrapClusterRequests will drain all remaining requests in the chan
+func (r *Rafty) drainBootstrapClusterRequests() {
+	r.Logger.Trace().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Msgf("Draining bootstrap cluster requests chan")
+
+	for {
+		select {
+		case data := <-r.rpcBootstrapClusterRequestChan:
+			select {
+			case data.ResponseChan <- RPCResponse{
+				Response: &raftypb.BootstrapClusterResponse{},
+				Error:    ErrShutdown,
+			}:
+			//nolint staticcheck
+			default:
+			}
+		//nolint staticcheck
+		default:
+			return
+		}
+	}
+}
