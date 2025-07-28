@@ -132,6 +132,8 @@ func (r *leader) release() {
 // It will create all requirements to replicate
 // append entries for the followers
 func (r *leader) setupFollowersReplicationStates() {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
 	r.followerReplication = make(map[string]*followerReplication)
 	followers, totalFollowers := r.rafty.getPeers()
 	r.totalFollowers.Store(uint64(totalFollowers))
@@ -184,6 +186,8 @@ func (r *leader) setupFollowersReplicationStates() {
 // addReplication add a new follower replication with provided config.
 // updateNextIndex must be set to true when promoting new node
 func (r *leader) addReplication(follower *followerReplication, updateNextIndex bool) {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
 	if updateNextIndex {
 		follower.nextIndex.Store(1)
 	}
