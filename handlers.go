@@ -41,7 +41,7 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 	defer r.wg.Done()
 	request := data.Request.(*raftypb.VoteRequest)
 	currentTerm := r.currentTerm.Load()
-	votedFor, _ := r.getVotedFor()
+	votedFor, votedForTerm := r.getVotedFor()
 	lastLogIndex := r.lastLogIndex.Load()
 	totalLogs := r.logs.total().total
 	response := &raftypb.VoteResponse{
@@ -98,7 +98,7 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 		return
 	}
 
-	if votedFor != "" && votedFor != request.CandidateId {
+	if votedFor != "" && votedForTerm == request.CurrentTerm {
 		response.CurrentTerm = currentTerm
 		r.Logger.Trace().
 			Str("address", r.Address.String()).
