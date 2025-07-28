@@ -135,7 +135,7 @@ func TestStart5Nodes(t *testing.T) {
 		testName:                  "5_nodes",
 		clusterSize:               5,
 		delayLastNode:             true,
-		delayLastNodeTimeDuration: time.Duration(60) * time.Second,
+		delayLastNodeTimeDuration: time.Duration(30) * time.Second,
 		autoSetMinimumClusterSize: true,
 		portStartRange:            32000,
 		// runTestInParallel:         true,
