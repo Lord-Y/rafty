@@ -179,6 +179,8 @@ func (r metaFile) restore() error {
 
 // store allow to persist data logs on disk
 func (r metaFile) store() error {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
 	if r.file == nil {
 		return nil
 	}
@@ -257,6 +259,8 @@ func (r dataFile) restore() error {
 
 // store allow to persist data logs on disk
 func (r dataFile) store(entry *raftypb.LogEntry) error {
+	r.rafty.wg.Add(1)
+	defer r.rafty.wg.Done()
 	if r.file == nil {
 		return nil
 	}
