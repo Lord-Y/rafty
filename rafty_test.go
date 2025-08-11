@@ -12,7 +12,6 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/bbolt"
 	bolt "go.etcd.io/bbolt"
 	"google.golang.org/grpc"
 )
@@ -95,7 +94,7 @@ func TestRafty_newRafty(t *testing.T) {
 
 			storeOptions := BoltOptions{
 				DataDir: options.DataDir,
-				Options: bbolt.DefaultOptions,
+				Options: bolt.DefaultOptions,
 			}
 			if tc.DataDir == "" {
 				store, err := NewBoltStorage(storeOptions)
@@ -143,7 +142,7 @@ func TestRafty_newRafty(t *testing.T) {
 		}
 		storeOptions := BoltOptions{
 			DataDir: options.DataDir,
-			Options: bbolt.DefaultOptions,
+			Options: bolt.DefaultOptions,
 		}
 		defer func() {
 			_ = os.RemoveAll(options.DataDir)
@@ -253,7 +252,9 @@ func TestRafty_stop(t *testing.T) {
 
 	t.Run("force_timeout", func(t *testing.T) {
 		s := basicNodeSetup()
-		defer s.logStore.Close()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.fillIDs()
 		s.State = Leader
 		s.isRunning.Store(true)
