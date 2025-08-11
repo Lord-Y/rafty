@@ -10,6 +10,7 @@ import (
 
 	"github.com/Lord-Y/rafty"
 	"github.com/jackc/fake"
+	bolt "go.etcd.io/bbolt"
 )
 
 var ipAddress = flag.String("ip-address", "127.0.0.1", "ip address")
@@ -20,7 +21,6 @@ var restartNode = flag.Bool("restart-node", false, "restart node")
 var restartNodeAfterN = flag.Uint("restart-node-after-n", 2, "max uptime in minutes before restarting node")
 var disableNormalMode = flag.Bool("disable-normal-mode", false, "by default the program will run without stopping/restarting so it's needed when using other modes")
 var timeMultiplier = flag.Uint("time-multiplier", 0, "TimeMultiplier is a scaling factor that will be used during election timeout")
-var disablePersistance = flag.Bool("disable-persistance", false, "if true persistance will be disabled")
 var submitCommands = flag.Bool("submit-commands", false, "if true submit commands to leader")
 var maxCommands = flag.Uint("max-commands", 10, "Max command to submit")
 var prevoteDisabled = flag.Bool("prevote-disabled", false, "if true pre vote will be disabled")
@@ -73,11 +73,10 @@ func main() {
 	id = fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := rafty.Options{
-		Peers:             peers,
-		PersistDataOnDisk: !*disablePersistance,
-		DataDir:           filepath.Join(os.TempDir(), "rafty_"+id),
-		TimeMultiplier:    *timeMultiplier,
-		PrevoteDisabled:   *prevoteDisabled,
+		Peers:           peers,
+		DataDir:         filepath.Join(os.TempDir(), "rafty_test", "cluster-3-nodes", id),
+		TimeMultiplier:  *timeMultiplier,
+		PrevoteDisabled: *prevoteDisabled,
 	}
 	if *nodeId == 3 {
 		if *readReplica {
@@ -87,7 +86,12 @@ func main() {
 			options.ShutdownOnRemove = true
 		}
 	}
-	s, _ := rafty.NewRafty(addr, id, options)
+	storeOptions := rafty.BoltOptions{
+		DataDir: options.DataDir,
+		Options: bolt.DefaultOptions,
+	}
+	store, _ := rafty.NewBoltStorage(storeOptions)
+	s, _ := rafty.NewRafty(addr, id, options, store)
 
 	if *submitCommands {
 		go func() {
@@ -123,7 +127,8 @@ func main() {
 					time.Sleep(30 * time.Second)
 					s = nil
 					var err error
-					if s, err = rafty.NewRafty(addr, id, options); err != nil {
+					store, _ := rafty.NewBoltStorage(storeOptions)
+					if s, err = rafty.NewRafty(addr, id, options, store); err != nil {
 						s.Logger.Fatal().Err(err).Msg("Fail to create cluster config")
 					}
 					if err := s.Start(); err != nil {

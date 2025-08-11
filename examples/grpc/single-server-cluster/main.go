@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/Lord-Y/rafty"
 	"github.com/jackc/fake"
+	bolt "go.etcd.io/bbolt"
 )
 
 var ipAddress = flag.String("ip-address", "127.0.0.1", "ip address")
@@ -18,7 +20,6 @@ var maxUptimeAfterN = flag.Uint("max-uptime-after-n", 6, "max uptime in minutes 
 var restartNode = flag.Bool("restart-node", false, "restart node")
 var restartNodeAfterN = flag.Uint("restart-node-after-n", 2, "max uptime in minutes before restarting node")
 var disableNormalMode = flag.Bool("disable-normal-mode", false, "by default the program will run without stopping/restarting so it's needed when using other modes")
-var disablePersistance = flag.Bool("disable-persistance", false, "if true persistance will be disabled")
 var submitCommands = flag.Bool("submit-commands", false, "if true submit commands to leader")
 var maxCommands = flag.Uint("max-commands", 10, "Max command to submit")
 
@@ -33,11 +34,21 @@ func main() {
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := rafty.Options{
-		PersistDataOnDisk:     !*disablePersistance,
-		DataDir:               filepath.Join(os.TempDir(), "rafty", "single_server"+id),
+		DataDir:               filepath.Join(os.TempDir(), "rafty_test", "single_server"+id),
 		IsSingleServerCluster: true,
 	}
-	s, _ := rafty.NewRafty(addr, id, options)
+	storeOptions := rafty.BoltOptions{
+		DataDir: options.DataDir,
+		Options: bolt.DefaultOptions,
+	}
+	store, err := rafty.NewBoltStorage(storeOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s, err := rafty.NewRafty(addr, id, options, store)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if *submitCommands {
 		go func() {
@@ -73,7 +84,11 @@ func main() {
 					time.Sleep(30 * time.Second)
 					s = nil
 					var err error
-					if s, err = rafty.NewRafty(addr, id, options); err != nil {
+					store, err := rafty.NewBoltStorage(storeOptions)
+					if err != nil {
+						s.Logger.Fatal().Err(err).Msg("Fail to create sotre")
+					}
+					if s, err = rafty.NewRafty(addr, id, options, store); err != nil {
 						s.Logger.Fatal().Err(err).Msg("Fail to create cluster config")
 					}
 					if err := s.Start(); err != nil {

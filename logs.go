@@ -96,6 +96,48 @@ func (r *Rafty) newLogs() logs {
 	}
 }
 
+// makeLogEntries will convert slice of protobuf entries to slice of log entries
+func makeLogEntries(entries []*raftypb.LogEntry) (logs []*logEntry) {
+	for _, entry := range entries {
+		logs = append(logs, &logEntry{
+			FileFormat: uint8(entry.FileFormat),
+			Tombstone:  uint8(entry.Tombstone),
+			LogType:    uint8(entry.LogType),
+			Timestamp:  entry.Timestamp,
+			Term:       entry.Term,
+			Index:      entry.Index,
+			Command:    entry.Command,
+		})
+	}
+	return
+}
+
+// makeLogEntry will convert protobuf entry to slice of protobuf entries
+func makeLogEntry(entry *raftypb.LogEntry) (logs []*logEntry) {
+	return makeLogEntries([]*raftypb.LogEntry{entry})
+}
+
+// makeProtobufLogEntries will convert slice of log entries to slice of protobuf entries
+func makeProtobufLogEntries(entries []*logEntry) (logs []*raftypb.LogEntry) {
+	for _, entry := range entries {
+		logs = append(logs, &raftypb.LogEntry{
+			FileFormat: uint32(entry.FileFormat),
+			Tombstone:  uint32(entry.Tombstone),
+			LogType:    uint32(entry.LogType),
+			Timestamp:  entry.Timestamp,
+			Term:       entry.Term,
+			Index:      entry.Index,
+			Command:    entry.Command,
+		})
+	}
+	return
+}
+
+// makeProtobufLogEntry will convert log entry to slice of log entries
+func makeProtobufLogEntry(entry *logEntry) (logs []*raftypb.LogEntry) {
+	return makeProtobufLogEntries([]*logEntry{entry})
+}
+
 // /!\ DO NOT USE MAKE AND COPY IN THE FOLLOWING FUNCTIONS
 // THIS WILL CREATE NIL OBJECT AND GENERATE NIL POINTER
 // EXCEPTION
@@ -269,33 +311,54 @@ func (r *logs) wipeEntries(from, to uint64) logOperationWipeResponse {
 
 // applyConfigEntry will check if logType is a configuration logType
 // and add new peer into configuration
-func (r *logs) applyConfigEntry(entry *raftypb.LogEntry) error {
-	r.rafty.wg.Add(1)
-	defer r.rafty.wg.Done()
+func (r *Rafty) applyConfigEntry(entry *raftypb.LogEntry) error {
+	r.wg.Add(1)
+	defer r.wg.Done()
 
 	switch entry.LogType {
 	case uint32(logConfiguration):
-		if entry.Index > r.rafty.lastAppliedConfigIndex.Load() || entry.Term > r.rafty.lastAppliedConfigTerm.Load() {
+		if entry.Index > r.lastAppliedConfigIndex.Load() || entry.Term > r.lastAppliedConfigTerm.Load() {
 			peers, err := decodePeers(entry.Command)
 			if err != nil {
 				return err
 			}
 
-			r.rafty.updateServerMembers(peers)
+			r.updateServerMembers(peers)
 			// if I have been removed from the cluster
-			if !isPartOfTheCluster(peers, peer{Address: r.rafty.Address.String(), ID: r.rafty.id, address: getNetAddress(r.rafty.Address.String())}) && r.rafty.options.ShutdownOnRemove {
-				r.rafty.shutdownOnRemove.Store(true)
+			if !isPartOfTheCluster(peers, peer{Address: r.Address.String(), ID: r.id, address: getNetAddress(r.Address.String())}) && r.options.ShutdownOnRemove {
+				r.shutdownOnRemove.Store(true)
 			}
 
-			r.rafty.lastAppliedConfigIndex.Store(entry.Index)
-			r.rafty.lastAppliedConfigTerm.Store(entry.Term)
-			if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() {
-				r.rafty.isBootstrapped.Store(true)
-				r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
+			r.lastAppliedConfigIndex.Store(entry.Index)
+			r.lastAppliedConfigTerm.Store(entry.Term)
+			if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
+				r.isBootstrapped.Store(true)
+				r.timer.Reset(r.randomElectionTimeout())
 			}
 		}
 		return nil
 	default:
 	}
 	return nil
+}
+
+// updateEntriesIndex will update entries index monotically.
+// lastLogIndex and lastLogTerm will also be updated accordingly
+func (r *Rafty) updateEntriesIndex(entries []*raftypb.LogEntry) {
+	r.wg.Add(1)
+	defer r.wg.Done()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	lastLogIndex, lastLogTerm, updated := uint64(0), uint64(0), false
+	for index, entry := range entries {
+		lastLogIndex = r.lastLogIndex.Load() + uint64(index)
+		entry.Index = lastLogIndex
+		lastLogTerm = entry.Term
+		updated = true
+	}
+	if updated {
+		r.lastLogIndex.Store(lastLogIndex)
+		r.lastLogTerm.Store(lastLogTerm)
+	}
 }

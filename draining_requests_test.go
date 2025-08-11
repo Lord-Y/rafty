@@ -12,8 +12,9 @@ func TestDrainPreVoteRequests(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.currentTerm.Store(1)
 
 	responseChan := make(chan RPCResponse, 1)
@@ -61,8 +62,11 @@ func TestDrainVoteRequests(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+	}()
 	s.currentTerm.Store(1)
 
 	responseChan := make(chan RPCResponse, 1)
@@ -114,8 +118,11 @@ func TestDrainAppendEntriesRequests(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+	}()
 	s.currentTerm.Store(1)
 
 	responseChan := make(chan RPCResponse, 1)
@@ -164,8 +171,11 @@ func TestDrainMembershipChangeRequests(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+	}()
 	s.currentTerm.Store(1)
 
 	responseChan := make(chan RPCResponse, 1)
@@ -216,13 +226,15 @@ func TestDrainSendAskNodeIDRequest(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+	}()
 	s.currentTerm.Store(1)
 
 	response := RPCResponse{
 		Response: &raftypb.AskNodeIDResponse{},
-		Error:    err,
 	}
 	s.wg.Add(2)
 	go func() {
@@ -248,13 +260,15 @@ func TestDrainGetLeaderRequest(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+	}()
 	s.currentTerm.Store(1)
 
 	response := RPCResponse{
 		Response: &raftypb.AskNodeIDResponse{},
-		Error:    err,
 	}
 	s.wg.Add(2)
 	go func() {
@@ -280,8 +294,11 @@ func TestDrainBootstrapClusterRequests(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+	}()
 	s.currentTerm.Store(1)
 
 	responseChan := make(chan RPCResponse, 1)

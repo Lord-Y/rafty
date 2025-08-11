@@ -43,7 +43,6 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 	currentTerm := r.currentTerm.Load()
 	votedFor, votedForTerm := r.getVotedFor()
 	lastLogIndex := r.lastLogIndex.Load()
-	totalLogs := r.logs.total().total
 	response := &raftypb.VoteResponse{
 		PeerId: r.id,
 	}
@@ -69,12 +68,8 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 			Msgf("Vote granted to peer")
 
 		r.switchState(Follower, stepDown, true, request.CurrentTerm)
-		if err := r.storage.metadata.store(); err != nil {
-			r.Logger.Fatal().Err(err).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Msgf("Fail to persist metadata")
+		if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
+			panic(err)
 		}
 		response.CurrentTerm = request.CurrentTerm
 		response.Granted = true
@@ -114,32 +109,16 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 		return
 	}
 
-	if totalLogs > 0 {
+	if r.lastLogIndex.Load() > 0 {
 		r.Logger.Trace().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
 			Str("term", fmt.Sprintf("%d", currentTerm)).
-			Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
 			Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
 			Msgf("debug data lastLogTerm")
 
-		lastLogTerm := r.logs.fromIndex(r.lastLogIndex.Load())
-		if lastLogTerm.err != nil {
-			r.Logger.Error().Err(lastLogTerm.err).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
-				Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
-				Msgf("Fail to get last log term")
-			response.Granted = false
-			data.ResponseChan <- rpcResponse
-			return
-		}
-
-		lastLogTermData := r.logs.fromIndex(r.lastLogIndex.Load()).logs[0].Term
-		if request.LastLogTerm > lastLogTermData || (lastLogTermData == request.LastLogTerm && request.LastLogIndex >= lastLogIndex) {
+		if request.LastLogTerm > r.lastLogTerm.Load() || (r.lastLogTerm.Load() == request.LastLogTerm && request.LastLogIndex >= lastLogIndex) {
 			r.setVotedFor(request.CandidateId, request.CurrentTerm)
 			response.CurrentTerm = request.CurrentTerm
 			response.Granted = true
@@ -154,12 +133,8 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 				Msgf("Vote granted to peer")
 
 			r.switchState(Follower, stepDown, false, request.CurrentTerm)
-			if err := r.storage.metadata.store(); err != nil {
-				r.Logger.Fatal().Err(err).
-					Str("address", r.Address.String()).
-					Str("id", r.id).
-					Str("state", r.getState().String()).
-					Msgf("Fail to persist metadata")
+			if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
+				panic(err)
 			}
 			data.ResponseChan <- rpcResponse
 			return
@@ -194,12 +169,8 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 		Msgf("Vote granted to peer")
 
 	r.switchState(Follower, stepDown, false, request.CurrentTerm)
-	if err := r.storage.metadata.store(); err != nil {
-		r.Logger.Fatal().Err(err).
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Msgf("Fail to persist metadata")
+	if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
+		panic(err)
 	}
 
 	response.CurrentTerm = request.CurrentTerm
@@ -273,12 +244,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	}
 
 	r.currentTerm.Store(request.Term)
-	if err := r.storage.metadata.store(); err != nil {
-		r.Logger.Fatal().Err(err).
-			Str("address", r.Address.String()).
-			Str("id", r.id).
-			Str("state", r.getState().String()).
-			Msgf("Fail to persist metadata")
+	if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
+		panic(err)
 	}
 
 	r.setLeader(leaderMap{
@@ -288,7 +255,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	r.leaderLastContactDate.Store(time.Now())
 	r.timer.Reset(r.heartbeatTimeout())
 
-	totalLogs := r.logs.total().total
 	if (request.PrevLogIndex != lastLogIndex || request.PrevLogTerm != int64(lastLogTerm)) && !request.Catchup {
 		response.LogNotFound = true
 		data.ResponseChan <- rpcResponse
@@ -321,7 +287,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("id", r.id).
 				Str("state", r.getState().String()).
 				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
 				Str("leaderAddress", request.LeaderAddress).
 				Str("leaderId", request.LeaderId).
 				Str("leaderCommitIndex", fmt.Sprintf("%d", request.LeaderCommitIndex)).
@@ -333,16 +298,15 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("entryIndex", fmt.Sprintf("%d", entry.Index)).
 				Msgf("debug data received append entries")
 
-			if entry.Index > lastLogIndex || totalLogs == 0 {
+			if entry.Index > lastLogIndex {
 				newEntries = request.Entries[index:]
 				break
 			}
 
-			if totalLogs > 0 {
-				lastLog := r.logs.fromIndex(entry.Index)
-				if entry.Term != lastLog.logs[0].Term {
-					if wipe := r.logs.wipeEntries(entry.Index, lastLogIndex); wipe.err != nil {
-						r.Logger.Error().Err(wipe.err).
+			if lastLogIndex > 0 {
+				if entry.Term != lastLogTerm {
+					if err := r.logStore.DiscardLogs(entry.Index, lastLogIndex); err != nil {
+						r.Logger.Error().Err(err).
 							Str("address", r.Address.String()).
 							Str("id", r.id).
 							Str("state", r.getState().String()).
@@ -364,26 +328,13 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		}
 
 		if lenEntries := len(newEntries); lenEntries > 0 {
-			var (
-				err error
-			)
-			totalLogs = r.logs.appendEntries(newEntries, false)
+			var err error
+			r.updateEntriesIndex(newEntries)
+			if err := r.logStore.StoreLogs(makeLogEntries(newEntries)); err != nil {
+				panic(err)
+			}
 			for index := range newEntries {
-				entryIndex := 0
-				if totalLogs > 0 {
-					entryIndex = int(totalLogs) - 1 + index
-				}
-				r.Logger.Trace().
-					Str("address", r.Address.String()).
-					Str("id", r.id).
-					Str("state", r.getState().String()).
-					Str("term", fmt.Sprintf("%d", currentTerm)).
-					Str("entryIndex", fmt.Sprintf("%d", entryIndex)).
-					Str("index", fmt.Sprintf("%d", index)).
-					Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
-					Msgf("debug data persistance")
-
-				if err = r.logs.applyConfigEntry(newEntries[index]); err != nil {
+				if err = r.applyConfigEntry(newEntries[index]); err != nil {
 					r.Logger.Warn().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).
@@ -394,39 +345,21 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 						Msgf("Fail to apply config entry")
 				}
-
-				if err := r.storage.metadata.store(); err != nil {
-					r.Logger.Fatal().Err(err).
-						Str("address", r.Address.String()).
-						Str("id", r.id).
-						Str("state", r.getState().String()).
-						Str("term", fmt.Sprintf("%d", currentTerm)).
-						Str("leaderAddress", request.LeaderAddress).
-						Str("leaderId", request.LeaderId).
-						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
-						Msgf("Fail to persist metadata")
-				}
-
-				if err := r.storage.data.store(newEntries[index]); err != nil {
-					r.Logger.Fatal().Err(err).
-						Str("address", r.Address.String()).
-						Str("id", r.id).
-						Str("state", r.getState().String()).
-						Msgf("Fail to persist data")
-				}
+			}
+			if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
+				panic(err)
 			}
 
 			if request.LeaderCommitIndex > r.commitIndex.Load() {
-				r.commitIndex.Store(min(request.LeaderCommitIndex, uint64(totalLogs)))
+				r.commitIndex.Store(min(request.LeaderCommitIndex, r.lastLogIndex.Load()))
 			}
-			r.lastApplied.Store(uint64(totalLogs - 1))
+			r.lastApplied.Store(r.lastLogIndex.Load())
 
 			r.Logger.Debug().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
 				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
 				Str("leaderAddress", request.LeaderAddress).
 				Str("leaderId", request.LeaderId).
 				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
@@ -434,18 +367,15 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("leaderPrevLogIndex", fmt.Sprintf("%d", request.PrevLogIndex)).
 				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
 				Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
+				Str("lastLogTerm", fmt.Sprintf("%d", r.lastLogTerm.Load())).
 				Str("matchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
 				Str("lastApplied", fmt.Sprintf("%d", r.lastApplied.Load())).
 				Str("lastAppliedConfigIndex", fmt.Sprintf("%d", r.lastAppliedConfigIndex.Load())).
 				Str("lastAppliedConfigTerm", fmt.Sprintf("%d", r.lastAppliedConfigTerm.Load())).
 				Msgf("Node state index updated")
 
-			if err := r.storage.metadata.store(); err != nil {
-				r.Logger.Fatal().Err(err).
-					Str("address", r.Address.String()).
-					Str("id", r.id).
-					Str("state", r.getState().String()).
-					Msgf("Fail to persist metadata")
+			if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
+				panic(err)
 			}
 		}
 	}
@@ -463,7 +393,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		Str("id", r.id).
 		Str("state", r.getState().String()).
 		Str("term", fmt.Sprintf("%d", request.Term)).
-		Str("totalLogs", fmt.Sprintf("%d", totalLogs)).
 		Str("heartbeat", fmt.Sprintf("%t", request.Heartbeat)).
 		Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
 		Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).

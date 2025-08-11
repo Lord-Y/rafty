@@ -2,11 +2,11 @@ package rafty
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -186,12 +186,8 @@ type Options struct {
 	// MaxAppendEntries will hold how much append entries the leader will send to the follower at once
 	MaxAppendEntries uint64
 
-	// DataDir is the default data directory that will be used to store all data on the disk
-	// Defaults to os.TempDir()/rafty ex: /tmp/rafty
+	// DataDir is the default data directory that will be used to store all data on the disk. It's required
 	DataDir string
-
-	// PersistDataOnDisk is a boolean that allow us to persist data on disk
-	PersistDataOnDisk bool
 
 	// ReadReplica statuate if the current node is a read only node
 	// This kind of node won't participate into any election campaign
@@ -382,7 +378,8 @@ type Rafty struct {
 	matchIndex atomic.Uint64
 
 	// logs allow us to manipulate logs
-	logs logs
+	logs     logs
+	logStore Store
 
 	// configuration hold server members found on disk
 	// If empty, it will be equal to Peers list
@@ -433,7 +430,7 @@ type Rafty struct {
 
 // NewRafty instantiate rafty with default configuration
 // with server address and its id
-func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
+func NewRafty(address net.TCPAddr, id string, options Options, store Store) (*Rafty, error) {
 	r := &Rafty{
 		rpcPreVoteRequestChan:                make(chan RPCRequest),
 		rpcVoteRequestChan:                   make(chan RPCRequest),
@@ -452,9 +449,9 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 	if options.Logger == nil {
 		var zlogger zerolog.Logger
 		if options.logSource == "" {
-			zlogger = logger.NewLogger().With().Str("logProvider", "rafty").Logger()
+			zlogger = logger.NewLogger().With().Str("logProvider", "rafty_test").Logger()
 		} else {
-			zlogger = logger.NewLogger().With().Str("logProvider", "rafty").Str("logSource", options.logSource).Logger()
+			zlogger = logger.NewLogger().With().Str("logProvider", "rafty_test").Str("logSource", options.logSource).Logger()
 		}
 		options.Logger = &zlogger
 	}
@@ -495,7 +492,7 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 	}
 
 	if options.DataDir == "" {
-		options.DataDir = filepath.Join(os.TempDir(), "rafty")
+		return nil, ErrDataDirRequired
 	}
 
 	r.options = options
@@ -511,6 +508,9 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 	}
 
 	metaFile, dataFile, err := r.newStorage()
+	if err != nil {
+		return nil, err
+	}
 	r.storage = storage{
 		metadata: metaFile,
 		data:     dataFile,
@@ -524,25 +524,32 @@ func NewRafty(address net.TCPAddr, id string, options Options) (*Rafty, error) {
 	}
 	r.timer = time.NewTicker(r.randomElectionTimeout())
 	r.quitCtx, r.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	return r, err
+
+	r.logStore = store
+	metadata, err := store.GetMetadata()
+	if err != nil && err != ErrKeyNotFound {
+		return nil, err
+	}
+	if err = r.restore(metadata); err != nil {
+		return nil, err
+	}
+
+	// must stay after restoring metadata
+	if err = r.parsePeers(); err != nil {
+		return nil, fmt.Errorf("fail to parse peer ip/port %w", err)
+	}
+
+	return r, nil
 }
 
 // Start permits to start the node with the provided configuration
 func (r *Rafty) Start() error {
 	var err error
 
-	if err = r.storage.restore(); err != nil {
-		return fmt.Errorf("fail to restore data %w", err)
-	}
-
-	if err = r.parsePeers(); err != nil {
-		return fmt.Errorf("fail to parse peer ip/port %w", err)
-	}
-
 	if r.id == "" {
 		r.id = uuid.NewString()
 		r.connectionManager.id = r.id
-		if err := r.storage.metadata.store(); err != nil {
+		if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
 			return fmt.Errorf("fail to persist metadata %w", err)
 		}
 	}
@@ -642,7 +649,13 @@ func (r *Rafty) stop() {
 	defer timer.Stop()
 	r.grpcServer.GracefulStop()
 	r.wg.Wait()
-	r.storage.close()
+	if err := r.logStore.Close(); err != nil {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Msgf("Fail to close store")
+	}
 	r.Logger.Info().
 		Str("address", r.Address.String()).
 		Str("id", r.id).
@@ -703,4 +716,57 @@ func (r *Rafty) startClusterWithMinimumSize() {
 			go r.sendAskNodeIDRequest()
 		}
 	}
+}
+
+// buildMetadata will build metadata to be then stored
+// in long term storage
+func (r *Rafty) buildMetadata() []byte {
+	r.wg.Add(1)
+	defer r.wg.Done()
+
+	peers, _ := r.getPeers()
+	data := metadata{
+		Id:                     r.id,
+		CurrentTerm:            r.currentTerm.Load(),
+		VotedFor:               r.votedFor,
+		LastApplied:            r.lastApplied.Load(),
+		LastAppliedConfigIndex: r.lastAppliedConfigIndex.Load(),
+		LastAppliedConfigTerm:  r.lastAppliedConfigTerm.Load(),
+		Configuration: configuration{
+			ServerMembers: peers,
+		},
+	}
+
+	result, _ := json.Marshal(data)
+	return result
+}
+
+// restore allow us to restore last applied configuration
+// and many other requirements
+func (r *Rafty) restore(result []byte) error {
+	if len(result) > 0 {
+		var data metadata
+		if err := json.Unmarshal(result, &data); err != nil {
+			return err
+		}
+
+		r.id = data.Id
+		r.currentTerm.Store(data.CurrentTerm)
+		r.votedFor = data.VotedFor
+		r.lastApplied.Store(data.LastApplied)
+		r.lastAppliedConfigIndex.Store(data.LastAppliedConfigIndex)
+		r.lastAppliedConfigTerm.Store(data.LastAppliedConfigTerm)
+		if r.options.BootstrapCluster && !r.isBootstrapped.Load() && data.LastAppliedConfigIndex > 0 {
+			r.isBootstrapped.Store(true)
+		}
+		if len(data.Configuration.ServerMembers) > 0 {
+			r.configuration.ServerMembers = data.Configuration.ServerMembers
+		}
+		return nil
+	}
+
+	for _, server := range r.options.Peers {
+		r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{Address: server.Address})
+	}
+	return nil
 }

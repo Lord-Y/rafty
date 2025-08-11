@@ -3,17 +3,24 @@ package rafty
 import (
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
+	"go.etcd.io/bbolt"
 )
 
 func TestUtils_getState(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.State = Down
 
 	assert.Equal(Down, s.getState())
@@ -23,6 +30,9 @@ func TestUtils_votedFor(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	peerId := "0"
 	term := uint64(1)
 	s.setVotedFor(peerId, term)
@@ -35,6 +45,9 @@ func TestUtils_getLeader(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	assert.Equal(leaderMap{}, s.getLeader())
 	s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
 	assert.Equal(s.id, s.getLeader().id)
@@ -46,8 +59,9 @@ func TestUtils_getPeers(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	peers, total := s.getPeers()
 	assert.NotNil(peers)
 	assert.Equal(2, total)
@@ -57,8 +71,9 @@ func TestUtils_getAllPeers(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	peers, total := s.getAllPeers()
 	assert.NotNil(peers)
 	assert.Equal(3, total)
@@ -68,6 +83,9 @@ func TestUtils_isRunning(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	assert.Equal(false, s.IsRunning())
 }
 
@@ -123,9 +141,16 @@ func TestUtils_parsePeers(t *testing.T) {
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := Options{
-		Peers: peers,
+		Peers:   peers,
+		DataDir: filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
 	}
-	s, _ := NewRafty(addr, id, options)
+	storeOptions := BoltOptions{
+		DataDir: options.DataDir,
+		Options: bbolt.DefaultOptions,
+	}
+	store, err := NewBoltStorage(storeOptions)
+	assert.Nil(err)
+	s, _ := NewRafty(addr, id, options, store)
 
 	mergePeers := func(peers []Peer) {
 		for _, v := range peers {
@@ -134,7 +159,7 @@ func TestUtils_parsePeers(t *testing.T) {
 	}
 
 	mergePeers(s.options.Peers)
-	err := s.parsePeers()
+	err = s.parsePeers()
 	assert.Nil(err)
 
 	s.options.Peers = badPeers1
@@ -147,12 +172,16 @@ func TestUtils_parsePeers(t *testing.T) {
 	mergePeers(s.options.Peers)
 	err = s.parsePeers()
 	assert.Error(err)
+	assert.Nil(store.Close())
 }
 
 func TestUtils_switchStateAndLogState(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	tests := []struct {
 		state                  State
 		currentTerm            uint64
@@ -232,6 +261,9 @@ func TestUtils_saveLeaderInformations(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	tests := []struct {
 		state               State
 		newLeader           leaderMap
@@ -373,6 +405,9 @@ func TestUtilsQuorum(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	assert.Equal(2, s.quorum())
 }
 
@@ -432,8 +467,11 @@ func TestUtils_isPartOfTheCluster(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	member := peer{
-		Address: s.options.Peers[0].Address,
+		Address: s.options.Peers[2].Address,
 	}
 	assert.Equal(true, s.isPartOfTheCluster(member))
 	assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, member))
@@ -449,6 +487,9 @@ func TestUtils_waitForLeader(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.configuration.ServerMembers = nil
 		assert.Equal(false, s.waitForLeader())
 	})
@@ -458,8 +499,9 @@ func TestUtils_updateServerMembers(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	peers, total := s.getAllPeers()
 	assert.NotNil(peers)
 	assert.Equal(3, total)

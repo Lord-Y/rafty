@@ -14,7 +14,7 @@ import (
 
 func TestStorageDisk(t *testing.T) {
 	assert := assert.New(t)
-	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
+	logger := logger.NewLogger().With().Str("logProvider", "rafty_test").Logger()
 
 	// makeStorage is an helper when only set to true
 	// will only initialize s.storage.metadata.rafty and s.storage.data.rafty
@@ -42,7 +42,6 @@ func TestStorageDisk(t *testing.T) {
 		s.currentTerm.Store(currentTerm)
 		s.votedFor = votedFor
 		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
-		s.options.PersistDataOnDisk = true
 		return s
 	}
 
@@ -65,10 +64,6 @@ func TestStorageDisk(t *testing.T) {
 		s.Logger = &logger
 
 		_, _, err := s.newStorage()
-		assert.Nil(err)
-
-		s.options.PersistDataOnDisk = true
-		_, _, err = s.newStorage()
 		assert.Nil(err)
 
 		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_newStorage_error")
@@ -103,9 +98,6 @@ func TestStorageDisk(t *testing.T) {
 
 	t.Run("restore_error", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
 		metadata, data, err := s.newStorage()
 		assert.Nil(err)
 		tmpFile, err := os.CreateTemp("", "invalid_metadata")
@@ -118,7 +110,6 @@ func TestStorageDisk(t *testing.T) {
 		assert.Error(metadata.restore())
 
 		// fake json
-		s.options.PersistDataOnDisk = true
 		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_newStorage_error")
 		_, _, err = s.newStorage()
 		assert.Nil(err)
@@ -148,35 +139,28 @@ func TestStorageDisk(t *testing.T) {
 
 		storage.data = dataFile{rafty: s, file: nil}
 		assert.Nil(storage.restore())
+		assert.Nil(s.logStore.Close())
 		_ = os.RemoveAll(s.options.DataDir)
 	})
 
 	t.Run("restore_close", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
 
-		s.options.PersistDataOnDisk = true
 		s.options.DataDir = filepath.Join(os.TempDir(), "restore_close")
 		assert.Nil(s.storage.restore())
 		s.storage.close()
+		assert.Nil(s.logStore.Close())
 	})
 
 	t.Run("persist_metadata_basic", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
 
 		id, currentTerm, votedFor := "test", uint64(1), "a"
 		s.id = id
 		s.currentTerm.Store(currentTerm)
 		s.votedFor = votedFor
 
-		err = s.storage.metadata.store()
-		assert.Nil(err)
-
-		s.options.PersistDataOnDisk = true
-		err = s.storage.metadata.restore()
+		err := s.storage.metadata.store()
 		assert.Nil(err)
 
 		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_persist_metadata_basic")
@@ -184,32 +168,29 @@ func TestStorageDisk(t *testing.T) {
 		assert.Nil(err)
 		s.storage.metadata.close()
 
+		assert.Nil(s.logStore.Close())
 		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 	})
 
 	t.Run("restore_metadata_with_persistence_and_filepath", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
 
-		s.options.PersistDataOnDisk = true
-		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
+		// s.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_metadata_with_persistence_and_filepath")
 		makeStorage(s, false)
-		err = s.storage.metadata.restore()
+		err := s.storage.metadata.restore()
 		assert.Nil(err)
+		assert.Nil(s.logStore.Close())
 		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 	})
 
 	t.Run("restore_and_persist_metadata", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
 
 		makeStorage(s, true)
 		currentTerm := uint64(1)
-		err = s.storage.metadata.restore()
+		err := s.storage.metadata.restore()
 		assert.Nil(err)
 		assert.Equal(uint64(0), s.currentTerm.Load())
 		err = s.storage.metadata.store()
@@ -217,26 +198,23 @@ func TestStorageDisk(t *testing.T) {
 		err = s.storage.metadata.restore()
 		assert.Nil(err)
 		s.storage.metadata.close()
+		assert.Nil(s.logStore.Close())
 
 		s = nil
 		s = basicNodeSetup()
-		err = s.parsePeers()
-		assert.Nil(err)
 
 		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_TestMetadata")
-		s.options.PersistDataOnDisk = true
 		makeStorage(s, false)
 		err = s.storage.metadata.restore()
 		assert.Nil(err)
 		s.storage.metadata.close()
 
+		assert.Nil(s.logStore.Close())
 		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 
 		s = nil
 		s = basicNodeSetup()
-		err = s.parsePeers()
-		assert.Nil(err)
 
 		s = makeNewNode(s)
 		makeStorage(s, false)
@@ -254,26 +232,24 @@ func TestStorageDisk(t *testing.T) {
 		err = s.storage.metadata.restore()
 		assert.Nil(err)
 
+		assert.Nil(s.logStore.Close())
 		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 	})
 
 	t.Run("persist_data_basic", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(userCommand, buffer)
+		err := encodeCommand(userCommand, buffer)
 		assert.Nil(err)
 		entry := raftypb.LogEntry{Timestamp: now, Term: s.currentTerm.Load(), Command: buffer.Bytes()}
 		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		err = s.storage.data.store(&entry)
 		assert.Nil(err)
 
-		s.options.PersistDataOnDisk = true
 		err = s.storage.data.store(&entry)
 		assert.Nil(err)
 
@@ -282,23 +258,21 @@ func TestStorageDisk(t *testing.T) {
 		assert.Nil(err)
 		s.storage.data.close()
 
+		assert.Nil(s.logStore.Close())
 		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
 	})
 
 	t.Run("restore_and_persist_data", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
 
-		s.options.PersistDataOnDisk = true
 		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
 		makeStorage(s, false)
 
 		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
 		now := uint32(time.Now().Unix())
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(userCommand, buffer)
+		err := encodeCommand(userCommand, buffer)
 		assert.Nil(err)
 		entry := raftypb.LogEntry{Timestamp: now, Term: s.currentTerm.Load(), Command: buffer.Bytes()}
 		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
@@ -328,20 +302,18 @@ func TestStorageDisk(t *testing.T) {
 		encoded := encodePeers(peers)
 		entryConfig := &raftypb.LogEntry{LogType: uint32(logConfiguration), Timestamp: now, Term: s.currentTerm.Load(), Command: encoded}
 		_ = s.logs.appendEntries([]*raftypb.LogEntry{entryConfig}, false)
-		err = s.logs.applyConfigEntry(entryConfig)
+		err = s.applyConfigEntry(entryConfig)
 		assert.Nil(err)
 		err = s.storage.metadata.store()
 		assert.Nil(err)
 		err = s.storage.data.store(entryConfig)
 		assert.Nil(err)
 		s.storage.data.close()
+		assert.Nil(s.logStore.Close())
 
 		s = nil
 		s = basicNodeSetup()
-		err = s.parsePeers()
-		assert.Nil(err)
 		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_restore_and_persist_data")
-		s.options.PersistDataOnDisk = true
 		s.options.BootstrapCluster = true
 		makeStorage(s, false)
 		err = s.storage.metadata.restore()
@@ -351,7 +323,32 @@ func TestStorageDisk(t *testing.T) {
 		assert.Greater(s.lastAppliedConfigIndex.Load(), uint64(0))
 
 		s.storage.data.close()
+		assert.Nil(s.logStore.Close())
 		err = os.RemoveAll(s.options.DataDir)
 		assert.Nil(err)
+	})
+
+	t.Run("data_store_nil", func(t *testing.T) {
+		s := basicNodeSetup()
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_store_nil")
+		makeStorage(s, false)
+		s.storage.data.file = nil
+
+		userCommand := Command{Kind: CommandSet, Key: "a", Value: "b"}
+		now := uint32(time.Now().Unix())
+		buffer := new(bytes.Buffer)
+		assert.Nil(encodeCommand(userCommand, buffer))
+		entry := raftypb.LogEntry{Timestamp: now, Term: s.currentTerm.Load(), Command: buffer.Bytes()}
+		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
+		assert.Equal(1, len(s.logs.log))
+		assert.Nil(s.storage.data.store(&entry))
+	})
+
+	t.Run("metadata_store_nil", func(t *testing.T) {
+		s := basicNodeSetup()
+		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_store_nil")
+		makeStorage(s, false)
+		s.storage.metadata.file = nil
+		assert.Nil(s.storage.metadata.store())
 	})
 }

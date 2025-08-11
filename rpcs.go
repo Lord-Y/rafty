@@ -2,7 +2,6 @@ package rafty
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"time"
 
@@ -670,20 +669,13 @@ func (r *Rafty) bootstrapCluster(data RPCRequest) {
 			Command:   encodedPeers,
 		},
 	}
-	_ = r.logs.appendEntries(entries, false)
-	_ = r.logs.applyConfigEntry(entries[0])
-	if r.options.PersistDataOnDisk {
-		if err := r.storage.data.store(entries[0]); err != nil {
-			r.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
-		}
-		if err := r.storage.metadata.store(); err != nil {
-			r.Logger.Fatal().Err(err).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Str("term", fmt.Sprintf("%d", r.currentTerm.Load())).
-				Msgf("Fail to persist metadata")
-		}
+	r.updateEntriesIndex(entries)
+	if err := r.logStore.StoreLogs(makeLogEntry(entries[0])); err != nil {
+		panic(err)
+	}
+	_ = r.applyConfigEntry(entries[0])
+	if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
+		panic(err)
 	}
 
 	response.Success = true

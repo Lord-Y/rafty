@@ -158,14 +158,14 @@ func (r *leader) setupFollowersReplicationStates() {
 		},
 	}
 
-	totalLogs := r.rafty.logs.appendEntries(entries, false)
+	r.rafty.updateEntriesIndex(entries)
 	request := &onAppendEntriesRequest{
 		totalFollowers:             r.totalFollowers.Load(),
 		quorum:                     uint64(r.rafty.quorum()),
 		term:                       currentTerm,
 		prevLogIndex:               r.rafty.lastLogIndex.Load(),
 		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  uint64(totalLogs),
+		totalLogs:                  uint64(r.rafty.lastLogIndex.Load()),
 		uuid:                       uuid.NewString(),
 		commitIndex:                r.rafty.commitIndex.Load(),
 		entries:                    entries,
@@ -199,8 +199,6 @@ func (r *leader) addReplication(follower *followerReplication, updateNextIndex b
 // in order to do not lost leadership
 func (r *leader) heartbeat() {
 	currentTerm := r.rafty.currentTerm.Load()
-	totalLogs := r.rafty.logs.total().total
-
 	request := &onAppendEntriesRequest{
 		totalFollowers:             r.totalFollowers.Load(),
 		quorum:                     uint64(r.rafty.quorum()),
@@ -208,7 +206,7 @@ func (r *leader) heartbeat() {
 		prevLogIndex:               r.rafty.lastLogIndex.Load(),
 		prevLogTerm:                r.rafty.lastLogTerm.Load(),
 		heartbeat:                  true,
-		totalLogs:                  uint64(totalLogs),
+		totalLogs:                  r.rafty.lastLogTerm.Load(),
 		uuid:                       uuid.NewString(),
 		commitIndex:                r.rafty.commitIndex.Load(),
 		rpcTimeout:                 r.rafty.randomRPCTimeout(true),
@@ -278,14 +276,14 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			},
 		}
 
-		totalLogs := r.rafty.logs.appendEntries(entries, false)
+		r.rafty.updateEntriesIndex(entries)
 		request = &onAppendEntriesRequest{
 			totalFollowers:             r.totalFollowers.Load(),
 			quorum:                     uint64(r.rafty.quorum()),
 			term:                       currentTerm,
 			prevLogIndex:               r.rafty.lastLogIndex.Load(),
 			prevLogTerm:                r.rafty.lastLogTerm.Load(),
-			totalLogs:                  uint64(totalLogs),
+			totalLogs:                  r.rafty.lastLogIndex.Load(),
 			uuid:                       uuid.NewString(),
 			replyToClient:              true,
 			replyToClientChan:          data.responseChan,
@@ -308,14 +306,14 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 			},
 		}
 
-		totalLogs := r.rafty.logs.appendEntries(entries, false)
+		r.rafty.updateEntriesIndex(entries)
 		request = &onAppendEntriesRequest{
 			totalFollowers:              r.totalFollowers.Load(),
 			quorum:                      uint64(r.rafty.quorum()),
 			term:                        currentTerm,
 			prevLogIndex:                r.rafty.lastLogIndex.Load(),
 			prevLogTerm:                 r.rafty.lastLogTerm.Load(),
-			totalLogs:                   uint64(totalLogs),
+			totalLogs:                   r.rafty.lastLogIndex.Load(),
 			uuid:                        uuid.NewString(),
 			replyToForwardedCommand:     true,
 			replyToForwardedCommandChan: data.ResponseChan,
@@ -537,14 +535,14 @@ func (r *leader) setupSingleServerReplicationState() {
 		},
 	}
 
-	totalLogs := r.rafty.logs.appendEntries(entries, false)
+	r.rafty.updateEntriesIndex(entries)
 	request := &onAppendEntriesRequest{
 		totalFollowers:             r.totalFollowers.Load(),
 		quorum:                     uint64(r.rafty.quorum()),
 		term:                       r.rafty.currentTerm.Load(),
 		prevLogIndex:               r.rafty.lastLogIndex.Load(),
 		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  uint64(totalLogs),
+		totalLogs:                  r.rafty.lastLogIndex.Load(),
 		uuid:                       uuid.NewString(),
 		commitIndex:                r.rafty.commitIndex.Load(),
 		entries:                    entries,

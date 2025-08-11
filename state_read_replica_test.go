@@ -10,10 +10,11 @@ import (
 
 func TestStateReadReplica(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
 
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.isRunning.Store(true)
 	s.State = ReadReplica
 	state := readReplica{rafty: s}

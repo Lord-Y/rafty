@@ -201,3 +201,13 @@ func decodePeers(data []byte) (result []peer, err error) {
 	}
 	return
 }
+
+func encodeUint64ToBytes(value uint64) []byte {
+	buffer := make([]byte, 8)
+	binary.LittleEndian.PutUint64(buffer, value)
+	return buffer
+}
+
+func decodeUint64ToBytes(value []byte) uint64 {
+	return binary.LittleEndian.Uint64(value)
+}

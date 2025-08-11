@@ -12,8 +12,9 @@ import (
 func TestStateLoop_runAsReadReplica(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.fillIDs()
 
 	s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), 2*time.Second)
@@ -37,8 +38,9 @@ func TestStateLoop_runAsReadReplica(t *testing.T) {
 func TestStateLoop_runAsFollower(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.fillIDs()
 
 	s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), 2*time.Second)
@@ -63,8 +65,9 @@ func TestStateLoop_runAsFollower(t *testing.T) {
 func TestStateLoop_runAsCandidate(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.fillIDs()
 
 	s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), 2*time.Second)
@@ -88,19 +91,20 @@ func TestStateLoop_runAsCandidate(t *testing.T) {
 
 func TestStateLoop_runAsLeader(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-	s.fillIDs()
-
-	s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), 2*time.Second)
-	s.isRunning.Store(true)
-	s.State = Leader
-	s.timer = time.NewTicker(s.randomElectionTimeout())
-	s.currentTerm.Store(2)
-	id := 1
 
 	t.Run("handleSendVoteRequest", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.fillIDs()
+
+		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), 2*time.Second)
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.timer = time.NewTicker(s.randomElectionTimeout())
+		s.currentTerm.Store(2)
+		id := 1
 		go s.runAsLeader()
 		responseChan := make(chan RPCResponse, 1)
 		s.rpcVoteRequestChan <- RPCRequest{
@@ -118,6 +122,18 @@ func TestStateLoop_runAsLeader(t *testing.T) {
 	})
 
 	t.Run("handleSendAppendEntriesRequest", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.fillIDs()
+
+		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), 2*time.Second)
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.timer = time.NewTicker(s.randomElectionTimeout())
+		s.currentTerm.Store(2)
+		id := 1
 		go s.runAsLeader()
 		responseChan := make(chan RPCResponse, 1)
 		s.rpcAppendEntriesRequestChan <- RPCRequest{

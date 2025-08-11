@@ -3,6 +3,7 @@ package rafty
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -15,7 +16,9 @@ import (
 	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
+	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
+	bolt "go.etcd.io/bbolt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
@@ -33,7 +36,7 @@ func basicNodeSetup() *Rafty {
 			Address: "127.0.0.1",
 		},
 		{
-			Address: "127.0.0.2",
+			Address: "127.0.0.2:50052",
 		},
 		{
 			Address: "127.0.0.3:50053",
@@ -43,12 +46,20 @@ func basicNodeSetup() *Rafty {
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := Options{
-		Peers: peers,
+		Peers:   peers,
+		DataDir: filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
 	}
-	s, _ := NewRafty(addr, id, options)
-
-	for _, v := range s.options.Peers {
-		s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
+	storeOptions := BoltOptions{
+		DataDir: options.DataDir,
+		Options: bolt.DefaultOptions,
+	}
+	store, err := NewBoltStorage(storeOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s, err := NewRafty(addr, id, options, store)
+	if err != nil {
+		log.Fatal(err)
 	}
 	return s
 }
@@ -67,8 +78,20 @@ func singleServerClusterSetup(address string) *Rafty {
 	id = id[len(id)-2:]
 	options := Options{
 		IsSingleServerCluster: true,
+		DataDir:               filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "single_server_setup_"+id),
 	}
-	s, _ := NewRafty(addr, id, options)
+	storeOptions := BoltOptions{
+		DataDir: options.DataDir,
+		Options: bolt.DefaultOptions,
+	}
+	store, err := NewBoltStorage(storeOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s, err := NewRafty(addr, id, options, store)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return s
 }
 
@@ -85,7 +108,6 @@ type clusterConfig struct {
 	delayLastNode             bool
 	delayLastNodeTimeDuration time.Duration
 	autoSetMinimumClusterSize bool
-	noDataDir                 bool
 	noNodeID                  bool
 	maxAppendEntries          uint64
 	readReplicaCount          uint64
@@ -114,13 +136,20 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		options := Options{
 			IsSingleServerCluster: true,
 			logSource:             cc.testName,
-			PersistDataOnDisk:     true,
+			DataDir:               filepath.Join(os.TempDir(), "rafty_test", cc.testName, id),
 		}
-		server, err := NewRafty(addr, id, options)
+		storeOptions := BoltOptions{
+			DataDir: options.DataDir,
+			Options: bolt.DefaultOptions,
+		}
+		store, err := NewBoltStorage(storeOptions)
+		cc.assert.Nil(err)
+		server, err := NewRafty(addr, id, options, store)
 		cc.assert.Nil(err)
 		cluster = append(cluster, server)
 		return
 	}
+
 	readReplicaCount := 0
 	for i := range cc.clusterSize {
 		var (
@@ -143,20 +172,20 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.readReplicaCount
 		}
 		options.MaxAppendEntries = cc.maxAppendEntries
-		if cc.noDataDir && i != 0 || !cc.noDataDir {
-			options.PersistDataOnDisk = true
-			options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
-		}
+		options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
 		if cc.readReplicaCount > 0 && int(cc.readReplicaCount) > readReplicaCount {
 			options.ReadReplica = true
 			readReplicaCount++
 		}
+		storeOptions := BoltOptions{
+			DataDir: options.DataDir,
+			Options: bolt.DefaultOptions,
+		}
+		store, err := NewBoltStorage(storeOptions)
+		cc.assert.Nil(err)
 
 		for j := range cc.clusterSize {
-			var (
-				peerAddr string
-				err      error
-			)
+			var peerAddr string
 
 			if i == j {
 				peerAddr = fmt.Sprintf("127.0.0.5:%d", cc.portStartRange+51+j)
@@ -182,7 +211,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 					id = fmt.Sprintf("%d", addr.Port)
 					id = id[len(id)-2:]
 				}
-				server, err = NewRafty(addr, id, options)
+				server, err = NewRafty(addr, id, options, store)
 				cc.assert.Nil(err)
 			}
 		}
@@ -209,10 +238,14 @@ func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leave
 	options.ReadReplica = readReplica
 	options.ShutdownOnRemove = shutdownOnRemove
 	options.LeaveOnTerminate = leaveOnTerminate
-	if options.PersistDataOnDisk {
-		options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, "node"+id)
+	options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, "node"+id)
+	storeOptions := BoltOptions{
+		DataDir: options.DataDir,
+		Options: bolt.DefaultOptions,
 	}
-	r, err := NewRafty(addr, id, options)
+	store, err := NewBoltStorage(storeOptions)
+	cc.assert.Nil(err)
+	r, err := NewRafty(addr, id, options, store)
 	cc.assert.Nil(err)
 	cc.newNodes = append(cc.newNodes, r)
 }
@@ -349,7 +382,13 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 				options := node.options
 				cc.mu.Lock()
 				node = nil
-				node, err := NewRafty(address, id, options)
+				storeOptions := BoltOptions{
+					DataDir: options.DataDir,
+					Options: bolt.DefaultOptions,
+				}
+				store, err := NewBoltStorage(storeOptions)
+				cc.assert.Nil(err)
+				node, err := NewRafty(address, id, options, store)
 				cc.assert.Nil(err)
 				cc.cluster[nodeId] = node
 				cc.mu.Unlock()
@@ -533,7 +572,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 }
 
 func shouldBeRemoved(dir string) bool {
-	return strings.Contains(filepath.Dir(dir), "rafty")
+	return strings.Contains(filepath.Dir(dir), "rafty_test")
 }
 
 func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
@@ -563,6 +602,7 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 
 	response := &raftypb.MembershipChangeResponse{Success: true}
 	cc.membershipAction(&wg, leader, "54", Demote, false, response)
+	time.Sleep(5 * time.Second)
 	cc.membershipAction(&wg, leader, "55", Demote, false, response)
 	time.Sleep(2 * time.Second)
 
@@ -576,31 +616,31 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	response.Success = true
 	cc.membershipAction(&wg, leader, "55", ForceRemove, true, response)
 
-	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
+	if leader = cc.waitForLeader(&wg, 5*time.Second, 5); leader != (leaderMap{}) {
 		response.Success = true
 		cc.membershipAction(&wg, leader, leader.id, ForceRemove, true, response)
 	}
 
 	time.Sleep(2 * time.Second)
 	response.Success = true
-	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
+	if leader = cc.waitForLeader(&wg, 5*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, leader, leader.id, Demote, false, response)
 	}
 
 	time.Sleep(2 * time.Second)
 	response.Success = true
-	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
+	if leader = cc.waitForLeader(&wg, 5*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, leader, "56", Demote, false, response)
 	}
 
 	time.Sleep(2 * time.Second)
 	response.Success = true
 	cc.membershipAction(&wg, leader, "56", Remove, false, response)
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	response.Success = true
 	cc.membershipAction(&wg, leader, "57", Demote, false, response)
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	response.Success = true
 	cc.membershipAction(&wg, leader, "57", Remove, false, response)
@@ -608,7 +648,7 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 
 	response.Success = true
 	cc.membershipAction(&wg, leader, "53", Demote, false, response)
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	response.Success = true
 	cc.membershipAction(&wg, leader, "53", Remove, false, response)
@@ -616,9 +656,9 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	response.Success = true
 	cc.membershipAction(&wg, leader, leader.id, Demote, false, response)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 	response.Success = true
-	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
+	if leader = cc.waitForLeader(&wg, 5*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, leader, leader.id, Demote, false, response)
 	}
 
@@ -735,7 +775,7 @@ func (cc *clusterConfig) membershipAction(wg *sync.WaitGroup, leader leaderMap, 
 						}
 					} else {
 						cc.assert.Equal(expectedResponse.Success, response.Success, id+"_"+action.String())
-						cc.t.Logf("Membership change request client success for %s result %t retry %d", id+"_"+action.String(), response.Success, retry)
+						cc.t.Logf("Membership change request client success for %s response %t retry %d", id+"_"+action.String(), response.Success, retry)
 						return
 					}
 				}
