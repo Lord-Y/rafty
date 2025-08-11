@@ -10,20 +10,23 @@ import (
 
 func TestRpcs_Fake(t *testing.T) {
 	assert := assert.New(t)
-	r := basicNodeSetup()
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 
 	request := RPCRequest{
 		RPCType: 99,
 		Request: RPCAskNodeIDRequest{
-			Id:      r.id,
-			Address: r.Address.String(),
+			Id:      s.id,
+			Address: s.Address.String(),
 		},
 		Timeout:      time.Second,
-		ResponseChan: r.rpcAskNodeIDChan,
+		ResponseChan: s.rpcAskNodeIDChan,
 	}
 
-	go r.sendRPC(request, nil, peer{})
-	data := <-r.rpcAskNodeIDChan
+	go s.sendRPC(request, nil, peer{})
+	data := <-s.rpcAskNodeIDChan
 	assert.Error(data.Error)
 }
 
@@ -37,10 +40,10 @@ func TestRpcs_MakeRPCVoteResponse_Nil(t *testing.T) {
 
 func TestRpcs_askNodeIDResult(t *testing.T) {
 	assert := assert.New(t)
-
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.State = Follower
 
 	s.configuration.ServerMembers[0].ID = "xx"
@@ -79,10 +82,10 @@ func TestRpcs_askNodeIDResult(t *testing.T) {
 
 func TestRpcs_getLeaderResult(t *testing.T) {
 	assert := assert.New(t)
-
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.State = Follower
 
 	rpcResponse := RPCGetLeaderResponse{}
@@ -114,7 +117,7 @@ func TestRpcs_getLeaderResult(t *testing.T) {
 
 	t.Run("leader_id", func(t *testing.T) {
 		rpcResponse.LeaderID = "xxx"
-		rpcResponse.LeaderAddress = "127.0.0.1:6000"
+		rpcResponse.LeaderAddress = "127.0.0.1:60000"
 		resp.Error = nil
 		resp.Response = rpcResponse
 		s.getLeaderResult(resp)
@@ -123,10 +126,10 @@ func TestRpcs_getLeaderResult(t *testing.T) {
 
 func TestRpcs_membershipChangeResponse(t *testing.T) {
 	assert := assert.New(t)
-
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.State = Follower
 
 	rpcResponse := RPCMembershipChangeResponse{}
@@ -152,11 +155,11 @@ func TestRpcs_bootstrapCluster(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.State = Follower
 	s.options.BootstrapCluster = true
-	s.options.PersistDataOnDisk = true
 
 	responseChan := make(chan RPCResponse, 1)
 	request := RPCRequest{

@@ -6,31 +6,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestElectionTimeout(t *testing.T) {
+func TestTimers_electionTimeout(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	assert.NotNil(s.electionTimeout())
 }
 
-func TestRandomElectionTimeout(t *testing.T) {
+func TestTimers_randomElectionTimeout(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	assert.NotNil(s.randomElectionTimeout())
 }
 
-func TestHeartbeatTimeout(t *testing.T) {
+func TestTimers_heartbeatTimeout(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	assert.NotNil(s.heartbeatTimeout())
 }
 
-func TestRandomRPCTimeout(t *testing.T) {
+func TestTimers_randomRPCTimeout(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	assert.NotNil(s.randomRPCTimeout(true))
 	assert.NotNil(s.randomRPCTimeout(false))
 }

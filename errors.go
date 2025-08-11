@@ -25,4 +25,7 @@ var (
 	ErrClusterAlreadyBootstrapped            = errors.New("cluster already bootstrapped")
 	ErrChecksumDataTooShort                  = errors.New("data to short for checksum")
 	ErrChecksumMistmatch                     = errors.New("CRC32 checksum mistmatch")
+	ErrKeyNotFound                           = errors.New("key not found")
+	ErrStoreClosed                           = errors.New("store closed")
+	ErrDataDirRequired                       = errors.New("data dir cannot be empty")
 )

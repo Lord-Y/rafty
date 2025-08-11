@@ -12,9 +12,9 @@ func TestStateLeader(t *testing.T) {
 
 	t.Run("onTimeout_not_leader", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		state := leader{rafty: s}
@@ -23,9 +23,9 @@ func TestStateLeader(t *testing.T) {
 
 	t.Run("onTimeout_decommissioning", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Leader
 		s.decommissioning.Store(true)
@@ -36,9 +36,9 @@ func TestStateLeader(t *testing.T) {
 
 	t.Run("leadershipTransfer_error", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Leader
 		state := leader{rafty: s}
@@ -70,9 +70,9 @@ func TestStateLeader(t *testing.T) {
 
 	t.Run("leadershipTransfer_success_false", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Leader
 		state := leader{rafty: s}
@@ -103,9 +103,9 @@ func TestStateLeader(t *testing.T) {
 
 	t.Run("leadershipTransfer_timeout", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Leader
 		state := leader{rafty: s}
@@ -121,9 +121,9 @@ func TestStateLeader(t *testing.T) {
 
 	t.Run("release_single_server_cluster", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Leader
 		state := leader{rafty: s}

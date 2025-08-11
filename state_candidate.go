@@ -150,12 +150,8 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 	if response.CurrentTerm > response.RequesterTerm {
 		r.rafty.currentTerm.Store(response.CurrentTerm)
 		r.rafty.switchState(Follower, stepDown, false, response.CurrentTerm)
-		if err := r.rafty.storage.metadata.store(); err != nil {
-			r.rafty.Logger.Fatal().Err(err).
-				Str("address", r.rafty.Address.String()).
-				Str("id", r.rafty.id).
-				Str("state", r.rafty.getState().String()).
-				Msgf("Fail to persist metadata")
+		if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+			panic(err)
 		}
 		return
 	}
@@ -182,12 +178,8 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 // to other nodes in order to elect a leader
 func (r *candidate) startElection() {
 	currentTerm := r.rafty.currentTerm.Add(1)
-	if err := r.rafty.storage.metadata.store(); err != nil {
-		r.rafty.Logger.Fatal().Err(err).
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Msgf("Fail to persist metadata")
+	if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+		panic(err)
 	}
 
 	lastLogIndex := r.rafty.lastLogIndex.Load()
@@ -263,12 +255,8 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 
 		r.rafty.currentTerm.Store(response.CurrentTerm)
 		r.rafty.switchState(Follower, stepDown, false, response.CurrentTerm)
-		if err := r.rafty.storage.metadata.store(); err != nil {
-			r.rafty.Logger.Fatal().Err(err).
-				Str("address", r.rafty.Address.String()).
-				Str("id", r.rafty.id).
-				Str("state", r.rafty.getState().String()).
-				Msgf("Fail to persist metadata")
+		if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+			panic(err)
 		}
 		return
 	}
@@ -295,13 +283,8 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 func (r *candidate) isSingleServerCluster() {
 	currentTerm := r.rafty.currentTerm.Add(1)
 	r.rafty.switchState(Candidate, stepUp, true, currentTerm)
-	if err := r.rafty.storage.metadata.store(); err != nil {
-		r.rafty.Logger.Fatal().Err(err).
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Msgf("Fail to persist metadata")
-		return
+	if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+		panic(err)
 	}
 	r.rafty.switchState(Leader, stepUp, true, currentTerm)
 }

@@ -11,8 +11,9 @@ func TestLogs(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.fillIDs()
 
 	entries := []*raftypb.LogEntry{{Term: 1}}
@@ -117,10 +118,11 @@ func TestLogs(t *testing.T) {
 
 	t.Run("applyConfigEntry", func(t *testing.T) {
 		peers, _ := s.getPeers()
-		newbie := peer{Address: "127.0.0.1:6000", ID: "xyz"}
+		newbie := peer{Address: "127.0.0.1:60000", ID: "xyz"}
 		peers = append(peers, newbie)
 		encodedPeers := encodePeers(peers)
 		assert.NotNil(encodedPeers)
+		s.options.BootstrapCluster = true
 
 		entry := &raftypb.LogEntry{
 			LogType: uint32(logConfiguration),
@@ -129,13 +131,13 @@ func TestLogs(t *testing.T) {
 			Command: encodedPeers,
 		}
 
-		err = s.logs.applyConfigEntry(entry)
+		err := s.applyConfigEntry(entry)
 		assert.Nil(err)
 		assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, newbie))
 
 		s.options.ShutdownOnRemove = true
 		// apply the same entry again to make sure we don't update current config
-		err = s.logs.applyConfigEntry(entry)
+		err = s.applyConfigEntry(entry)
 		assert.Nil(err)
 		assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, newbie))
 		assert.Equal(false, s.shutdownOnRemove.Load())
@@ -147,7 +149,7 @@ func TestLogs(t *testing.T) {
 			Command: encodedPeers,
 		}
 
-		err = s.logs.applyConfigEntry(entry)
+		err = s.applyConfigEntry(entry)
 		assert.Nil(err)
 		assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, newbie))
 		assert.Equal(true, s.shutdownOnRemove.Load())
@@ -159,7 +161,7 @@ func TestLogs(t *testing.T) {
 			Command: []byte("a=b"),
 		}
 
-		err = s.logs.applyConfigEntry(fakePeer)
+		err = s.applyConfigEntry(fakePeer)
 		assert.NotNil(err)
 
 		entry = &raftypb.LogEntry{
@@ -167,9 +169,37 @@ func TestLogs(t *testing.T) {
 			Term:    1,
 		}
 
-		err = s.logs.applyConfigEntry(entry)
+		err = s.applyConfigEntry(entry)
 		assert.Nil(err)
 	})
 
 	s.wg.Wait()
+}
+
+func TestLogs_update_entries_index(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
+
+	entry := &raftypb.LogEntry{Term: 1}
+	result := makeLogEntry(entry)
+	protoResult := makeProtobufLogEntries(result)
+	s.updateEntriesIndex(protoResult)
+	assert.Nil(s.logStore.StoreLogs(makeLogEntry(entry)))
+
+	assert.Equal(entry.Term, s.lastLogTerm.Load())
+	assert.Equal(uint64(0), s.lastLogIndex.Load())
+}
+
+func TestLogs_make(t *testing.T) {
+	assert := assert.New(t)
+
+	entry := &raftypb.LogEntry{Term: 1}
+	result := makeLogEntry(entry)
+	assert.Equal(entry.Term, result[0].Term)
+	protoResult := makeProtobufLogEntry(result[0])
+	assert.Equal(entry.Term, protoResult[0].Term)
 }

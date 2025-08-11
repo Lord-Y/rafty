@@ -2,8 +2,7 @@ package rafty
 
 import (
 	"context"
-	"os"
-	"path/filepath"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,29 +15,29 @@ import (
 func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	s.isRunning.Store(true)
 	s.State = Leader
 	followers, totalFollowers := s.getPeers()
 
 	entries := []*raftypb.LogEntry{{Term: 1}}
-	_ = s.logs.appendEntries(entries, false)
+	s.updateEntriesIndex(entries)
+	assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 
 	id := 0
 	client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String(), s.configuration.ServerMembers[id].ID)
 	currentTerm := s.currentTerm.Add(1)
 
 	t.Run("total_zero", func(t *testing.T) {
-		totalLogs := s.logs.appendEntries(entries, false)
 		oldRequest := &onAppendEntriesRequest{
 			totalFollowers:             uint64(totalFollowers),
 			quorum:                     uint64(s.quorum()),
 			term:                       currentTerm,
 			prevLogIndex:               s.lastLogIndex.Load(),
 			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  uint64(totalLogs),
+			totalLogs:                  s.lastLogIndex.Load(),
 			uuid:                       uuid.NewString(),
 			commitIndex:                s.commitIndex.Load(),
 			entries:                    entries,
@@ -62,14 +61,13 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		totalLogs := s.logs.appendEntries(entries, false)
 		oldRequest := &onAppendEntriesRequest{
 			totalFollowers:             uint64(totalFollowers),
 			quorum:                     uint64(s.quorum()),
 			term:                       currentTerm,
 			prevLogIndex:               s.lastLogIndex.Load(),
 			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  uint64(totalLogs),
+			totalLogs:                  s.lastLogIndex.Load(),
 			uuid:                       uuid.NewString(),
 			commitIndex:                s.commitIndex.Load(),
 			entries:                    entries,
@@ -99,11 +97,12 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 
 	t.Run("single_server_append_entries_quit_context", func(t *testing.T) {
 		s := singleServerClusterSetup("")
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Leader
 		s.options.IsSingleServerCluster = true
-		s.options.PersistDataOnDisk = true
-		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_singleServerAppendEntries")
 		state := leader{rafty: s}
 		currentTerm := s.currentTerm.Add(1)
 		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
@@ -118,12 +117,13 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 			},
 		}
 
-		totalLogs := s.logs.appendEntries(entries, false)
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 		request := &onAppendEntriesRequest{
 			term:                       currentTerm,
 			prevLogIndex:               s.lastLogIndex.Load(),
 			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  uint64(totalLogs),
+			totalLogs:                  s.lastLogIndex.Load(),
 			uuid:                       uuid.NewString(),
 			commitIndex:                s.commitIndex.Load(),
 			entries:                    entries,
@@ -143,10 +143,11 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 
 	t.Run("single_server_append_timeout", func(t *testing.T) {
 		s := singleServerClusterSetup("")
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Leader
-		s.options.PersistDataOnDisk = true
-		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_singleServerAppendEntries")
 		state := leader{rafty: s}
 		currentTerm := s.currentTerm.Add(1)
 		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
@@ -160,12 +161,13 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 			},
 		}
 
-		totalLogs := s.logs.appendEntries(entries, false)
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 		request := &onAppendEntriesRequest{
 			term:                       currentTerm,
 			prevLogIndex:               s.lastLogIndex.Load(),
 			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  uint64(totalLogs),
+			totalLogs:                  s.lastLogIndex.Load(),
 			uuid:                       uuid.NewString(),
 			commitIndex:                s.commitIndex.Load(),
 			entries:                    entries,
@@ -192,10 +194,11 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 
 	t.Run("reply_to_chan", func(t *testing.T) {
 		s := singleServerClusterSetup("")
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Leader
-		s.options.PersistDataOnDisk = true
-		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_singleServerAppendEntries")
 		state := leader{rafty: s}
 		currentTerm := s.currentTerm.Add(1)
 
@@ -208,12 +211,13 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 			},
 		}
 
-		totalLogs := s.logs.appendEntries(entries, false)
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 		request := &onAppendEntriesRequest{
 			term:                       currentTerm,
 			prevLogIndex:               s.lastLogIndex.Load(),
 			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  uint64(totalLogs),
+			totalLogs:                  s.lastLogIndex.Load(),
 			uuid:                       uuid.NewString(),
 			commitIndex:                s.commitIndex.Load(),
 			entries:                    entries,
@@ -225,5 +229,45 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 		state.singleServerAppendEntries(request)
 		data := <-request.replyToClientChan
 		assert.Nil(data.Error)
+	})
+
+	t.Run("singleServerAppendEntries_panic", func(t *testing.T) {
+		s := singleServerClusterSetup("")
+
+		s.isRunning.Store(true)
+		s.State = Leader
+		state := leader{rafty: s}
+		currentTerm := s.currentTerm.Add(1)
+
+		entries := []*raftypb.LogEntry{
+			{
+				LogType:   uint32(logNoop),
+				Timestamp: uint32(time.Now().Unix()),
+				Term:      currentTerm,
+				Command:   nil,
+			},
+		}
+
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		assert.Nil(s.logStore.Close())
+		request := &onAppendEntriesRequest{
+			term:                       currentTerm,
+			prevLogIndex:               s.lastLogIndex.Load(),
+			prevLogTerm:                s.lastLogTerm.Load(),
+			totalLogs:                  s.lastLogIndex.Load(),
+			uuid:                       uuid.NewString(),
+			commitIndex:                s.commitIndex.Load(),
+			entries:                    entries,
+			membershipChangeInProgress: &atomic.Bool{},
+			replyToClient:              true,
+			replyToClientChan:          make(chan appendEntriesResponse, 1),
+		}
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Println("Recovered. Error:\n", r)
+			}
+		}()
+		state.singleServerAppendEntries(request)
 	})
 }

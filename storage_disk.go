@@ -84,9 +84,6 @@ func createDirectoryIfNotExist(d string, perm fs.FileMode) error {
 
 // newStorage instantiate rafty with default storage configuration
 func (r *Rafty) newStorage() (metadata metaFile, data dataFile, err error) {
-	if !r.options.PersistDataOnDisk {
-		return
-	}
 	if r.options.DataDir == "" {
 		return
 	}

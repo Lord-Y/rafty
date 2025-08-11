@@ -56,3 +56,5 @@ Here is a list of the supported features of `rafty`:
 - https://github.com/lni/dragonboat-example
 - https://github.com/PlatformLab/epaxos/tree/master
 - https://www.cs.princeton.edu/courses/archive/fall18/cos418/docs/p7-raft.pdf
+- https://github.com/dgurkaynak/stalk-demo-raft-consensus/?tab=readme-ov-file
+- https://github.com/ongardie/raft.tla

@@ -266,7 +266,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 				Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
 				Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 				Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
-				Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
 				Str("rpcTimeout", request.rpcTimeout.String()).
 				Msgf("Fail to send append entries to peer")
 		} else {
@@ -291,11 +290,9 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 
 				if request.majority.Load()+1 >= request.quorum {
 					if !request.heartbeat {
-						if request.totalLogs > 0 && !request.committed.Load() {
-							if r.rafty.options.PersistDataOnDisk && !request.committed.Load() {
-								if err := r.rafty.storage.data.store(request.entries[0]); err != nil {
-									r.rafty.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
-								}
+						if !request.committed.Load() {
+							if err := r.rafty.logStore.StoreLogs(makeLogEntry(request.entries[0])); err != nil {
+								panic(err)
 							}
 
 							// update leader volatile state
@@ -314,7 +311,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 									Str("term", fmt.Sprintf("%d", response.Term)).
 									Str("peerAddress", r.address.String()).
 									Str("peerId", r.ID).
-									Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
 									Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 									Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
 									Str("commitIndex", fmt.Sprintf("%d", r.rafty.commitIndex.Load())).
@@ -382,7 +378,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 						Str("id", r.rafty.id).
 						Str("state", r.rafty.getState().String()).
 						Str("term", fmt.Sprintf("%d", request.term)).
-						Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
 						Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 						Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
 						Str("peerAddress", r.address.String()).
@@ -429,14 +424,8 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 	defer r.rafty.wg.Done()
 	defer r.catchup.Store(false)
 
-	logsResponse := r.rafty.logs.fromLastLogParameters(
-		oldResponse.LastLogIndex,
-		oldResponse.LastLogTerm,
-		r.address.String(),
-		r.ID,
-	)
-
-	if logsResponse.total == 0 {
+	result := r.rafty.logStore.GetLogsByRange(oldResponse.LastLogIndex, oldRequest.prevLogIndex, r.rafty.options.MaxAppendEntries)
+	if result.Total == 0 {
 		r.rafty.Logger.Warn().
 			Str("address", r.rafty.Address.String()).
 			Str("id", r.rafty.id).
@@ -444,7 +433,7 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 			Str("term", fmt.Sprintf("%d", oldRequest.term)).
 			Str("lastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
 			Str("lastLogTerm", fmt.Sprintf("%d", oldResponse.LastLogTerm)).
-			Str("totalLogs", fmt.Sprintf("%d", logsResponse.total)).
+			Str("totalLogs", fmt.Sprintf("%d", result.Total)).
 			Str("peerAddress", r.address.String()).
 			Str("peerId", r.ID).
 			Str("peerLastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
@@ -459,9 +448,9 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		Str("id", r.rafty.id).
 		Str("state", r.rafty.getState().String()).
 		Str("term", fmt.Sprintf("%d", oldRequest.term)).
-		Str("lastLogIndex", fmt.Sprintf("%d", logsResponse.lastLogIndex)).
-		Str("lastLogTerm", fmt.Sprintf("%d", logsResponse.lastLogTerm)).
-		Str("totalLogs", fmt.Sprintf("%d", logsResponse.total)).
+		Str("lastLogIndex", fmt.Sprintf("%d", result.LastLogIndex)).
+		Str("lastLogTerm", fmt.Sprintf("%d", result.LastLogTerm)).
+		Str("totalLogs", fmt.Sprintf("%d", result.Total)).
 		Str("peerAddress", r.address.String()).
 		Str("peerId", r.ID).
 		Str("peerLastLogIndex", fmt.Sprintf("%d", oldResponse.LastLogIndex)).
@@ -476,10 +465,10 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		heartbeat:                  false,
 		prevLogIndex:               oldRequest.prevLogIndex,
 		prevLogTerm:                oldRequest.prevLogTerm,
-		totalLogs:                  uint64(logsResponse.total),
+		totalLogs:                  uint64(result.Total),
 		uuid:                       uuid.NewString(),
 		commitIndex:                r.rafty.commitIndex.Load(),
-		entries:                    logsResponse.logs,
+		entries:                    makeProtobufLogEntries(result.Logs),
 		catchup:                    true,
 		rpcTimeout:                 oldRequest.rpcTimeout,
 		membershipChangeInProgress: oldRequest.membershipChangeInProgress,
@@ -572,10 +561,8 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
-	if r.rafty.options.PersistDataOnDisk {
-		if err := r.rafty.storage.data.store(request.entries[0]); err != nil {
-			r.rafty.Logger.Fatal().Err(err).Msg("Fail to persist data on disk")
-		}
+	if err := r.rafty.logStore.StoreLogs(makeLogEntry(request.entries[0])); err != nil {
+		panic(err)
 	}
 
 	r.rafty.nextIndex.Add(1)
@@ -588,7 +575,6 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 		Str("id", r.rafty.id).
 		Str("state", r.rafty.getState().String()).
 		Str("term", fmt.Sprintf("%d", request.term)).
-		Str("totalLogs", fmt.Sprintf("%d", request.totalLogs)).
 		Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 		Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
 		Str("commitIndex", fmt.Sprintf("%d", r.rafty.commitIndex.Load())).

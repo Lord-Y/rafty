@@ -7,6 +7,7 @@ require (
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.10.0
+	go.etcd.io/bbolt v1.4.2
 	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.6
 )

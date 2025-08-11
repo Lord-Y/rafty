@@ -15,28 +15,29 @@ import (
 func TestRaftypb_AskNodeID(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.AskNodeIDRequest{}
+
 	t.Run("up", func(t *testing.T) {
 		s.State = Follower
 		s.isRunning.Store(true)
-		_, err = rpcm.AskNodeID(context.Background(), request)
+		_, err := rpcm.AskNodeID(context.Background(), request)
 		assert.Nil(err)
 	})
 
 	t.Run("down", func(t *testing.T) {
 		s.State = Down
-		_, err = rpcm.AskNodeID(context.Background(), request)
+		_, err := rpcm.AskNodeID(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("leader", func(t *testing.T) {
 		s.State = Leader
 		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
-		_, err = rpcm.AskNodeID(context.Background(), request)
+		_, err := rpcm.AskNodeID(context.Background(), request)
 		assert.Nil(err)
 	})
 }
@@ -44,28 +45,29 @@ func TestRaftypb_AskNodeID(t *testing.T) {
 func TestRaftypb_GetLeader(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.GetLeaderRequest{}
+
 	t.Run("up", func(t *testing.T) {
 		s.State = Follower
 		s.isRunning.Store(true)
-		_, err = rpcm.GetLeader(context.Background(), request)
+		_, err := rpcm.GetLeader(context.Background(), request)
 		assert.Nil(err)
 	})
 
 	t.Run("down", func(t *testing.T) {
 		s.State = Down
-		_, err = rpcm.GetLeader(context.Background(), request)
+		_, err := rpcm.GetLeader(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("leader", func(t *testing.T) {
 		s.State = Leader
 		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
-		_, err = rpcm.GetLeader(context.Background(), request)
+		_, err := rpcm.GetLeader(context.Background(), request)
 		assert.Nil(err)
 	})
 }
@@ -76,21 +78,21 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 
 	t.Run("down", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		_, err := rpcm.SendPreVoteRequest(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("context_done_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -103,15 +105,15 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendPreVoteRequest(ctx, request)
+		_, err := rpcm.SendPreVoteRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -120,28 +122,28 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			s.stopCtx()
 		}()
-		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		_, err := rpcm.SendPreVoteRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		_, err := rpcm.SendPreVoteRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -153,15 +155,15 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 			}
 		}()
 
-		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		_, err := rpcm.SendPreVoteRequest(context.Background(), request)
 		assert.Nil(err)
 	})
 
 	t.Run("context_done_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -178,15 +180,15 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendPreVoteRequest(ctx, request)
+		_, err := rpcm.SendPreVoteRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -200,15 +202,15 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 			s.stopCtx()
 		}()
 
-		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		_, err := rpcm.SendPreVoteRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -218,7 +220,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 			time.Sleep(time.Second)
 		}()
 
-		_, err = rpcm.SendPreVoteRequest(context.Background(), request)
+		_, err := rpcm.SendPreVoteRequest(context.Background(), request)
 		assert.Error(err)
 	})
 }
@@ -229,21 +231,21 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 
 	t.Run("down", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		_, err := rpcm.SendVoteRequest(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("context_done_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -256,15 +258,15 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendVoteRequest(ctx, request)
+		_, err := rpcm.SendVoteRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -273,28 +275,28 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			s.stopCtx()
 		}()
-		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		_, err := rpcm.SendVoteRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		_, err := rpcm.SendVoteRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -305,15 +307,15 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 				Response: &raftypb.VoteResponse{PeerId: s.id, Granted: false, CurrentTerm: s.currentTerm.Load()},
 			}
 		}()
-		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		_, err := rpcm.SendVoteRequest(context.Background(), request)
 		assert.Nil(err)
 	})
 
 	t.Run("context_done_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -330,15 +332,15 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendVoteRequest(ctx, request)
+		_, err := rpcm.SendVoteRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -352,15 +354,15 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 			s.stopCtx()
 		}()
 
-		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		_, err := rpcm.SendVoteRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -370,7 +372,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 			time.Sleep(time.Second)
 		}()
 
-		_, err = rpcm.SendVoteRequest(context.Background(), request)
+		_, err := rpcm.SendVoteRequest(context.Background(), request)
 		assert.Error(err)
 	})
 }
@@ -381,21 +383,21 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 
 	t.Run("down", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		_, err := rpcm.SendAppendEntriesRequest(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("context_done_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -408,15 +410,15 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendAppendEntriesRequest(ctx, request)
+		_, err := rpcm.SendAppendEntriesRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -425,28 +427,28 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			s.stopCtx()
 		}()
-		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		_, err := rpcm.SendAppendEntriesRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		_, err := rpcm.SendAppendEntriesRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -457,15 +459,15 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 				Response: &raftypb.AppendEntryResponse{Success: false},
 			}
 		}()
-		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		_, err := rpcm.SendAppendEntriesRequest(context.Background(), request)
 		assert.Nil(err)
 	})
 
 	t.Run("context_done_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -482,15 +484,15 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendAppendEntriesRequest(ctx, request)
+		_, err := rpcm.SendAppendEntriesRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -504,15 +506,15 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 			s.stopCtx()
 		}()
 
-		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		_, err := rpcm.SendAppendEntriesRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -522,7 +524,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 			time.Sleep(time.Second)
 		}()
 
-		_, err = rpcm.SendAppendEntriesRequest(context.Background(), request)
+		_, err := rpcm.SendAppendEntriesRequest(context.Background(), request)
 		assert.Error(err)
 	})
 }
@@ -530,21 +532,22 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 func TestRaftypb_ClientGetLeader(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
-
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.ClientGetLeaderRequest{}
+
 	t.Run("down", func(t *testing.T) {
 		s.State = Down
-		_, err = rpcm.ClientGetLeader(context.Background(), request)
+		_, err := rpcm.ClientGetLeader(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("up", func(t *testing.T) {
 		s.State = Follower
 		s.isRunning.Store(true)
-		_, err = rpcm.ClientGetLeader(context.Background(), request)
+		_, err := rpcm.ClientGetLeader(context.Background(), request)
 		assert.Nil(err)
 	})
 
@@ -555,14 +558,14 @@ func TestRaftypb_ClientGetLeader(t *testing.T) {
 		defer func() {
 			s.options.BootstrapCluster = false
 		}()
-		_, err = rpcm.ClientGetLeader(context.Background(), request)
+		_, err := rpcm.ClientGetLeader(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("leader", func(t *testing.T) {
 		s.State = Leader
 		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
-		_, err = rpcm.ClientGetLeader(context.Background(), request)
+		_, err := rpcm.ClientGetLeader(context.Background(), request)
 		assert.Nil(err)
 	})
 }
@@ -572,28 +575,27 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 
 	t.Run("down", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
 		i := 0
 		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("decode_command", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -605,16 +607,15 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		_ = binary.Write(buffer, binary.LittleEndian, uint64(2)) // ValueLen
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Error(err)
-		fmt.Println("err", err)
 	})
 
 	t.Run("bootstrap_cluster", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		s.options.BootstrapCluster = true
@@ -623,19 +624,18 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Equal(ErrClusterNotBootstrapped, err)
 	})
 
 	t.Run("context_done_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -643,8 +643,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -655,15 +654,15 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.ForwardCommandToLeader(ctx, request)
+		_, err := rpcm.ForwardCommandToLeader(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -671,8 +670,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
@@ -680,15 +678,15 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 			s.stopCtx()
 		}()
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -696,19 +694,18 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -716,8 +713,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
@@ -727,15 +723,15 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 			}
 		}()
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Nil(err)
 	})
 
 	t.Run("context_done_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -743,8 +739,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -759,15 +754,15 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.ForwardCommandToLeader(ctx, request)
+		_, err := rpcm.ForwardCommandToLeader(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -775,8 +770,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
@@ -788,15 +782,15 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 			s.stopCtx()
 		}()
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -804,8 +798,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
@@ -813,15 +806,15 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 			time.Sleep(time.Second)
 		}()
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("fake_command", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -829,11 +822,10 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		err = encodeCommand(command, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
-		_, err = rpcm.ForwardCommandToLeader(context.Background(), request)
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Nil(err)
 	})
 }
@@ -841,14 +833,14 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 func TestRaftypb_SendTimeoutNowRequest(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 
 	t.Run("up", func(t *testing.T) {
 		s.State = Follower
 		s.isRunning.Store(true)
 		rpcm := rpcManager{rafty: s}
-		assert.Nil(err)
 		request := &raftypb.TimeoutNowRequest{}
 		response, err := rpcm.SendTimeoutNowRequest(context.Background(), request)
 		assert.Equal(nil, err)
@@ -862,35 +854,35 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 
 	t.Run("down", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("bootstrap_cluster", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		s.options.BootstrapCluster = true
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
 		assert.Equal(ErrClusterNotBootstrapped, err)
 	})
 
 	t.Run("context_done_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -903,15 +895,15 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendMembershipChangeRequest(ctx, request)
+		_, err := rpcm.SendMembershipChangeRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -920,28 +912,28 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			s.stopCtx()
 		}()
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -953,15 +945,15 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 			}
 		}()
 
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
 		assert.Nil(err)
 	})
 
 	t.Run("context_done_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -978,15 +970,15 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendMembershipChangeRequest(ctx, request)
+		_, err := rpcm.SendMembershipChangeRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1000,15 +992,15 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 			s.stopCtx()
 		}()
 
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1018,7 +1010,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 			time.Sleep(time.Second)
 		}()
 
-		_, err = rpcm.SendMembershipChangeRequest(context.Background(), request)
+		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
 		assert.Error(err)
 	})
 }
@@ -1029,21 +1021,21 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 
 	t.Run("down", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		_, err := rpcm.SendBootstrapClusterRequest(context.Background(), request)
 		assert.Equal(ErrShutdown, err)
 	})
 
 	t.Run("context_done_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1056,15 +1048,15 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendBootstrapClusterRequest(ctx, request)
+		_, err := rpcm.SendBootstrapClusterRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1073,28 +1065,28 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			s.stopCtx()
 		}()
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		_, err := rpcm.SendBootstrapClusterRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_first", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
 
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		_, err := rpcm.SendBootstrapClusterRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("up", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1106,15 +1098,15 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 			}
 		}()
 
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		_, err := rpcm.SendBootstrapClusterRequest(context.Background(), request)
 		assert.Nil(err)
 	})
 
 	t.Run("context_done_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1131,15 +1123,15 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 			cancel()
 		}()
 
-		_, err = rpcm.SendBootstrapClusterRequest(ctx, request)
+		_, err := rpcm.SendBootstrapClusterRequest(ctx, request)
 		assert.Error(err)
 	})
 
 	t.Run("quit_context_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1153,15 +1145,15 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 			s.stopCtx()
 		}()
 
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		_, err := rpcm.SendBootstrapClusterRequest(context.Background(), request)
 		assert.Error(err)
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
 		s := basicNodeSetup()
-		err := s.parsePeers()
-		assert.Nil(err)
-
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 		rpcm := rpcManager{rafty: s}
@@ -1171,7 +1163,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 			time.Sleep(time.Second)
 		}()
 
-		_, err = rpcm.SendBootstrapClusterRequest(context.Background(), request)
+		_, err := rpcm.SendBootstrapClusterRequest(context.Background(), request)
 		assert.Error(err)
 	})
 }

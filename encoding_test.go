@@ -31,10 +31,12 @@ func TestEncoding_EncodeDecodeCommand(t *testing.T) {
 	cc := clusterConfig{
 		t:           t,
 		clusterSize: 1,
+		testName:    "EncodeDecodeCommand",
 	}
+	cc.assert = assert
 	cc.cluster = cc.makeCluster()
 	node := cc.cluster[0]
-	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
+	logger := logger.NewLogger().With().Str("logProvider", "rafty_test").Logger()
 	node.Logger = &logger
 
 	cmd := Command{
@@ -48,32 +50,26 @@ func TestEncoding_EncodeDecodeCommand(t *testing.T) {
 	buffer := new(bytes.Buffer)
 
 	t.Run("encode", func(t *testing.T) {
-		err := encodeCommand(cmd, w)
-		assert.Error(err)
+		assert.Error(encodeCommand(cmd, w))
 
 		// Testing error on Key length write
 		w = &failWriter{failOn: 2}
-		err = encodeCommand(cmd, w)
-		assert.Error(err)
+		assert.Error(encodeCommand(cmd, w))
 
 		// Testing error on Key write
 		w = &failWriter{failOn: 3}
-		err = encodeCommand(cmd, w)
-		assert.Error(err)
+		assert.Error(encodeCommand(cmd, w))
 
 		// Testing error on Value length write
 		w = &failWriter{failOn: 4}
-		err = encodeCommand(cmd, w)
-		assert.Error(err)
+		assert.Error(encodeCommand(cmd, w))
 
 		// Testing error on Value write
 		w = &failWriter{failOn: 5}
-		err = encodeCommand(cmd, w)
-		assert.Error(err)
+		assert.Error(encodeCommand(cmd, w))
 
 		// No errors expected here
-		err = encodeCommand(cmd, buffer)
-		assert.Nil(err)
+		assert.Nil(encodeCommand(cmd, buffer))
 		assert.NotNil(buffer.Bytes())
 	})
 
@@ -129,58 +125,51 @@ func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
 	cc := clusterConfig{
 		t:           t,
 		clusterSize: 1,
+		testName:    "MarshallUnmarshallBinary",
 	}
+	cc.assert = assert
 	cc.cluster = cc.makeCluster()
 	node := cc.cluster[0]
-	logger := logger.NewLogger().With().Str("logProvider", "rafty").Logger()
+	logger := logger.NewLogger().With().Str("logProvider", "rafty_test").Logger()
 	node.Logger = &logger
 
 	for index := range 2 {
 		cmd := &logEntry{}
 		// Testing error on FileFormat write
 		w := &failWriter{failOn: 1}
-		err := marshalBinary(cmd, w)
-		assert.Error(err)
+		assert.Error(marshalBinary(cmd, w))
 
 		// Testing error on Tombstone write
 		w = &failWriter{failOn: 2}
-		err = marshalBinary(cmd, w)
-		assert.Error(err)
+		assert.Error(marshalBinary(cmd, w))
 
 		// Testing error on LogType write
 		w = &failWriter{failOn: 3}
-		err = marshalBinary(cmd, w)
-		assert.Error(err)
+		assert.Error(marshalBinary(cmd, w))
 
 		// Testing error on Timestamp write
 		w = &failWriter{failOn: 4}
-		err = marshalBinary(cmd, w)
-		assert.Error(err)
+		assert.Error(marshalBinary(cmd, w))
 
 		// Testing error on Term write
 		w = &failWriter{failOn: 5}
-		err = marshalBinary(cmd, w)
-		assert.Error(err)
+		assert.Error(marshalBinary(cmd, w))
 
 		// Testing error on Index write
 		w = &failWriter{failOn: 6}
-		err = marshalBinary(cmd, w)
-		assert.Error(err)
+		assert.Error(marshalBinary(cmd, w))
 
 		// Testing error on Command length write
 		w = &failWriter{failOn: 7}
-		err = marshalBinary(cmd, w)
-		assert.Error(err)
+		assert.Error(marshalBinary(cmd, w))
 
 		// Testing error on Command write
 		w = &failWriter{failOn: 8}
-		err = marshalBinary(cmd, w)
-		assert.Error(err)
+		assert.Error(marshalBinary(cmd, w))
 
 		// No errors expected here
 		buffer := new(bytes.Buffer)
-		err = marshalBinary(cmd, buffer)
-		assert.Nil(err)
+		assert.Nil(marshalBinary(cmd, buffer))
 		enc := buffer.Bytes()
 		assert.NotNil(enc)
 		dec, err := unmarshalBinary(enc)
@@ -198,20 +187,17 @@ func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
 
 		// No errors expected here
 		buffer = new(bytes.Buffer)
-		err = marshalBinary(cmd, buffer)
+		assert.Nil(marshalBinary(cmd, buffer))
 		enc = buffer.Bytes()
-		assert.Nil(err)
 		assert.NotNil(enc)
 
 		// Testing error on buffer write
 		w = &failWriter{failOn: 1}
-		err = marshalBinaryWithChecksum(buffer, w)
-		assert.Error(err)
+		assert.Error(marshalBinaryWithChecksum(buffer, w))
 
 		// Testing error on checksum write
 		w = &failWriter{failOn: 2}
-		err = marshalBinaryWithChecksum(buffer, w)
-		assert.Error(err)
+		assert.Error(marshalBinaryWithChecksum(buffer, w))
 
 		// Testing error on data too short
 		_, err = unmarshalBinaryWithChecksum([]byte(""))
@@ -223,8 +209,7 @@ func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
 
 		// No errors expected here
 		bufferChecksum := new(bytes.Buffer)
-		err = marshalBinaryWithChecksum(buffer, bufferChecksum)
-		assert.Nil(err)
+		assert.Nil(marshalBinaryWithChecksum(buffer, bufferChecksum))
 		_, err = unmarshalBinaryWithChecksum(bufferChecksum.Bytes())
 		assert.Nil(err)
 
@@ -313,10 +298,11 @@ func TestEncoding_EncodeDecodePeers(t *testing.T) {
 	assert := assert.New(t)
 
 	s := basicNodeSetup()
-	err := s.parsePeers()
-	assert.Nil(err)
+	defer func() {
+		assert.Nil(s.logStore.Close())
+	}()
 	peers, _ := s.getPeers()
-	peers = append(peers, peer{Address: "127.0.0.1:6000", ID: "xyz"})
+	peers = append(peers, peer{Address: "127.0.0.1:60000", ID: "xyz"})
 	encodedPeers := encodePeers(peers)
 	assert.NotNil(encodedPeers)
 
@@ -326,4 +312,13 @@ func TestEncoding_EncodeDecodePeers(t *testing.T) {
 
 	_, err = decodePeers([]byte(`a=b`))
 	assert.Error(err)
+}
+
+func TestEncoding_EncodeDecodeUint64(t *testing.T) {
+	assert := assert.New(t)
+
+	value := uint64(1)
+	enc := encodeUint64ToBytes(value)
+	assert.NotNil(enc)
+	assert.Equal(value, decodeUint64ToBytes(enc))
 }

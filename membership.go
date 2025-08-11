@@ -148,14 +148,14 @@ func (r *leader) addNode(member peer, req *raftypb.MembershipChangeRequest, foll
 		},
 	}
 
-	totalLogs := r.rafty.logs.appendEntries(entries, false)
+	r.rafty.updateEntriesIndex(entries)
 	request := &onAppendEntriesRequest{
 		totalFollowers:             r.totalFollowers.Load(),
 		quorum:                     uint64(r.rafty.quorum()),
 		term:                       currentTerm,
 		prevLogIndex:               r.rafty.lastLogIndex.Load(),
 		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  uint64(totalLogs),
+		totalLogs:                  r.rafty.lastLogIndex.Load(),
 		uuid:                       uuid.NewString(),
 		commitIndex:                r.rafty.commitIndex.Load(),
 		entries:                    entries,
@@ -172,17 +172,9 @@ func (r *leader) addNode(member peer, req *raftypb.MembershipChangeRequest, foll
 	}
 
 	if !r.rafty.isPartOfTheCluster(member) {
-		_ = r.rafty.logs.applyConfigEntry(entries[0])
-		if err := r.rafty.storage.metadata.store(); err != nil {
-			r.rafty.Logger.Fatal().Err(err).
-				Str("address", r.rafty.Address.String()).
-				Str("id", r.rafty.id).
-				Str("state", r.rafty.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Str("leaderAddress", r.rafty.Address.String()).
-				Str("leaderId", r.rafty.id).
-				Str("leaderTerm", fmt.Sprintf("%d", currentTerm)).
-				Msgf("Fail to persist metadata")
+		_ = r.rafty.applyConfigEntry(entries[0])
+		if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+			panic(err)
 		}
 
 		for _, follower := range r.followerReplication {
@@ -279,14 +271,14 @@ func (r *leader) promoteNode(action MembershipChange, member peer, follower *fol
 		},
 	}
 
-	totalLogs := r.rafty.logs.appendEntries(entries, false)
+	r.rafty.updateEntriesIndex(entries)
 	request := &onAppendEntriesRequest{
 		totalFollowers:             r.totalFollowers.Load(),
 		quorum:                     uint64(r.rafty.quorum()),
 		term:                       currentTerm,
 		prevLogIndex:               r.rafty.lastLogIndex.Load(),
 		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  uint64(totalLogs),
+		totalLogs:                  r.rafty.lastLogIndex.Load(),
 		uuid:                       uuid.NewString(),
 		commitIndex:                r.rafty.commitIndex.Load(),
 		entries:                    entries,
@@ -296,17 +288,9 @@ func (r *leader) promoteNode(action MembershipChange, member peer, follower *fol
 		membershipChangeID:         member.ID,
 	}
 
-	_ = r.rafty.logs.applyConfigEntry(entries[0])
-	if err := r.rafty.storage.metadata.store(); err != nil {
-		r.rafty.Logger.Fatal().Err(err).
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Str("term", fmt.Sprintf("%d", currentTerm)).
-			Str("leaderAddress", r.rafty.Address.String()).
-			Str("leaderId", r.rafty.id).
-			Str("leaderTerm", fmt.Sprintf("%d", currentTerm)).
-			Msgf("Fail to persist metadata")
+	_ = r.rafty.applyConfigEntry(entries[0])
+	if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+		panic(err)
 	}
 
 	for _, follower := range r.followerReplication {
@@ -348,14 +332,14 @@ func (r *leader) demoteNode(action MembershipChange, member peer) (success bool,
 		},
 	}
 
-	totalLogs := r.rafty.logs.appendEntries(entries, false)
+	r.rafty.updateEntriesIndex(entries)
 	request := &onAppendEntriesRequest{
 		totalFollowers:             r.totalFollowers.Load(),
 		quorum:                     uint64(r.rafty.quorum()),
 		term:                       currentTerm,
 		prevLogIndex:               r.rafty.lastLogIndex.Load(),
 		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  uint64(totalLogs),
+		totalLogs:                  r.rafty.lastLogIndex.Load(),
 		uuid:                       uuid.NewString(),
 		commitIndex:                r.rafty.commitIndex.Load(),
 		entries:                    entries,
@@ -365,17 +349,9 @@ func (r *leader) demoteNode(action MembershipChange, member peer) (success bool,
 		membershipChangeID:         member.ID,
 	}
 
-	_ = r.rafty.logs.applyConfigEntry(entries[0])
-	if err := r.rafty.storage.metadata.store(); err != nil {
-		r.rafty.Logger.Fatal().Err(err).
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Str("term", fmt.Sprintf("%d", currentTerm)).
-			Str("leaderAddress", r.rafty.Address.String()).
-			Str("leaderId", r.rafty.id).
-			Str("leaderTerm", fmt.Sprintf("%d", currentTerm)).
-			Msgf("Fail to persist metadata")
+	_ = r.rafty.applyConfigEntry(entries[0])
+	if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+		panic(err)
 	}
 
 	request.totalFollowers = r.totalFollowers.Load()
@@ -437,14 +413,14 @@ func (r *leader) removeNode(action MembershipChange, member peer) (success bool,
 		},
 	}
 
-	totalLogs := r.rafty.logs.appendEntries(entries, false)
+	r.rafty.updateEntriesIndex(entries)
 	request := &onAppendEntriesRequest{
 		totalFollowers:             r.totalFollowers.Load(),
 		quorum:                     uint64(r.rafty.quorum()),
 		term:                       currentTerm,
 		prevLogIndex:               r.rafty.lastLogIndex.Load(),
 		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  uint64(totalLogs),
+		totalLogs:                  r.rafty.lastLogIndex.Load(),
 		uuid:                       uuid.NewString(),
 		commitIndex:                r.rafty.commitIndex.Load(),
 		entries:                    entries,
@@ -454,17 +430,9 @@ func (r *leader) removeNode(action MembershipChange, member peer) (success bool,
 		membershipChangeID:         member.ID,
 	}
 
-	_ = r.rafty.logs.applyConfigEntry(entries[0])
-	if err := r.rafty.storage.metadata.store(); err != nil {
-		r.rafty.Logger.Fatal().Err(err).
-			Str("address", r.rafty.Address.String()).
-			Str("id", r.rafty.id).
-			Str("state", r.rafty.getState().String()).
-			Str("term", fmt.Sprintf("%d", currentTerm)).
-			Str("leaderAddress", r.rafty.Address.String()).
-			Str("leaderId", r.rafty.id).
-			Str("leaderTerm", fmt.Sprintf("%d", currentTerm)).
-			Msgf("Fail to persist metadata")
+	_ = r.rafty.applyConfigEntry(entries[0])
+	if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+		panic(err)
 	}
 
 	for _, follower := range r.followerReplication {

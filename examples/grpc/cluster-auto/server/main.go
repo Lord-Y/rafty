@@ -12,6 +12,7 @@ import (
 
 	"github.com/Lord-Y/rafty"
 	"github.com/rs/zerolog/log"
+	bolt "go.etcd.io/bbolt"
 )
 
 var ipAddress = flag.String("ip-address", "127.0.0.5", "ip address")
@@ -67,12 +68,16 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 				id := fmt.Sprintf("%d", i)
 				options := rafty.Options{
 					Peers:              peers,
-					PersistDataOnDisk:  true,
-					DataDir:            filepath.Join(os.TempDir(), "rafty", fmt.Sprintf("node%d", i)),
+					DataDir:            filepath.Join(os.TempDir(), "rafty_test", "cluster-auto", id),
 					TimeMultiplier:     2,
 					MinimumClusterSize: minimumClusterSize,
 				}
-				server, err = rafty.NewRafty(addr, id, options)
+				storeOptions := rafty.BoltOptions{
+					DataDir: options.DataDir,
+					Options: bolt.DefaultOptions,
+				}
+				store, _ := rafty.NewBoltStorage(storeOptions)
+				server, err = rafty.NewRafty(addr, id, options, store)
 				if err != nil {
 					return nil, err
 				}
