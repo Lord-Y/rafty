@@ -74,7 +74,7 @@ func createDirectoryIfNotExist(d string, perm fs.FileMode) error {
 			return err
 		}
 	} else {
-		if !fileinfo.IsDir() {
+		if fileinfo == nil || !fileinfo.IsDir() {
 			return fmt.Errorf("%s is not a directory", d)
 		}
 		return nil
