@@ -36,7 +36,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 		var addr net.TCPAddr
 
 		server := new(rafty.Rafty)
-		peers := []rafty.Peer{}
+		initialPeers := []rafty.InitialPeer{}
 		addr = net.TCPAddr{
 			IP:   net.ParseIP(*ipAddress),
 			Port: int(rafty.GRPCPort) + int(i),
@@ -57,7 +57,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 			}
 
 			if addr.String() != peerAddr {
-				peers = append(peers, rafty.Peer{
+				initialPeers = append(initialPeers, rafty.InitialPeer{
 					Address: peerAddr,
 				})
 
@@ -67,7 +67,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 				}
 				id := fmt.Sprintf("%d", i)
 				options := rafty.Options{
-					Peers:              peers,
+					InitialPeers:       initialPeers,
 					DataDir:            filepath.Join(os.TempDir(), "rafty_test", "cluster-auto", id),
 					TimeMultiplier:     2,
 					MinimumClusterSize: minimumClusterSize,

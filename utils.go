@@ -67,7 +67,7 @@ func (r *Rafty) setLeader(newLeader leaderMap) {
 
 // getPeers permits to retrieve all peers from the cluster
 // except current node
-func (r *Rafty) getPeers() (peers []peer, total int) {
+func (r *Rafty) getPeers() (peers []Peer, total int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	peers = slices.Clone(r.configuration.ServerMembers)
@@ -76,10 +76,10 @@ func (r *Rafty) getPeers() (peers []peer, total int) {
 
 // getAllPeers permits to retrieve all members of the cluster
 // including current node
-func (r *Rafty) getAllPeers() (peers []peer, total int) {
+func (r *Rafty) getAllPeers() (peers []Peer, total int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	peers = append(peers, peer{
+	peers = append(peers, Peer{
 		ID:               r.id,
 		Address:          r.Address.String(),
 		address:          getNetAddress(r.Address.String()),
@@ -99,7 +99,7 @@ func (r *Rafty) IsRunning() bool {
 // parsePeers will parse all peers to validate their addresses.
 // When invalid, an error will be returned
 func (r *Rafty) parsePeers() error {
-	var uniqPeers []peer
+	var uniqPeers []Peer
 	for _, server := range r.configuration.ServerMembers {
 		var addr net.TCPAddr
 		host, port, err := net.SplitHostPort(server.Address)
@@ -113,7 +113,7 @@ func (r *Rafty) parsePeers() error {
 					Port: int(GRPCPort),
 				}
 				if r.Address.String() != addr.String() {
-					uniqPeers = append(uniqPeers, peer{
+					uniqPeers = append(uniqPeers, Peer{
 						Address: addr.String(),
 						address: addr,
 						ID:      server.ID,
@@ -130,7 +130,7 @@ func (r *Rafty) parsePeers() error {
 				Port: p,
 			}
 			if r.Address.String() != addr.String() {
-				uniqPeers = append(uniqPeers, peer{
+				uniqPeers = append(uniqPeers, Peer{
 					Address: addr.String(),
 					address: addr,
 					ID:      server.ID,
@@ -266,11 +266,11 @@ func getNetAddress(address string) net.TCPAddr {
 
 // isPartOfTheCluster will check if provided peer is already in configuration
 // and so be part of the cluster
-func (r *Rafty) isPartOfTheCluster(member peer) bool {
+func (r *Rafty) isPartOfTheCluster(member Peer) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if index := slices.IndexFunc(r.configuration.ServerMembers, func(p peer) bool {
+	if index := slices.IndexFunc(r.configuration.ServerMembers, func(p Peer) bool {
 		return p.Address == member.Address || p.Address == member.Address && p.ID == member.ID
 	}); index == -1 {
 		return false
@@ -280,8 +280,8 @@ func (r *Rafty) isPartOfTheCluster(member peer) bool {
 
 // isPartOfTheCluster will check if provided peer is already in configuration
 // and so be part of the cluster
-func isPartOfTheCluster(list []peer, member peer) bool {
-	if index := slices.IndexFunc(list, func(p peer) bool {
+func isPartOfTheCluster(list []Peer, member Peer) bool {
+	if index := slices.IndexFunc(list, func(p Peer) bool {
 		return p.Address == member.Address && p.ID == member.ID
 	}); index == -1 {
 		return false
@@ -315,14 +315,14 @@ func (r *Rafty) waitForLeader() bool {
 
 // updateServerMembers will update configuration server members
 // list
-func (r *Rafty) updateServerMembers(peers []peer) {
+func (r *Rafty) updateServerMembers(peers []Peer) {
 	r.wg.Add(1)
 	defer r.wg.Done()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// find and update myself
-	if index := slices.IndexFunc(peers, func(p peer) bool {
+	if index := slices.IndexFunc(peers, func(p Peer) bool {
 		return p.Address == r.Address.String() && p.ID == r.id
 	}); index != -1 {
 		r.waitToBePromoted.Store(peers[index].WaitToBePromoted)
@@ -331,7 +331,7 @@ func (r *Rafty) updateServerMembers(peers []peer) {
 
 	// remove myself from the list and update members
 	// shallow clone is necessary in order to avoid bad suprises during unit testing
-	r.configuration.ServerMembers = slices.DeleteFunc(slices.Clone(peers), func(p peer) bool {
+	r.configuration.ServerMembers = slices.DeleteFunc(slices.Clone(peers), func(p Peer) bool {
 		return p.Address == r.Address.String()
 	})
 	// temporary update parsed address. We will need to remove this field later

@@ -41,7 +41,7 @@ type SnapshotMetadata struct {
 	LastIncludedTerm uint64 `json:"lastIncludedTerm"`
 
 	// Configuration hold server members
-	Configuration configuration `json:"configuration"`
+	Configuration Configuration `json:"configuration"`
 
 	// LastAppliedConfig is the index of the highest log entry configuration applied to the current raft server
 	LastAppliedConfigIndex uint64 `json:"lastAppliedConfigIndex"`
@@ -111,7 +111,7 @@ func makeSnapshotName(lastIncludedIndex, lastIncludedTerm uint64) string {
 }
 
 // PrepareSnapshotWriter will prepare the requirements with the provided parameters to write a snapshot
-func (s *SnapshotConfig) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm uint64, currentConfig configuration) (Snapshot, error) {
+func (s *SnapshotConfig) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm uint64, currentConfig Configuration) (Snapshot, error) {
 	snapshotName := makeSnapshotName(lastIncludedIndex, lastIncludedTerm)
 	s.dataDir = filepath.Join(s.parentDir, snapshotName)
 	s.tmpDir = filepath.Join(s.parentDir, snapshotName+snapshotTmpSuffix)

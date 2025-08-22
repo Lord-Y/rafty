@@ -96,7 +96,7 @@ func TestUtils_parsePeers(t *testing.T) {
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: int(GRPCPort),
 	}
-	peers := []Peer{
+	peers := []InitialPeer{
 		{
 			Address: "127.0.0.1",
 		},
@@ -108,7 +108,7 @@ func TestUtils_parsePeers(t *testing.T) {
 		},
 	}
 
-	badPeers1 := []Peer{
+	badPeers1 := []InitialPeer{
 		{
 			Address: "127.0.0.1:50051",
 		},
@@ -120,7 +120,7 @@ func TestUtils_parsePeers(t *testing.T) {
 		},
 	}
 
-	badPeers2 := []Peer{
+	badPeers2 := []InitialPeer{
 		{
 			Address: "127.0.0.1:50051",
 		},
@@ -141,8 +141,8 @@ func TestUtils_parsePeers(t *testing.T) {
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := Options{
-		Peers:   peers,
-		DataDir: filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
+		InitialPeers: peers,
+		DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
 	}
 	storeOptions := BoltOptions{
 		DataDir: options.DataDir,
@@ -152,24 +152,24 @@ func TestUtils_parsePeers(t *testing.T) {
 	assert.Nil(err)
 	s, _ := NewRafty(addr, id, options, store)
 
-	mergePeers := func(peers []Peer) {
+	mergePeers := func(peers []InitialPeer) {
 		for _, v := range peers {
-			s.configuration.ServerMembers = append(s.configuration.ServerMembers, peer{Address: v.Address})
+			s.configuration.ServerMembers = append(s.configuration.ServerMembers, Peer{Address: v.Address})
 		}
 	}
 
-	mergePeers(s.options.Peers)
+	mergePeers(s.options.InitialPeers)
 	err = s.parsePeers()
 	assert.Nil(err)
 
-	s.options.Peers = badPeers1
-	mergePeers(s.options.Peers)
+	s.options.InitialPeers = badPeers1
+	mergePeers(s.options.InitialPeers)
 	err = s.parsePeers()
 	assert.Error(err)
 
 	s.configuration.ServerMembers = nil
-	s.options.Peers = badPeers2
-	mergePeers(s.options.Peers)
+	s.options.InitialPeers = badPeers2
+	mergePeers(s.options.InitialPeers)
 	err = s.parsePeers()
 	assert.Error(err)
 	assert.Nil(store.Close())
@@ -294,7 +294,7 @@ func TestUtils_saveLeaderInformations(t *testing.T) {
 			expectedCurrentTerm: 1,
 		},
 		{
-			newLeader: leaderMap{address: s.options.Peers[0].address.String()},
+			newLeader: leaderMap{address: s.options.InitialPeers[0].address.String()},
 		},
 		{
 			newLeader: leaderMap{address: s.Address.String(), id: s.id},
@@ -454,7 +454,7 @@ func TestUtils_calculateMaxRangeLogIndex(t *testing.T) {
 func TestUtils_getNetAddress(t *testing.T) {
 	assert := assert.New(t)
 
-	member := peer{
+	member := Peer{
 		Address: "127.0.0.2:60000",
 	}
 
@@ -470,8 +470,8 @@ func TestUtils_isPartOfTheCluster(t *testing.T) {
 	defer func() {
 		assert.Nil(s.logStore.Close())
 	}()
-	member := peer{
-		Address: s.options.Peers[2].Address,
+	member := Peer{
+		Address: s.options.InitialPeers[2].Address,
 	}
 	assert.Equal(true, s.isPartOfTheCluster(member))
 	assert.Equal(true, isPartOfTheCluster(s.configuration.ServerMembers, member))

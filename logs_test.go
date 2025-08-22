@@ -118,7 +118,7 @@ func TestLogs(t *testing.T) {
 
 	t.Run("applyConfigEntry", func(t *testing.T) {
 		peers, _ := s.getPeers()
-		newbie := peer{Address: "127.0.0.1:60000", ID: "xyz"}
+		newbie := Peer{Address: "127.0.0.1:60000", ID: "xyz"}
 		peers = append(peers, newbie)
 		encodedPeers := encodePeers(peers)
 		assert.NotNil(encodedPeers)

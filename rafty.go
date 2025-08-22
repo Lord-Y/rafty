@@ -121,8 +121,8 @@ const (
 	membershipTimeoutSeconds = 10
 )
 
-// Peer holds address of the peer
-type Peer struct {
+// InitialPeer holds address of the peer
+type InitialPeer struct {
 	// Address is the address of a peer node, must be just the ip or ip:port
 	Address string
 
@@ -194,7 +194,7 @@ type Options struct {
 	ReadReplica bool
 
 	// Peers hold the list of the peers
-	Peers []Peer
+	InitialPeers []InitialPeer
 
 	// PrevoteDisabled is a boolean the allow us to directly start
 	// vote election without pre vote step
@@ -390,7 +390,7 @@ type Rafty struct {
 	// When persistant storage is not enabled and the cluster start with 3 nodes
 	// if a new node is started it won't be part of the initial cluster list
 	// so a cluster membership will be initiated in order to add it
-	configuration configuration
+	configuration Configuration
 
 	// connectionManager hold connections for all members
 	connectionManager connectionManager
@@ -732,7 +732,7 @@ func (r *Rafty) buildMetadata() []byte {
 		LastApplied:            r.lastApplied.Load(),
 		LastAppliedConfigIndex: r.lastAppliedConfigIndex.Load(),
 		LastAppliedConfigTerm:  r.lastAppliedConfigTerm.Load(),
-		Configuration: configuration{
+		Configuration: Configuration{
 			ServerMembers: peers,
 		},
 	}
@@ -765,8 +765,8 @@ func (r *Rafty) restore(result []byte) error {
 		return nil
 	}
 
-	for _, server := range r.options.Peers {
-		r.configuration.ServerMembers = append(r.configuration.ServerMembers, peer{Address: server.Address})
+	for _, server := range r.options.InitialPeers {
+		r.configuration.ServerMembers = append(r.configuration.ServerMembers, Peer{Address: server.Address})
 	}
 	return nil
 }

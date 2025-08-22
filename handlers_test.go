@@ -957,7 +957,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 		peers, _ := s.getPeers()
-		peers = append(peers, peer{Address: "127.0.0.1:60000", ID: "xyz"})
+		peers = append(peers, Peer{Address: "127.0.0.1:60000", ID: "xyz"})
 		encodedPeers := encodePeers(peers)
 		assert.NotNil(encodedPeers)
 		responseChan := make(chan RPCResponse, 1)

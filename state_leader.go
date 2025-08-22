@@ -140,7 +140,7 @@ func (r *leader) setupFollowersReplicationStates() {
 
 	for _, follower := range followers {
 		followerRepl := &followerReplication{
-			peer:                follower,
+			Peer:                follower,
 			rafty:               r.rafty,
 			newEntryChan:        make(chan *onAppendEntriesRequest),
 			replicationStopChan: make(chan struct{}, 1),
@@ -398,7 +398,7 @@ func (r *leader) leasing() {
 
 // selectNodeForLeadershipTransfer will return a node that is in sync
 // with leader logs
-func (r *leader) selectNodeForLeadershipTransfer() (p peer, found bool) {
+func (r *leader) selectNodeForLeadershipTransfer() (p Peer, found bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -408,8 +408,8 @@ func (r *leader) selectNodeForLeadershipTransfer() (p peer, found bool) {
 				Str("address", r.rafty.Address.String()).
 				Str("id", r.rafty.id).
 				Str("state", r.rafty.getState().String()).
-				Str("peerAddress", follower.peer.address.String()).
-				Str("peerId", follower.peer.ID).
+				Str("peerAddress", follower.Peer.address.String()).
+				Str("peerId", follower.Peer.ID).
 				Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
 				Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
 				Str("peerNextIndex", fmt.Sprintf("%d", follower.nextIndex.Load())).
@@ -418,7 +418,7 @@ func (r *leader) selectNodeForLeadershipTransfer() (p peer, found bool) {
 				Msgf("LeadershipTransfer select suitable node")
 
 			if r.rafty.matchIndex.Load() == follower.matchIndex.Load() {
-				p = follower.peer
+				p = follower.Peer
 				found = true
 				break
 			}

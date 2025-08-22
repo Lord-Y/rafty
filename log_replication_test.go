@@ -53,7 +53,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		}
 
 		followerRepl := &followerReplication{
-			peer:         followers[id],
+			Peer:         followers[id],
 			rafty:        s,
 			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
@@ -83,7 +83,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		}
 
 		followerRepl := &followerReplication{
-			peer:         followers[id],
+			Peer:         followers[id],
 			rafty:        s,
 			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}

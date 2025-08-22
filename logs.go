@@ -325,7 +325,7 @@ func (r *Rafty) applyConfigEntry(entry *raftypb.LogEntry) error {
 
 			r.updateServerMembers(peers)
 			// if I have been removed from the cluster
-			if !isPartOfTheCluster(peers, peer{Address: r.Address.String(), ID: r.id, address: getNetAddress(r.Address.String())}) && r.options.ShutdownOnRemove {
+			if !isPartOfTheCluster(peers, Peer{Address: r.Address.String(), ID: r.id, address: getNetAddress(r.Address.String())}) && r.options.ShutdownOnRemove {
 				r.shutdownOnRemove.Store(true)
 			}
 

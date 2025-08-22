@@ -28,7 +28,7 @@ func (r *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest
 	}
 
 	var mustAskForMembership bool
-	if !r.rafty.isPartOfTheCluster(peer{ID: in.Id, Address: in.Address}) {
+	if !r.rafty.isPartOfTheCluster(Peer{ID: in.Id, Address: in.Address}) {
 		mustAskForMembership = true
 	}
 
@@ -50,7 +50,7 @@ func (r *rpcManager) GetLeader(ctx context.Context, in *raftypb.GetLeaderRequest
 	}
 
 	var mustAskForMembership bool
-	if !r.rafty.isPartOfTheCluster(peer{ID: in.PeerId, Address: in.PeerAddress}) {
+	if !r.rafty.isPartOfTheCluster(Peer{ID: in.PeerId, Address: in.PeerAddress}) {
 		mustAskForMembership = true
 	}
 

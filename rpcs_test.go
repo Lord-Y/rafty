@@ -25,7 +25,7 @@ func TestRpcs_Fake(t *testing.T) {
 		ResponseChan: s.rpcAskNodeIDChan,
 	}
 
-	go s.sendRPC(request, nil, peer{})
+	go s.sendRPC(request, nil, Peer{})
 	data := <-s.rpcAskNodeIDChan
 	assert.Error(data.Error)
 }
@@ -52,7 +52,7 @@ func TestRpcs_askNodeIDResult(t *testing.T) {
 		LeaderAddress: s.configuration.ServerMembers[1].Address,
 	}
 	resp := RPCResponse{
-		TargetPeer: peer{Address: s.configuration.ServerMembers[0].Address},
+		TargetPeer: Peer{Address: s.configuration.ServerMembers[0].Address},
 		Response:   rpcResponse,
 		Error:      errTimeoutSendingRequest,
 	}
@@ -90,7 +90,7 @@ func TestRpcs_getLeaderResult(t *testing.T) {
 
 	rpcResponse := RPCGetLeaderResponse{}
 	resp := RPCResponse{
-		TargetPeer: peer{Address: s.configuration.ServerMembers[0].Address},
+		TargetPeer: Peer{Address: s.configuration.ServerMembers[0].Address},
 		Response:   rpcResponse,
 		Error:      errTimeoutSendingRequest,
 	}
@@ -134,7 +134,7 @@ func TestRpcs_membershipChangeResponse(t *testing.T) {
 
 	rpcResponse := RPCMembershipChangeResponse{}
 	resp := RPCResponse{
-		TargetPeer: peer{Address: s.configuration.ServerMembers[0].Address},
+		TargetPeer: Peer{Address: s.configuration.ServerMembers[0].Address},
 		Response:   rpcResponse,
 		Error:      errTimeoutSendingRequest,
 	}

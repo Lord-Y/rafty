@@ -43,7 +43,7 @@ type metadata struct {
 	LastAppliedConfigTerm uint64 `json:"lastAppliedConfigTerm"`
 
 	// Configuration hold server members
-	Configuration configuration `json:"configuration"`
+	Configuration Configuration `json:"configuration"`
 }
 
 // metaFile hold all requirements to manage file metadata
@@ -123,8 +123,8 @@ func (r metaFile) restore() error {
 	if r.file == nil {
 		r.rafty.mu.Lock()
 		defer r.rafty.mu.Unlock()
-		for _, server := range r.rafty.options.Peers {
-			r.rafty.configuration.ServerMembers = append(r.rafty.configuration.ServerMembers, peer{Address: server.Address})
+		for _, server := range r.rafty.options.InitialPeers {
+			r.rafty.configuration.ServerMembers = append(r.rafty.configuration.ServerMembers, Peer{Address: server.Address})
 		}
 		return nil
 	}
@@ -157,8 +157,8 @@ func (r metaFile) restore() error {
 		if len(data.Configuration.ServerMembers) > 0 {
 			r.rafty.configuration.ServerMembers = data.Configuration.ServerMembers
 		} else {
-			for _, server := range r.rafty.options.Peers {
-				r.rafty.configuration.ServerMembers = append(r.rafty.configuration.ServerMembers, peer{Address: server.Address})
+			for _, server := range r.rafty.options.InitialPeers {
+				r.rafty.configuration.ServerMembers = append(r.rafty.configuration.ServerMembers, Peer{Address: server.Address})
 			}
 		}
 		r.rafty.mu.Unlock()
@@ -166,8 +166,8 @@ func (r metaFile) restore() error {
 	}
 
 	r.rafty.mu.Lock()
-	for _, server := range r.rafty.options.Peers {
-		r.rafty.configuration.ServerMembers = append(r.rafty.configuration.ServerMembers, peer{Address: server.Address})
+	for _, server := range r.rafty.options.InitialPeers {
+		r.rafty.configuration.ServerMembers = append(r.rafty.configuration.ServerMembers, Peer{Address: server.Address})
 	}
 	r.rafty.mu.Unlock()
 
@@ -193,7 +193,7 @@ func (r metaFile) store() error {
 		LastApplied:            r.rafty.lastApplied.Load(),
 		LastAppliedConfigIndex: r.rafty.lastAppliedConfigIndex.Load(),
 		LastAppliedConfigTerm:  r.rafty.lastAppliedConfigTerm.Load(),
-		Configuration: configuration{
+		Configuration: Configuration{
 			ServerMembers: peers,
 		},
 	}

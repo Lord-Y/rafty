@@ -85,7 +85,7 @@ func (r *leader) handleSendMembershipChangeRequest(data RPCRequest) {
 	r.membershipChangeInProgress.Store(true)
 	defer r.membershipChangeInProgress.Store(false)
 
-	member := peer{
+	member := Peer{
 		ID:          request.Id,
 		Address:     request.Address,
 		ReadReplica: request.ReadReplica,
@@ -93,7 +93,7 @@ func (r *leader) handleSendMembershipChangeRequest(data RPCRequest) {
 	}
 
 	follower := &followerReplication{
-		peer:                member,
+		Peer:                member,
 		rafty:               r.rafty,
 		newEntryChan:        make(chan *onAppendEntriesRequest, 1),
 		replicationStopChan: make(chan struct{}, 1),
@@ -129,7 +129,7 @@ func (r *leader) handleSendMembershipChangeRequest(data RPCRequest) {
 }
 
 // addNode will setup configuration to add a new node during membership change
-func (r *leader) addNode(member peer, req *raftypb.MembershipChangeRequest, followerRepl *followerReplication) (success bool, err error) {
+func (r *leader) addNode(member Peer, req *raftypb.MembershipChangeRequest, followerRepl *followerReplication) (success bool, err error) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
@@ -195,7 +195,7 @@ func (r *leader) addNode(member peer, req *raftypb.MembershipChangeRequest, foll
 // If error is returned, it must retry membership change process.
 // If node nextIndex is great or equal to provided leader nextIndex
 // the node is in sync with the leader
-func (r *followerReplication) catchupNewMember(member peer, request *onAppendEntriesRequest, response *raftypb.AppendEntryResponse) error {
+func (r *followerReplication) catchupNewMember(member Peer, request *onAppendEntriesRequest, response *raftypb.AppendEntryResponse) error {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
@@ -248,14 +248,14 @@ func (r *followerReplication) catchupNewMember(member peer, request *onAppendEnt
 // promoteNode will promote node by add new log entry config for replication.
 // The new node will be then added in the replication stream and will receive
 // append entries like other nodes
-func (r *leader) promoteNode(action MembershipChange, member peer, follower *followerReplication) (success bool, err error) {
+func (r *leader) promoteNode(action MembershipChange, member Peer, follower *followerReplication) (success bool, err error) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
 	currentTerm := r.rafty.currentTerm.Load()
 	peers, _ := r.rafty.getPeers()
 	// add myself, the current leader
-	peers = append(peers, peer{
+	peers = append(peers, Peer{
 		ID:      r.rafty.id,
 		Address: r.rafty.Address.String(),
 	})
@@ -306,19 +306,19 @@ func (r *leader) promoteNode(action MembershipChange, member peer, follower *fol
 
 // demoteNode will demote node by add config into log replication process
 // and will receive append entries like other nodes
-func (r *leader) demoteNode(action MembershipChange, member peer) (success bool, err error) {
+func (r *leader) demoteNode(action MembershipChange, member Peer) (success bool, err error) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
 	currentTerm := r.rafty.currentTerm.Load()
 	peers, _ := r.rafty.getPeers()
 	// add myself, the current leader
-	peers = append(peers, peer{
+	peers = append(peers, Peer{
 		ID:      r.rafty.id,
 		Address: r.rafty.Address.String(),
 	})
 
-	var nextConfig []peer
+	var nextConfig []Peer
 	if nextConfig, err = r.nextConfiguration(action, peers, member); err != nil {
 		return
 	}
@@ -361,7 +361,7 @@ func (r *leader) demoteNode(action MembershipChange, member peer) (success bool,
 		}
 	}
 
-	if index := slices.IndexFunc(nextConfig, func(p peer) bool {
+	if index := slices.IndexFunc(nextConfig, func(p Peer) bool {
 		return p.Address == member.Address && p.ID == member.ID
 	}); index != -1 {
 		for _, follower := range r.followerReplication {
@@ -387,19 +387,19 @@ func (r *leader) demoteNode(action MembershipChange, member peer) (success bool,
 // - remove node from replication process
 //
 // - if node to remove is the provided node will step down or shutdown
-func (r *leader) removeNode(action MembershipChange, member peer) (success bool, err error) {
+func (r *leader) removeNode(action MembershipChange, member Peer) (success bool, err error) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
 	currentTerm := r.rafty.currentTerm.Load()
 	peers, _ := r.rafty.getPeers()
 	// add myself, the current leader
-	peers = append(peers, peer{
+	peers = append(peers, Peer{
 		ID:      r.rafty.id,
 		Address: r.rafty.Address.String(),
 	})
 
-	var nextConfig []peer
+	var nextConfig []Peer
 	if nextConfig, err = r.nextConfiguration(action, peers, member); err != nil {
 		return
 	}
@@ -466,10 +466,10 @@ func (r *leader) removeNode(action MembershipChange, member peer) (success bool,
 
 // nextConfiguration will create the next configuration config based on the action
 // to perform. member is the peer to take action on
-func (r *leader) nextConfiguration(action MembershipChange, current []peer, member peer) ([]peer, error) {
+func (r *leader) nextConfiguration(action MembershipChange, current []Peer, member Peer) ([]Peer, error) {
 	switch action {
 	case Add:
-		if index := slices.IndexFunc(current, func(p peer) bool {
+		if index := slices.IndexFunc(current, func(p Peer) bool {
 			return p.Address == member.Address && p.ID == member.ID
 		}); index == -1 {
 			member.WaitToBePromoted = true
@@ -478,7 +478,7 @@ func (r *leader) nextConfiguration(action MembershipChange, current []peer, memb
 		}
 
 	case Promote:
-		if index := slices.IndexFunc(current, func(p peer) bool {
+		if index := slices.IndexFunc(current, func(p Peer) bool {
 			return p.Address == member.Address && p.ID == member.ID
 		}); index != -1 {
 			current[index].WaitToBePromoted = false
@@ -486,7 +486,7 @@ func (r *leader) nextConfiguration(action MembershipChange, current []peer, memb
 		}
 
 	case Demote:
-		if index := slices.IndexFunc(current, func(p peer) bool {
+		if index := slices.IndexFunc(current, func(p Peer) bool {
 			return p.Address == member.Address && p.ID == member.ID
 		}); index != -1 {
 			current[index].WaitToBePromoted = false
@@ -497,7 +497,7 @@ func (r *leader) nextConfiguration(action MembershipChange, current []peer, memb
 		}
 
 	case Remove:
-		if index := slices.IndexFunc(current, func(p peer) bool {
+		if index := slices.IndexFunc(current, func(p Peer) bool {
 			return p.Address == member.Address && p.ID == member.ID
 		}); index != -1 {
 			if !current[index].WaitToBePromoted && !current[index].Decommissioning {
@@ -505,17 +505,17 @@ func (r *leader) nextConfiguration(action MembershipChange, current []peer, memb
 			}
 		}
 
-		current = slices.DeleteFunc(current, func(p peer) bool {
+		current = slices.DeleteFunc(current, func(p Peer) bool {
 			return p.Address == member.Address
 		})
 
 	case ForceRemove:
-		current = slices.DeleteFunc(current, func(p peer) bool {
+		current = slices.DeleteFunc(current, func(p Peer) bool {
 			return p.Address == member.Address
 		})
 
 	case LeaveOnTerminate:
-		current = slices.DeleteFunc(current, func(p peer) bool {
+		current = slices.DeleteFunc(current, func(p Peer) bool {
 			return p.Address == member.Address
 		})
 	}
@@ -524,7 +524,7 @@ func (r *leader) nextConfiguration(action MembershipChange, current []peer, memb
 
 // verifyConfiguration will verify the new configuration by checking if we have
 // enough voters and make sure that any operation won't break the cluster.
-func (r *leader) verifyConfiguration(peers []peer) bool {
+func (r *leader) verifyConfiguration(peers []Peer) bool {
 	var voters int
 	for _, node := range peers {
 		if !node.ReadReplica && !node.WaitToBePromoted && !node.Decommissioning {
