@@ -52,7 +52,7 @@ type RPCRequest struct {
 
 // RPCResponse  is used by RPCRequest in order to reply to rpc requests
 type RPCResponse struct {
-	TargetPeer peer
+	TargetPeer Peer
 	Response   any
 	Error      error
 }
@@ -129,12 +129,12 @@ type RPCMembershipChangeRequest struct {
 type RPCMembershipChangeResponse struct {
 	ActionPerformed, Response uint32
 	LeaderID, LeaderAddress   string
-	Peers                     []peer
+	Peers                     []Peer
 	Success                   bool
 }
 
 // sendRPC is use to send rpc request
-func (r *Rafty) sendRPC(request RPCRequest, client raftypb.RaftyClient, peer peer) {
+func (r *Rafty) sendRPC(request RPCRequest, client raftypb.RaftyClient, peer Peer) {
 	options := []grpc.CallOption{}
 
 	ctx := context.Background()
@@ -367,7 +367,7 @@ func (r *Rafty) askNodeIDResult(resp RPCResponse) {
 	}
 
 	r.mu.Lock()
-	if index := slices.IndexFunc(r.configuration.ServerMembers, func(peer peer) bool {
+	if index := slices.IndexFunc(r.configuration.ServerMembers, func(peer Peer) bool {
 		return peer.address.String() == targetPeer.address.String() && peer.ID == ""
 	}); index != -1 {
 		r.configuration.ServerMembers[index].ID = response.PeerID
@@ -496,7 +496,7 @@ func (r *Rafty) sendMembershipChangeRequest(action MembershipChange) {
 
 	leader := r.getLeader()
 	if leader.address != "" && leader.id != "" {
-		peer := peer{
+		peer := Peer{
 			Address: leader.address,
 			address: getNetAddress(leader.address),
 			ID:      leader.id,
@@ -587,7 +587,7 @@ func (r *Rafty) sendMembershipChangeLeaveOnTerminate() {
 
 	leader := r.getLeader()
 	if leader.address != "" && leader.id != "" {
-		peer := peer{
+		peer := Peer{
 			Address: leader.address,
 			address: getNetAddress(leader.address),
 			ID:      leader.id,

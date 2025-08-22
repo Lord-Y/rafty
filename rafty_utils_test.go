@@ -31,7 +31,7 @@ func basicNodeSetup() *Rafty {
 		IP:   net.ParseIP("127.0.0.1"),
 		Port: int(GRPCPort),
 	}
-	peers := []Peer{
+	initialPeers := []InitialPeer{
 		{
 			Address: "127.0.0.1",
 		},
@@ -46,8 +46,9 @@ func basicNodeSetup() *Rafty {
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := Options{
-		Peers:   peers,
-		DataDir: filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
+		// Peers:   peers,
+		InitialPeers: initialPeers,
+		DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
 	}
 	storeOptions := BoltOptions{
 		DataDir: options.DataDir,
@@ -158,7 +159,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		)
 
 		server := new(Rafty)
-		peers := []Peer{}
+		initialPeers := []InitialPeer{}
 		addr = net.TCPAddr{
 			IP:   net.ParseIP("127.0.0.5"),
 			Port: defaultPort + int(i),
@@ -200,12 +201,12 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 			}
 
 			if addr.String() != peerAddr {
-				peers = append(peers, Peer{
+				initialPeers = append(initialPeers, InitialPeer{
 					Address: peerAddr,
 					address: getNetAddress(peerAddr),
 				})
 
-				options.Peers = peers
+				options.InitialPeers = initialPeers
 				id := ""
 				if !cc.noNodeID {
 					id = fmt.Sprintf("%d", addr.Port)
@@ -223,7 +224,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leaveOnTerminate bool) {
 	var defaultPort int
 	if len(cc.newNodes) == 0 {
-		defaultPort = cc.cluster[0].options.Peers[cc.clusterSize-2].address.Port + 1
+		defaultPort = cc.cluster[0].options.InitialPeers[cc.clusterSize-2].address.Port + 1
 	} else {
 		defaultPort = cc.newNodes[len(cc.newNodes)-1].Address.Port + 1
 	}
@@ -680,18 +681,18 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	})
 }
 
-func (cc *clusterConfig) getMember(id string) (p peer, index int, originalCluster bool) {
+func (cc *clusterConfig) getMember(id string) (p Peer, index int, originalCluster bool) {
 	cc.t.Helper()
 	if index := slices.IndexFunc(cc.cluster, func(p *Rafty) bool {
 		return p.id == id
 	}); index != -1 {
-		return peer{Address: cc.cluster[index].Address.String(), ID: id, ReadReplica: cc.cluster[index].options.ReadReplica}, index, true
+		return Peer{Address: cc.cluster[index].Address.String(), ID: id, ReadReplica: cc.cluster[index].options.ReadReplica}, index, true
 	}
 
 	if index := slices.IndexFunc(cc.newNodes, func(p *Rafty) bool {
 		return p.id == id
 	}); index != -1 {
-		return peer{Address: cc.newNodes[index].Address.String(), ID: id, ReadReplica: cc.newNodes[index].options.ReadReplica}, index, false
+		return Peer{Address: cc.newNodes[index].Address.String(), ID: id, ReadReplica: cc.newNodes[index].options.ReadReplica}, index, false
 	}
 	return
 }

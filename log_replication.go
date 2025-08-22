@@ -40,7 +40,7 @@ type triggerAppendEntries struct {
 // its logs to the current follower
 type followerReplication struct {
 	// peer holds peer informations
-	peer
+	Peer
 
 	// rafty holds rafty config
 	rafty *Rafty

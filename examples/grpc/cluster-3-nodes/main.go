@@ -58,7 +58,7 @@ func main() {
 		}
 	}
 
-	peers := []rafty.Peer{
+	initialPeers := []rafty.InitialPeer{
 		{
 			Address: *ipAddress,
 		},
@@ -73,7 +73,7 @@ func main() {
 	id = fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := rafty.Options{
-		Peers:           peers,
+		InitialPeers:    initialPeers,
 		DataDir:         filepath.Join(os.TempDir(), "rafty_test", "cluster-3-nodes", id),
 		TimeMultiplier:  *timeMultiplier,
 		PrevoteDisabled: *prevoteDisabled,

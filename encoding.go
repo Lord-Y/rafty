@@ -187,7 +187,7 @@ func unmarshalBinaryWithChecksum(data []byte) (entry *raftypb.LogEntry, err erro
 }
 
 // encodePeers permits to encode peers and return bytes
-func encodePeers(data []peer) (result []byte) {
+func encodePeers(data []Peer) (result []byte) {
 	// checking error is irrelevant here as it will always be nil
 	// in this case
 	result, _ = json.Marshal(data)
@@ -195,7 +195,7 @@ func encodePeers(data []peer) (result []byte) {
 }
 
 // decodePeers permits to decode peers and return bytes
-func decodePeers(data []byte) (result []peer, err error) {
+func decodePeers(data []byte) (result []Peer, err error) {
 	if err = json.Unmarshal(data, &result); err != nil {
 		return
 	}

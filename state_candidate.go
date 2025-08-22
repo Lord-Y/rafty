@@ -22,7 +22,7 @@ type candidate struct {
 
 	// preCandidatePeers hold the list of the peers that will be used
 	// during election campaign to elect a new leader
-	preCandidatePeers []peer
+	preCandidatePeers []Peer
 
 	// preVotes is the total number of votes used to be compare against quorum
 	preVotes int
@@ -158,7 +158,7 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 
 	if response.Granted {
 		r.mu.Lock()
-		if index := slices.IndexFunc(r.preCandidatePeers, func(peer peer) bool {
+		if index := slices.IndexFunc(r.preCandidatePeers, func(peer Peer) bool {
 			return peer.ID == targetPeer.ID
 		}); index == -1 {
 			r.preCandidatePeers = append(r.preCandidatePeers, targetPeer)
@@ -184,7 +184,7 @@ func (r *candidate) startElection() {
 
 	lastLogIndex := r.rafty.lastLogIndex.Load()
 	lastLogTerm := r.rafty.lastLogTerm.Load()
-	var peers []peer
+	var peers []Peer
 	if r.rafty.options.PrevoteDisabled || r.rafty.candidateForLeadershipTransfer.Load() {
 		peers, _ = r.rafty.getPeers()
 	} else {

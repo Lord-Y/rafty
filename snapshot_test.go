@@ -46,7 +46,7 @@ func TestSnapshot(t *testing.T) {
 		assert.Equal(1, snapshotConfig.maxSnapshots)
 
 		lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm := uint64(1), uint64(1), uint64(1), uint64(1)
-		_, err = snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, configuration{})
+		_, err = snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 		assert.Error(err)
 	})
 
@@ -61,7 +61,7 @@ func TestSnapshot(t *testing.T) {
 		assert.Equal(1, snapshotConfig.maxSnapshots)
 
 		lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm := uint64(1), uint64(1), uint64(1), uint64(1)
-		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, configuration{})
+		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 		assert.Nil(err)
 
 		assert.NotEmpty(snapshot.Name())
@@ -91,7 +91,7 @@ func TestSnapshot(t *testing.T) {
 			// create the normal snapshot
 			var lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm uint64
 			lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm = uint64(1), uint64(1), uint64(1), uint64(1)
-			snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, configuration{})
+			snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 			assert.Nil(err)
 
 			assert.NotEmpty(snapshot.Name())
@@ -142,7 +142,7 @@ func TestSnapshot(t *testing.T) {
 		// create the normal snapshot
 		var lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm uint64
 		lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm = uint64(1), uint64(1), uint64(1), uint64(1)
-		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, configuration{})
+		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 		assert.Nil(err)
 
 		assert.NotEmpty(snapshot.Name())
@@ -165,7 +165,7 @@ func TestSnapshot(t *testing.T) {
 		assert.Equal(1, snapshotConfig.maxSnapshots)
 
 		lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm := uint64(1), uint64(1), uint64(1), uint64(1)
-		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, configuration{})
+		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 		assert.Nil(err)
 
 		assert.NotEmpty(snapshot.Name())
@@ -192,7 +192,7 @@ func TestSnapshot(t *testing.T) {
 		assert.Equal(1, snapshotConfig.maxSnapshots)
 
 		lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm := uint64(1), uint64(1), uint64(1), uint64(1)
-		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, configuration{})
+		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 		assert.Nil(err)
 
 		assert.NotEmpty(snapshot.Name())
@@ -229,7 +229,7 @@ func TestSnapshot(t *testing.T) {
 		assert.Equal(1, snapshotConfig.maxSnapshots)
 
 		lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm := uint64(1), uint64(1), uint64(1), uint64(1)
-		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, configuration{})
+		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 		assert.Nil(err)
 
 		assert.NotEmpty(snapshot.Name())
@@ -253,7 +253,7 @@ func TestSnapshot(t *testing.T) {
 		assert.Equal(1, snapshotWriterConfig.maxSnapshots)
 
 		lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm := uint64(1), uint64(1), uint64(1), uint64(1)
-		snapshot, err := snapshotWriterConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, configuration{})
+		snapshot, err := snapshotWriterConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 		assert.Nil(err)
 
 		assert.NotEmpty(snapshot.Name())

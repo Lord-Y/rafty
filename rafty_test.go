@@ -122,7 +122,7 @@ func TestRafty_newRafty(t *testing.T) {
 			IP:   net.ParseIP("127.0.0.1"),
 			Port: int(GRPCPort),
 		}
-		peers := []Peer{
+		initialPeers := []InitialPeer{
 			{
 				Address: "127.0.0.1",
 			},
@@ -137,8 +137,8 @@ func TestRafty_newRafty(t *testing.T) {
 		id := fmt.Sprintf("%d", addr.Port)
 		id = id[len(id)-2:]
 		options := Options{
-			Peers:   peers,
-			DataDir: filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
+			InitialPeers: initialPeers,
+			DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
 		}
 		storeOptions := BoltOptions{
 			DataDir: options.DataDir,
@@ -189,7 +189,7 @@ func TestRafty_restore(t *testing.T) {
 
 		s.currentTerm.Store(1)
 		peers, _ := s.getPeers()
-		newbie := peer{Address: "127.0.0.1:60000", ID: "xyz"}
+		newbie := Peer{Address: "127.0.0.1:60000", ID: "xyz"}
 		peers = append(peers, newbie)
 		encodedPeers := encodePeers(peers)
 		assert.NotNil(encodedPeers)
@@ -260,13 +260,13 @@ func TestRafty_stop(t *testing.T) {
 		s.isRunning.Store(true)
 		state := leader{rafty: s}
 		state.rafty.currentTerm.Store(1)
-		member := peer{
+		member := Peer{
 			ID:      s.configuration.ServerMembers[0].ID,
 			Address: s.configuration.ServerMembers[0].Address,
 		}
 		follower1Chan := make(chan struct{}, 1)
 		follower1 := &followerReplication{
-			peer: peer{
+			Peer: Peer{
 				ID:      s.configuration.ServerMembers[0].ID,
 				Address: s.configuration.ServerMembers[0].Address,
 			},
@@ -275,7 +275,7 @@ func TestRafty_stop(t *testing.T) {
 			replicationStopChan: follower1Chan,
 		}
 		follower2 := &followerReplication{
-			peer: peer{
+			Peer: Peer{
 				ID:      s.configuration.ServerMembers[1].ID,
 				Address: s.configuration.ServerMembers[1].Address,
 			},

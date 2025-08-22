@@ -48,7 +48,7 @@ func TestStateLeader(t *testing.T) {
 		state.leadershipTransferChan = make(chan RPCResponse, 1)
 
 		response := RPCResponse{
-			TargetPeer: peer{ID: "xxxx", Address: "127.0.0.1:60000", address: getNetAddress("127.0.0.1:60000")},
+			TargetPeer: Peer{ID: "xxxx", Address: "127.0.0.1:60000", address: getNetAddress("127.0.0.1:60000")},
 			Response:   RPCTimeoutNowResponse{},
 			Error:      ErrShutdown,
 		}
@@ -82,7 +82,7 @@ func TestStateLeader(t *testing.T) {
 		state.leadershipTransferChan = make(chan RPCResponse, 1)
 
 		response := RPCResponse{
-			TargetPeer: peer{ID: "xxxx", Address: "127.0.0.1:60000", address: getNetAddress("127.0.0.1:60000")},
+			TargetPeer: Peer{ID: "xxxx", Address: "127.0.0.1:60000", address: getNetAddress("127.0.0.1:60000")},
 			Response:   RPCTimeoutNowResponse{Success: false},
 		}
 		s.leadershipTransferInProgress.Store(true)

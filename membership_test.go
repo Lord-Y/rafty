@@ -47,7 +47,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		state := leader{rafty: s}
 		tests := []struct {
-			member              peer
+			member              Peer
 			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
@@ -56,13 +56,13 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:              peer{ID: "newnode"},
+				member:              Peer{ID: "newnode"},
 				expWaitToBePromoted: true,
 				expContained:        true,
 				expVerify:           true,
 			},
 			{
-				member:              peer{ID: "newnode", ReadReplica: true},
+				member:              Peer{ID: "newnode", ReadReplica: true},
 				expWaitToBePromoted: true,
 				expReadReplica:      true,
 				expContained:        true,
@@ -97,7 +97,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		state := leader{rafty: s}
 		tests := []struct {
-			member              peer
+			member              Peer
 			action              MembershipChange
 			expReadReplica      bool
 			expWaitToBePromoted bool
@@ -107,14 +107,14 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:              peer{ID: "newnode"},
+				member:              Peer{ID: "newnode"},
 				action:              Remove,
 				expWaitToBePromoted: false,
 				expContained:        false,
 				expVerify:           true,
 			},
 			{
-				member:              peer{ID: "newnode", ReadReplica: true},
+				member:              Peer{ID: "newnode", ReadReplica: true},
 				action:              ForceRemove,
 				expWaitToBePromoted: false,
 				expContained:        false,
@@ -155,7 +155,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		state := leader{rafty: s}
 		tests := []struct {
-			member              peer
+			member              Peer
 			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
@@ -164,14 +164,14 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:              peer{ID: "newnode"},
+				member:              Peer{ID: "newnode"},
 				expWaitToBePromoted: false,
 				expDecommissioning:  false,
 				expContained:        true,
 				expVerify:           true,
 			},
 			{
-				member:              peer{ID: "newnode", ReadReplica: true},
+				member:              Peer{ID: "newnode", ReadReplica: true},
 				expWaitToBePromoted: false,
 				expDecommissioning:  false,
 				expReadReplica:      true,
@@ -213,7 +213,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		state := leader{rafty: s}
 		tests := []struct {
-			member              peer
+			member              Peer
 			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
@@ -222,14 +222,14 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:              peer{ID: "newnode"},
+				member:              Peer{ID: "newnode"},
 				expWaitToBePromoted: false,
 				expDecommissioning:  true,
 				expContained:        true,
 				expVerify:           true,
 			},
 			{
-				member:              peer{ID: "newnode", ReadReplica: true},
+				member:              Peer{ID: "newnode", ReadReplica: true},
 				expWaitToBePromoted: false,
 				expDecommissioning:  true,
 				expReadReplica:      true,
@@ -276,7 +276,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		state := leader{rafty: s}
 		tests := []struct {
-			member              peer
+			member              Peer
 			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
@@ -285,11 +285,11 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:    peer{ID: "newnode"},
+				member:    Peer{ID: "newnode"},
 				expVerify: true,
 			},
 			{
-				member:    peer{ID: "newnode", ReadReplica: true},
+				member:    Peer{ID: "newnode", ReadReplica: true},
 				expVerify: true,
 			},
 		}
@@ -339,7 +339,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		state := leader{rafty: s}
 		tests := []struct {
 			action              MembershipChange
-			member              peer
+			member              Peer
 			memberid            int
 			expReadReplica      bool
 			expWaitToBePromoted bool
@@ -389,7 +389,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		state := leader{rafty: s}
 		peers, _ := s.getAllPeers()
 		tests := []struct {
-			member              peer
+			member              Peer
 			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
@@ -398,11 +398,11 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:    peer{ID: "newnode"},
+				member:    Peer{ID: "newnode"},
 				expVerify: true,
 			},
 			{
-				member:    peer{ID: "newnode", ReadReplica: true},
+				member:    Peer{ID: "newnode", ReadReplica: true},
 				expVerify: true,
 			},
 		}
@@ -438,7 +438,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 func TestMembership_changeRequest(t *testing.T) {
 	assert := assert.New(t)
 
-	member := peer{
+	member := Peer{
 		ID:      "newbie",
 		Address: "127.0.0.1:60000",
 	}
@@ -498,7 +498,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		state.rafty.currentTerm.Store(1)
 
 		follower := &followerReplication{
-			peer:                member,
+			Peer:                member,
 			rafty:               s,
 			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
 			replicationStopChan: make(chan struct{}, 1),
@@ -523,7 +523,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		state.rafty.currentTerm.Store(1)
 
 		follower := &followerReplication{
-			peer:                member,
+			Peer:                member,
 			rafty:               s,
 			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
 			replicationStopChan: make(chan struct{}, 1),
@@ -568,7 +568,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		state := leader{rafty: s}
 		state.rafty.currentTerm.Store(1)
 
-		member := peer{
+		member := Peer{
 			ID:      s.id,
 			Address: s.Address.String(),
 		}
@@ -590,12 +590,12 @@ func TestMembership_changeRequest(t *testing.T) {
 		state := leader{rafty: s}
 		state.rafty.currentTerm.Store(1)
 
-		member := peer{
+		member := Peer{
 			ID:      s.configuration.ServerMembers[0].ID,
 			Address: s.configuration.ServerMembers[0].Address,
 		}
 		follower1 := &followerReplication{
-			peer: peer{
+			Peer: Peer{
 				ID:      s.configuration.ServerMembers[0].ID,
 				Address: s.configuration.ServerMembers[0].Address,
 			},
@@ -604,7 +604,7 @@ func TestMembership_changeRequest(t *testing.T) {
 			replicationStopChan: make(chan struct{}, 1),
 		}
 		follower2 := &followerReplication{
-			peer: peer{
+			Peer: Peer{
 				ID:      s.configuration.ServerMembers[1].ID,
 				Address: s.configuration.ServerMembers[1].Address,
 			},
@@ -668,7 +668,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		s.isRunning.Store(true)
 		state := leader{rafty: s}
 		state.rafty.currentTerm.Store(1)
-		member := peer{
+		member := Peer{
 			ID:              s.configuration.ServerMembers[0].ID,
 			Address:         s.configuration.ServerMembers[0].Address,
 			Decommissioning: true,
@@ -688,12 +688,12 @@ func TestMembership_changeRequest(t *testing.T) {
 		s.isRunning.Store(true)
 		state := leader{rafty: s}
 		state.rafty.currentTerm.Store(1)
-		member := peer{
+		member := Peer{
 			ID:      s.configuration.ServerMembers[0].ID,
 			Address: s.configuration.ServerMembers[0].Address,
 		}
 		follower1 := &followerReplication{
-			peer: peer{
+			Peer: Peer{
 				ID:      s.configuration.ServerMembers[0].ID,
 				Address: s.configuration.ServerMembers[0].Address,
 				address: getNetAddress(s.configuration.ServerMembers[0].Address),
@@ -703,7 +703,7 @@ func TestMembership_changeRequest(t *testing.T) {
 			replicationStopChan: make(chan struct{}, 1),
 		}
 		follower2 := &followerReplication{
-			peer: peer{
+			Peer: Peer{
 				ID:      s.configuration.ServerMembers[1].ID,
 				Address: s.configuration.ServerMembers[1].Address,
 				address: getNetAddress(s.configuration.ServerMembers[1].Address),
@@ -738,7 +738,7 @@ func TestMembership_catchupNewMember(t *testing.T) {
 
 	state := leader{rafty: s}
 	state.rafty.currentTerm.Store(1)
-	member := peer{ID: "newbie", Address: "127.0.0.1:60000"}
+	member := Peer{ID: "newbie", Address: "127.0.0.1:60000"}
 
 	currentTerm := s.currentTerm.Load()
 	peers, _ := s.getAllPeers()
@@ -779,7 +779,7 @@ func TestMembership_catchupNewMember(t *testing.T) {
 	}
 
 	follower := &followerReplication{
-		peer:                member,
+		Peer:                member,
 		rafty:               s,
 		newEntryChan:        make(chan *onAppendEntriesRequest, 1),
 		replicationStopChan: make(chan struct{}, 1),
