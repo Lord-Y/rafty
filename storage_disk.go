@@ -237,7 +237,7 @@ func (r dataFile) restore() error {
 	for scanner.Scan() {
 		if len(scanner.Bytes()) > 0 {
 			var data *raftypb.LogEntry
-			if data, err = unmarshalBinaryWithChecksum(scanner.Bytes()); err != nil && err != io.EOF {
+			if data, err = UnmarshalBinaryWithChecksum(scanner.Bytes()); err != nil && err != io.EOF {
 				return err
 			}
 			if data != nil {
@@ -274,11 +274,11 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 
 	var err error
 	buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
-	if err = marshalBinary(logEntry, buffer); err != nil {
+	if err = MarshalBinary(logEntry, buffer); err != nil {
 		return err
 	}
 
-	if err = marshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
+	if err = MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
 		return err
 	}
 

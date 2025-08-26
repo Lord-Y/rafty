@@ -113,7 +113,7 @@ func (b *BoltStore) StoreLogs(logs []*logEntry) error {
 	for _, log := range logs {
 		key := encodeUint64ToBytes(log.Index)
 		value := new(bytes.Buffer)
-		if err := marshalBinary(log, value); err != nil {
+		if err := MarshalBinary(log, value); err != nil {
 			return err
 		}
 
@@ -139,7 +139,7 @@ func (b *BoltStore) GetLogByIndex(index uint64) (*logEntry, error) {
 			return ErrLogNotFound
 		}
 
-		entry, err := unmarshalBinary(value)
+		entry, err := UnmarshalBinary(value)
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func (b *BoltStore) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 			if decodeUint64ToBytes(k) > maxIndex {
 				return nil
 			}
-			entry, err := unmarshalBinary(v)
+			entry, err := UnmarshalBinary(v)
 			if err != nil {
 				return err
 			}
@@ -200,7 +200,7 @@ func (b *BoltStore) GetLastConfiguration() (*logEntry, error) {
 	err := b.db.View(func(tx *bolt.Tx) error {
 		cursor := tx.Bucket([]byte(bucketLogsName)).Cursor()
 		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
-			entry, err := unmarshalBinary(v)
+			entry, err := UnmarshalBinary(v)
 			if err != nil {
 				return err
 			}

@@ -66,7 +66,7 @@ func decodeCommand(data []byte) (Command, error) {
 }
 
 // marshalBinary permit to encode data in binary format
-func marshalBinary(entry *logEntry, w io.Writer) error {
+func MarshalBinary(entry *logEntry, w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, entry.FileFormat); err != nil {
 		return err
 	}
@@ -102,8 +102,8 @@ func marshalBinary(entry *logEntry, w io.Writer) error {
 	return nil
 }
 
-// unmarshalBinary permit to decode data in binary format
-func unmarshalBinary(data []byte) (*raftypb.LogEntry, error) {
+// UnmarshalBinary permit to decode data in binary format
+func UnmarshalBinary(data []byte) (*raftypb.LogEntry, error) {
 	var entry logEntry
 	buffer := bytes.NewBuffer(data)
 
@@ -153,9 +153,9 @@ func unmarshalBinary(data []byte) (*raftypb.LogEntry, error) {
 	return &logEntry, nil
 }
 
-// marshalBinaryWithChecksum permit to encode data in binary format
+// MarshalBinaryWithChecksum permit to encode data in binary format
 // with checksum before being written to disk
-func marshalBinaryWithChecksum(buffer *bytes.Buffer, w io.Writer) error {
+func MarshalBinaryWithChecksum(buffer *bytes.Buffer, w io.Writer) error {
 	checksum := crc32.ChecksumIEEE(buffer.Bytes())
 
 	if _, err := w.Write(buffer.Bytes()); err != nil {
@@ -169,9 +169,9 @@ func marshalBinaryWithChecksum(buffer *bytes.Buffer, w io.Writer) error {
 	return nil
 }
 
-// unmarshalBinaryWithChecksum permit to decode data in binary format
+// UnmarshalBinaryWithChecksum permit to decode data in binary format
 // by validating its checksum before moving further
-func unmarshalBinaryWithChecksum(data []byte) (entry *raftypb.LogEntry, err error) {
+func UnmarshalBinaryWithChecksum(data []byte) (entry *raftypb.LogEntry, err error) {
 	if len(data) < 4 {
 		return nil, ErrChecksumDataTooShort
 	}
@@ -183,7 +183,7 @@ func unmarshalBinaryWithChecksum(data []byte) (entry *raftypb.LogEntry, err erro
 		return nil, ErrChecksumMistmatch
 	}
 
-	return unmarshalBinary(body)
+	return UnmarshalBinary(body)
 }
 
 // encodePeers permits to encode peers and return bytes
@@ -204,10 +204,10 @@ func decodePeers(data []byte) (result []Peer, err error) {
 
 func encodeUint64ToBytes(value uint64) []byte {
 	buffer := make([]byte, 8)
-	binary.LittleEndian.PutUint64(buffer, value)
+	binary.BigEndian.PutUint64(buffer, value)
 	return buffer
 }
 
 func decodeUint64ToBytes(value []byte) uint64 {
-	return binary.LittleEndian.Uint64(value)
+	return binary.BigEndian.Uint64(value)
 }
