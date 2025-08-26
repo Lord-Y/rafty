@@ -36,3 +36,9 @@ func (r *Rafty) randomRPCTimeout(leader bool) time.Duration {
 	rd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	return time.Duration(min+rd.Intn(max-min)) * time.Millisecond * time.Duration(r.options.TimeMultiplier)
 }
+
+// randomTimeout will return a random timeout base on the
+// duration provided
+func randomTimeout(duration time.Duration) time.Duration {
+	return duration + time.Duration(rand.Int63())%duration
+}
