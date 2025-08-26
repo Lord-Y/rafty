@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -45,4 +46,11 @@ func TestTimers_randomRPCTimeout(t *testing.T) {
 	}()
 	assert.NotNil(s.randomRPCTimeout(true))
 	assert.NotNil(s.randomRPCTimeout(false))
+}
+
+func TestTimers_randomTimeout(t *testing.T) {
+	assert := assert.New(t)
+
+	x := time.Hour
+	assert.Greater(randomTimeout(x), x)
 }
