@@ -191,7 +191,7 @@ func TestLogs_update_entries_index(t *testing.T) {
 	assert.Nil(s.logStore.StoreLogs(makeLogEntry(entry)))
 
 	assert.Equal(entry.Term, s.lastLogTerm.Load())
-	assert.Equal(uint64(0), s.lastLogIndex.Load())
+	assert.Equal(uint64(1), s.lastLogIndex.Load())
 }
 
 func TestLogs_make(t *testing.T) {

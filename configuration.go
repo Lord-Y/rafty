@@ -34,5 +34,5 @@ type Peer struct {
 // Configuration hold configuration related to current server
 type Configuration struct {
 	// ServerMembers hold all current members of the cluster
-	ServerMembers []Peer
+	ServerMembers []Peer `json:"serverMembers"`
 }

@@ -19,6 +19,8 @@ var (
 	snapshotTmpSuffix    string = ".tmp"
 )
 
+// SnapshotConfig return the config that will be use
+// to manipulate snapshots
 type SnapshotConfig struct {
 	// parentDir is the directory that contain all snapshots
 	parentDir string
@@ -33,6 +35,7 @@ type SnapshotConfig struct {
 	maxSnapshots int
 }
 
+// SnapshotMetadata hold the snapshot metadata
 type SnapshotMetadata struct {
 	// LastIncludedIndex is the last index included in the snapshot
 	LastIncludedIndex uint64 `json:"lastIncludedIndex"`
@@ -59,6 +62,21 @@ type SnapshotMetadata struct {
 	file *os.File
 }
 
+// SnapshotStore is an interface that allow end user to
+// read or take snapshots
+type SnapshotStore interface {
+	// PrepareSnapshotWriter will prepare the requirements with the provided parameters to write a snapshot
+	PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm uint64, currentConfig Configuration) (Snapshot, error)
+
+	// PrepareSnapshotReader will return the appropriate config to read
+	// the snapshot name
+	PrepareSnapshotReader(name string) (Snapshot, error)
+
+	// List will return the list of snapshots
+	List() []*SnapshotMetadata
+}
+
+// SnapshotManager allow us to manage snapshots
 type SnapshotManager struct {
 	io.ReadWriteSeeker
 
@@ -75,6 +93,7 @@ type SnapshotManager struct {
 	buffer *bufio.Writer
 }
 
+// Snapshot is that implements SnapshotManager
 type Snapshot interface {
 	io.ReadWriteSeeker
 	io.Closer
@@ -124,6 +143,7 @@ func (s *SnapshotConfig) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTe
 		LastIncludedTerm:       lastIncludedTerm,
 		LastAppliedConfigIndex: lastAppliedConfigTerm,
 		SnapshotName:           snapshotName,
+		Configuration:          currentConfig,
 	}
 
 	metadataFile := filepath.Join(s.tmpDir, snapshotMetadataFile)
@@ -149,7 +169,7 @@ func (s *SnapshotConfig) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTe
 	return snapshotManager, nil
 }
 
-// PrepareSnapshotReader will return the appropriate config allowing to read
+// PrepareSnapshotReader will return the appropriate config to read
 // the snapshot name
 func (s *SnapshotConfig) PrepareSnapshotReader(name string) (Snapshot, error) {
 	s.dataDir = filepath.Join(s.parentDir, name)

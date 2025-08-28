@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -20,6 +23,7 @@ var clusterSize = flag.Uint("cluster-size", 3, "cluster size")
 var autoSetMinimumClusterSize = flag.Bool("auto-set-minimum-cluster-size", false, "auto set minimum cluster size")
 var maxUptime = flag.Uint("max-uptime", 3, "max uptime in minutes")
 var restartNode = flag.Bool("restart-node", false, "restart first node")
+var snapshotInterval = flag.Uint("snapshot-interval", 30, "Snapshot interval in seconds")
 
 type clusterConfig struct {
 	ipAddress                 string
@@ -29,6 +33,7 @@ type clusterConfig struct {
 	restartNode               bool
 	cluster                   []*rafty.Rafty
 	TimeMultiplier            uint
+	SnapshotInterval          time.Duration
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
@@ -71,13 +76,15 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 					DataDir:            filepath.Join(os.TempDir(), "rafty_test", "cluster-auto", id),
 					TimeMultiplier:     2,
 					MinimumClusterSize: minimumClusterSize,
+					SnapshotInterval:   time.Duration(*snapshotInterval) * time.Second,
 				}
 				storeOptions := rafty.BoltOptions{
 					DataDir: options.DataDir,
 					Options: bolt.DefaultOptions,
 				}
 				store, _ := rafty.NewBoltStorage(storeOptions)
-				server, err = rafty.NewRafty(addr, id, options, store)
+				fsm := NewSnapshotState(store)
+				server, err = rafty.NewRafty(addr, id, options, store, fsm, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -168,4 +175,64 @@ func main() {
 	}
 
 	go cc.startCluster()
+}
+
+// SnapshotState is a struct holding a set of configs needed to take a snapshot.
+// This can be used by fsm (finite state machine) as an example.
+// See state_machine_test.go
+type SnapshotState struct {
+	// LogStore is the store holding the data
+	logStore rafty.Store
+}
+
+func NewSnapshotState(logStore rafty.Store) *SnapshotState {
+	return &SnapshotState{
+		logStore: logStore,
+	}
+}
+
+func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
+	var err error
+	firstIndex, err := s.logStore.FirstIndex()
+	if err != nil && !errors.Is(err, rafty.ErrKeyNotFound) {
+		return err
+	}
+
+	lastIndex, err := s.logStore.LastIndex()
+	if err != nil && !errors.Is(err, rafty.ErrKeyNotFound) {
+		return err
+	}
+
+	if firstIndex != lastIndex {
+		// 64 here will do nothing except telling us a snapshot is needed
+		// which we are building
+		response := s.logStore.GetLogsByRange(firstIndex, lastIndex, 64)
+		if response.Err != nil {
+			return err
+		}
+		data := new(bytes.Buffer)
+		for _, logEntry := range response.Logs {
+			var err error
+			buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
+			if err = rafty.MarshalBinary(logEntry, buffer); err != nil {
+				return err
+			}
+
+			if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
+				return err
+			}
+			if _, err = data.Write(bufferChecksum.Bytes()); err != nil {
+				return err
+			}
+		}
+		// writting data to the file handler
+		if _, err = snapshotWriter.Write(data.Bytes()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
+	return nil
 }

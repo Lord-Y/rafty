@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -26,6 +29,7 @@ var maxCommands = flag.Uint("max-commands", 10, "Max command to submit")
 var prevoteDisabled = flag.Bool("prevote-disabled", false, "if true pre vote will be disabled")
 var readReplica = flag.Bool("read-replica", false, "only when last node for membership")
 var shutdownOnRemove = flag.Bool("shutdown-on-remove", false, "only when last node for membership")
+var snapshotInterval = flag.Uint("snapshot-interval", 30, "Snapshot interval in seconds")
 
 func main() {
 	flag.Parse()
@@ -73,10 +77,11 @@ func main() {
 	id = fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := rafty.Options{
-		InitialPeers:    initialPeers,
-		DataDir:         filepath.Join(os.TempDir(), "rafty_test", "cluster-3-nodes", id),
-		TimeMultiplier:  *timeMultiplier,
-		PrevoteDisabled: *prevoteDisabled,
+		InitialPeers:     initialPeers,
+		DataDir:          filepath.Join(os.TempDir(), "rafty_test", "cluster-3-nodes", id),
+		TimeMultiplier:   *timeMultiplier,
+		PrevoteDisabled:  *prevoteDisabled,
+		SnapshotInterval: time.Duration(*snapshotInterval) * time.Second,
 	}
 	if *nodeId == 3 {
 		if *readReplica {
@@ -91,7 +96,8 @@ func main() {
 		Options: bolt.DefaultOptions,
 	}
 	store, _ := rafty.NewBoltStorage(storeOptions)
-	s, _ := rafty.NewRafty(addr, id, options, store)
+	fsm := NewSnapshotState(store)
+	s, _ := rafty.NewRafty(addr, id, options, store, fsm, nil)
 
 	if *submitCommands {
 		go func() {
@@ -128,7 +134,8 @@ func main() {
 					s = nil
 					var err error
 					store, _ := rafty.NewBoltStorage(storeOptions)
-					if s, err = rafty.NewRafty(addr, id, options, store); err != nil {
+					fsm := NewSnapshotState(store)
+					if s, err = rafty.NewRafty(addr, id, options, store, fsm, nil); err != nil {
 						s.Logger.Fatal().Err(err).Msg("Fail to create cluster config")
 					}
 					if err := s.Start(); err != nil {
@@ -149,4 +156,64 @@ func main() {
 	if err := s.Start(); err != nil {
 		s.Logger.Fatal().Err(err).Msg("Fail to start node")
 	}
+}
+
+// SnapshotState is a struct holding a set of configs needed to take a snapshot.
+// This can be used by fsm (finite state machine) as an example.
+// See state_machine_test.go
+type SnapshotState struct {
+	// LogStore is the store holding the data
+	logStore rafty.Store
+}
+
+func NewSnapshotState(logStore rafty.Store) *SnapshotState {
+	return &SnapshotState{
+		logStore: logStore,
+	}
+}
+
+func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
+	var err error
+	firstIndex, err := s.logStore.FirstIndex()
+	if err != nil && !errors.Is(err, rafty.ErrKeyNotFound) {
+		return err
+	}
+
+	lastIndex, err := s.logStore.LastIndex()
+	if err != nil && !errors.Is(err, rafty.ErrKeyNotFound) {
+		return err
+	}
+
+	if firstIndex != lastIndex {
+		// 64 here will do nothing except telling us a snapshot is needed
+		// which we are building
+		response := s.logStore.GetLogsByRange(firstIndex, lastIndex, 64)
+		if response.Err != nil {
+			return err
+		}
+		data := new(bytes.Buffer)
+		for _, logEntry := range response.Logs {
+			var err error
+			buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
+			if err = rafty.MarshalBinary(logEntry, buffer); err != nil {
+				return err
+			}
+
+			if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
+				return err
+			}
+			if _, err = data.Write(bufferChecksum.Bytes()); err != nil {
+				return err
+			}
+		}
+		// writting data to the file handler
+		if _, err = snapshotWriter.Write(data.Bytes()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
+	return nil
 }

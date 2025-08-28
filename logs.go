@@ -350,14 +350,11 @@ func (r *Rafty) updateEntriesIndex(entries []*raftypb.LogEntry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	lastLogIndex, lastLogTerm, updated := uint64(0), uint64(0), false
-	for index, entry := range entries {
-		lastLogIndex = r.lastLogIndex.Load() + uint64(index)
+	lastLogIndex, lastLogTerm := uint64(0), uint64(0)
+	for _, entry := range entries {
+		lastLogIndex = r.lastLogIndex.Load() + 1
 		entry.Index = lastLogIndex
 		lastLogTerm = entry.Term
-		updated = true
-	}
-	if updated {
 		r.lastLogIndex.Store(lastLogIndex)
 		r.lastLogTerm.Store(lastLogTerm)
 	}

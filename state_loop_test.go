@@ -2,10 +2,13 @@ package rafty
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
+	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -148,5 +151,86 @@ func TestStateLoop_runAsLeader(t *testing.T) {
 
 		data := <-responseChan
 		assert.Equal(nil, data.Error)
+	})
+}
+
+func TestStateLoop_snapshotLoop(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("no_snapshot", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.fillIDs()
+
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.timer = time.NewTicker(s.randomElectionTimeout())
+		s.currentTerm.Store(1)
+		s.options.SnapshotInterval = 2 * time.Second
+		go s.snapshotLoop()
+		time.Sleep(3 * time.Second)
+		s.stopCtx()
+	})
+
+	t.Run("snapshot_taken", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.fillIDs()
+
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.timer = time.NewTicker(s.randomElectionTimeout())
+		s.currentTerm.Store(1)
+		s.options.SnapshotInterval = 2 * time.Second
+
+		for index := range 100 {
+			var entries []*raftypb.LogEntry
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		}
+		go s.snapshotLoop()
+		time.Sleep(3 * time.Second)
+		s.stopCtx()
+	})
+
+	t.Run("snapshot_fail", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.fillIDs()
+
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.timer = time.NewTicker(s.randomElectionTimeout())
+		s.currentTerm.Store(1)
+		s.options.SnapshotInterval = 2 * time.Second
+
+		snapshotTestHook = func() error { return errors.New("test error") }
+		for index := range 100 {
+			var entries []*raftypb.LogEntry
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		}
+		go s.snapshotLoop()
+		time.Sleep(3 * time.Second)
+		s.stopCtx()
 	})
 }

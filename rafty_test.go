@@ -99,12 +99,14 @@ func TestRafty_newRafty(t *testing.T) {
 			if tc.DataDir == "" {
 				store, err := NewBoltStorage(storeOptions)
 				assert.ErrorIs(err, ErrDataDirRequired)
-				_, err = NewRafty(address, tc.id, options, store)
+				fsm := NewSnapshotState(store)
+				_, err = NewRafty(address, tc.id, options, store, fsm, nil)
 				assert.ErrorIs(err, ErrDataDirRequired)
 			} else {
 				store, err := NewBoltStorage(storeOptions)
 				assert.Nil(err)
-				r, err := NewRafty(address, tc.id, options, store)
+				fsm := NewSnapshotState(store)
+				r, err := NewRafty(address, tc.id, options, store, fsm, nil)
 				assert.Nil(err)
 				assert.Equal(tc.TimeMultiplierExpected, r.options.TimeMultiplier)
 				assert.Equal(tc.MinimumClusterSizeExpected, r.options.MinimumClusterSize)
@@ -158,7 +160,8 @@ func TestRafty_newRafty(t *testing.T) {
 				fmt.Println("Recovered. Error:\n", r)
 			}
 		}()
-		_, _ = NewRafty(addr, id, options, store)
+		fsm := NewSnapshotState(store)
+		_, _ = NewRafty(addr, id, options, store, fsm, nil)
 	})
 
 	t.Run("start_panic", func(t *testing.T) {
@@ -241,7 +244,8 @@ func TestRafty_restore(t *testing.T) {
 		}
 		store, err := NewBoltStorage(storeOptions)
 		assert.Nil(err)
-		_, err = NewRafty(s.Address, s.id, options, store)
+		fsm := NewSnapshotState(store)
+		_, err = NewRafty(s.Address, s.id, options, store, fsm, nil)
 		assert.Error(err)
 		assert.Nil(store.Close())
 	})
@@ -349,10 +353,10 @@ func TestRafty_start3Nodes_normal(t *testing.T) {
 	cc.testClustering(t)
 }
 
-func TestRafty_start5Nodes(t *testing.T) {
+func TestRafty_start5Nodes_normal(t *testing.T) {
 	cc := clusterConfig{
 		t:                         t,
-		testName:                  "5_nodes",
+		testName:                  "5_nodes_normal",
 		clusterSize:               5,
 		delayLastNode:             true,
 		delayLastNodeTimeDuration: time.Duration(30) * time.Second,
@@ -483,6 +487,21 @@ func TestRafty_start3Nodes_bootstrap_cluster(t *testing.T) {
 		// runTestInParallel: true,
 		portStartRange:   41000,
 		bootstrapCluster: true,
+	}
+	cc.assert = assert.New(t)
+	cc.testClustering(t)
+}
+
+func TestRafty_start3Nodes_snapshot(t *testing.T) {
+	cc := clusterConfig{
+		t:           t,
+		testName:    "3_nodes_snapshot",
+		clusterSize: 3,
+		// runTestInParallel: true,
+		portStartRange:    42000,
+		bootstrapCluster:  true,
+		snapshotInterval:  30 * time.Second,
+		snapshotThreshold: 2,
 	}
 	cc.assert = assert.New(t)
 	cc.testClustering(t)
