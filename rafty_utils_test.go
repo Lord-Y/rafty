@@ -91,7 +91,8 @@ func singleServerClusterSetup(address string) *Rafty {
 		log.Fatal(err)
 	}
 	fsm := NewSnapshotState(store)
-	s, err := NewRafty(addr, id, options, store, fsm, nil)
+	snapshot := NewSnapshot(options.DataDir, 3) // only forced here for more unit testing coverage
+	s, err := NewRafty(addr, id, options, store, fsm, snapshot)
 	if err != nil {
 		log.Fatal(err)
 	}
