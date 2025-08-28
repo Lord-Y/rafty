@@ -285,6 +285,65 @@ func TestSnapshot(t *testing.T) {
 		assert.Error(err)
 		assert.Nil(reader)
 	})
+
+	t.Run("readMetadata_error_read_metadata", func(t *testing.T) {
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		assert.Nil(os.MkdirAll(x, 0750))
+		dataDir := filepath.Join(x, "readMetadata_error_read_metadata")
+		file, err := os.Create(dataDir)
+		assert.Nil(err)
+		assert.Nil(file.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(x))
+		}()
+
+		snapshotReaderConfig := NewSnapshot(x, 0)
+		_, err = snapshotReaderConfig.readMetadata(file)
+		assert.Nil(err)
+		reader, err := snapshotReaderConfig.PrepareSnapshotReader("xyz")
+		assert.Error(err)
+		assert.Nil(reader)
+	})
+
+	t.Run("readMetadata_error_unmarshal", func(t *testing.T) {
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		assert.Nil(os.MkdirAll(x, 0750))
+		dataDir := filepath.Join(x, "readMetadata_error_unmarshal")
+		file, err := os.Create(dataDir)
+		assert.Nil(err)
+		_, err = file.Write([]byte("a=b"))
+		assert.Nil(err)
+		defer func() {
+			assert.Nil(file.Close())
+			assert.Nil(os.RemoveAll(x))
+		}()
+
+		snapshotReaderConfig := NewSnapshot(x, 0)
+		reader, err := snapshotReaderConfig.readMetadata(file)
+		assert.Error(err)
+		assert.Nil(reader)
+	})
+
+	t.Run("readMetadata_success", func(t *testing.T) {
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		assert.Nil(os.MkdirAll(x, 0750))
+		dataDir := filepath.Join(x, "readMetadata_success")
+		file, err := os.Create(dataDir)
+		assert.Nil(err)
+		_, err = file.Write([]byte(`{"lastIncludedIndex":1}`))
+		assert.Nil(file.Sync())
+		assert.Nil(err)
+		_, err = file.Seek(0, 0)
+		assert.Nil(err)
+		defer func() {
+			assert.Nil(file.Close())
+			assert.Nil(os.RemoveAll(x))
+		}()
+
+		snapshotReaderConfig := NewSnapshot(x, 0)
+		_, err = snapshotReaderConfig.readMetadata(file)
+		assert.Nil(err)
+	})
 }
 
 func copyDir(src string, dest string) error {

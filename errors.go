@@ -28,4 +28,5 @@ var (
 	ErrKeyNotFound                           = errors.New("key not found")
 	ErrStoreClosed                           = errors.New("store closed")
 	ErrDataDirRequired                       = errors.New("data dir cannot be empty")
+	ErrNoSnapshotToTake                      = errors.New("no snapshot to take")
 )

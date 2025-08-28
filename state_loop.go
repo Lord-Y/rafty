@@ -1,5 +1,10 @@
 package rafty
 
+import (
+	"errors"
+	"time"
+)
+
 // commonLoop handle all request that all
 // nodes have in common
 func (r *Rafty) commonLoop() {
@@ -268,6 +273,39 @@ func (r *Rafty) runAsLeader() {
 		case data, ok := <-r.rpcMembershipChangeRequestChan:
 			if ok {
 				state.handleSendMembershipChangeRequest(data)
+			}
+		}
+	}
+}
+
+// snapshotLoop is the loop in charge of snapshots
+func (r *Rafty) snapshotLoop() {
+	r.wg.Add(1)
+	defer r.wg.Done()
+
+	for {
+		select {
+		// exiting for loop
+		case <-r.quitCtx.Done():
+			return
+
+		case <-time.After(randomTimeout(r.options.SnapshotInterval)):
+			snapshotName, err := r.takeSnapshot()
+			if err != nil {
+				if errors.Is(err, ErrNoSnapshotToTake) {
+					r.Logger.Info().
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Msgf("No snapshot to take")
+				} else {
+					r.Logger.Error().Err(err).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("snapshotName", snapshotName).
+						Msgf("Fail to take snapshot")
+				}
 			}
 		}
 	}

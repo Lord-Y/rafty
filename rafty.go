@@ -216,6 +216,17 @@ type Options struct {
 	// BootstrapCluster indicate if the cluster must be bootstrapped before
 	// proceeding to normal cluster operations
 	BootstrapCluster bool
+
+	// SnapshotInterval is the interval at which a snapshot will be taken.
+	// It will be randomize with this minimum value in order to prevent
+	// all nodes to take a snapshot at the same time
+	// Default to 1h
+	SnapshotInterval time.Duration
+
+	// SnapshotThreshold is the threshold that must be reached between LastIncluedIndex and new logs before taking a snapshot.
+	// It prevent to take snapshots to frequently.
+	// Default to 64
+	SnapshotThreshold uint64
 }
 
 // Rafty is a struct representing the raft requirements
@@ -378,8 +389,23 @@ type Rafty struct {
 	matchIndex atomic.Uint64
 
 	// logs allow us to manipulate logs
-	logs     logs
+	logs logs
+
+	// logStore is long term storage backend of raft
 	logStore Store
+
+	// snapshot hold the configuration to manage snapshots
+	snapshot SnapshotStore
+
+	// lastIncludedIndex is the index included in the last snapshot
+	lastIncludedIndex atomic.Uint64
+
+	// lastIncludedTerm is the term linked to lastIncludedIndex
+	lastIncludedTerm atomic.Uint64
+
+	// StateMachine is an interface allowing clients
+	// to interact with the raft cluster
+	fsm StateMachine
 
 	// configuration hold server members found on disk
 	// If empty, it will be equal to Peers list
@@ -430,7 +456,7 @@ type Rafty struct {
 
 // NewRafty instantiate rafty with default configuration
 // with server address and its id
-func NewRafty(address net.TCPAddr, id string, options Options, store Store) (*Rafty, error) {
+func NewRafty(address net.TCPAddr, id string, options Options, store Store, fsm StateMachine, snapshot SnapshotStore) (*Rafty, error) {
 	r := &Rafty{
 		rpcPreVoteRequestChan:                make(chan RPCRequest),
 		rpcVoteRequestChan:                   make(chan RPCRequest),
@@ -491,6 +517,14 @@ func NewRafty(address net.TCPAddr, id string, options Options, store Store) (*Ra
 		options.ForceStopTimeout = 60 * time.Second
 	}
 
+	if options.SnapshotInterval == 0 || options.SnapshotInterval <= 10*time.Second {
+		options.SnapshotInterval = time.Hour
+	}
+
+	if options.SnapshotThreshold == 0 {
+		options.SnapshotThreshold = 64
+	}
+
 	if options.DataDir == "" {
 		return nil, ErrDataDirRequired
 	}
@@ -526,6 +560,13 @@ func NewRafty(address net.TCPAddr, id string, options Options, store Store) (*Ra
 	r.quitCtx, r.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	r.logStore = store
+	r.fsm = fsm
+	if snapshot == nil {
+		r.snapshot = NewSnapshot(r.options.DataDir, 3)
+	} else {
+		r.snapshot = snapshot
+	}
+
 	metadata, err := store.GetMetadata()
 	if err != nil && err != ErrKeyNotFound {
 		return nil, err
@@ -616,6 +657,7 @@ func (r *Rafty) start() {
 		r.startClusterWithMinimumSize()
 	}
 
+	go r.snapshotLoop()
 	r.stateLoop()
 }
 
@@ -735,6 +777,8 @@ func (r *Rafty) buildMetadata() []byte {
 		Configuration: Configuration{
 			ServerMembers: peers,
 		},
+		LastIncludedIndex: r.lastIncludedIndex.Load(),
+		LastIncludedTerm:  r.lastIncludedTerm.Load(),
 	}
 
 	result, _ := json.Marshal(data)
@@ -756,6 +800,8 @@ func (r *Rafty) restore(result []byte) error {
 		r.lastApplied.Store(data.LastApplied)
 		r.lastAppliedConfigIndex.Store(data.LastAppliedConfigIndex)
 		r.lastAppliedConfigTerm.Store(data.LastAppliedConfigTerm)
+		r.lastIncludedIndex.Store(data.LastIncludedIndex)
+		r.lastIncludedTerm.Store(data.LastIncludedTerm)
 		if r.options.BootstrapCluster && !r.isBootstrapped.Load() && data.LastAppliedConfigIndex > 0 {
 			r.isBootstrapped.Store(true)
 		}

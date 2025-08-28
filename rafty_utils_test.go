@@ -58,7 +58,8 @@ func basicNodeSetup() *Rafty {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s, err := NewRafty(addr, id, options, store)
+	fsm := NewSnapshotState(store)
+	s, err := NewRafty(addr, id, options, store, fsm, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -89,7 +90,8 @@ func singleServerClusterSetup(address string) *Rafty {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s, err := NewRafty(addr, id, options, store)
+	fsm := NewSnapshotState(store)
+	s, err := NewRafty(addr, id, options, store, fsm, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -116,6 +118,8 @@ type clusterConfig struct {
 	isSingleServerCluster     bool
 	bootstrapCluster          bool
 	mu                        sync.Mutex
+	snapshotInterval          time.Duration
+	snapshotThreshold         uint64
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
@@ -145,7 +149,8 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		}
 		store, err := NewBoltStorage(storeOptions)
 		cc.assert.Nil(err)
-		server, err := NewRafty(addr, id, options, store)
+		fsm := NewSnapshotState(store)
+		server, err := NewRafty(addr, id, options, store, fsm, nil)
 		cc.assert.Nil(err)
 		cluster = append(cluster, server)
 		return
@@ -169,6 +174,8 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		options.PrevoteDisabled = cc.prevoteDisabled
 		options.TimeMultiplier = cc.timeMultiplier
 		options.BootstrapCluster = cc.bootstrapCluster
+		options.SnapshotInterval = cc.snapshotInterval
+		options.SnapshotThreshold = cc.snapshotThreshold
 		if cc.autoSetMinimumClusterSize {
 			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.readReplicaCount
 		}
@@ -212,7 +219,8 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 					id = fmt.Sprintf("%d", addr.Port)
 					id = id[len(id)-2:]
 				}
-				server, err = NewRafty(addr, id, options, store)
+				fsm := NewSnapshotState(store)
+				server, err = NewRafty(addr, id, options, store, fsm, nil)
 				cc.assert.Nil(err)
 			}
 		}
@@ -246,7 +254,8 @@ func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leave
 	}
 	store, err := NewBoltStorage(storeOptions)
 	cc.assert.Nil(err)
-	r, err := NewRafty(addr, id, options, store)
+	fsm := NewSnapshotState(store)
+	r, err := NewRafty(addr, id, options, store, fsm, nil)
 	cc.assert.Nil(err)
 	cc.newNodes = append(cc.newNodes, r)
 }
@@ -389,7 +398,8 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 				}
 				store, err := NewBoltStorage(storeOptions)
 				cc.assert.Nil(err)
-				node, err := NewRafty(address, id, options, store)
+				fsm := NewSnapshotState(store)
+				node, err := NewRafty(address, id, options, store, fsm, nil)
 				cc.assert.Nil(err)
 				cc.cluster[nodeId] = node
 				cc.mu.Unlock()

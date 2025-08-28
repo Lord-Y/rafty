@@ -808,7 +808,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
 		id := 0
 		idx := fmt.Sprintf("%d", id)
-		entries := []*raftypb.LogEntry{{Term: 1}}
+		entries := []*raftypb.LogEntry{{Index: 1, Term: 1}}
 		s.updateEntriesIndex(entries)
 		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
@@ -820,7 +820,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 				LeaderId:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              2,
-				PrevLogIndex:      0,
+				PrevLogIndex:      1,
 				PrevLogTerm:       1,
 				LeaderCommitIndex: 2,
 				Entries: []*raftypb.LogEntry{
@@ -900,7 +900,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		id := 0
 		idx := fmt.Sprintf("%d", id)
 		now := time.Now().Unix()
-		entries := []*raftypb.LogEntry{{Term: 1, Timestamp: uint32(now)}, {Term: 1, Timestamp: uint32(now), Index: 1}}
+		entries := []*raftypb.LogEntry{{Index: 1, Term: 1, Timestamp: uint32(now)}, {Term: 1, Timestamp: uint32(now), Index: 2}}
 		s.updateEntriesIndex(entries)
 		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
@@ -912,18 +912,19 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 				LeaderId:          idx,
 				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
 				Term:              1,
-				PrevLogIndex:      1,
+				PrevLogIndex:      2,
 				PrevLogTerm:       1,
 				LeaderCommitIndex: 2,
 				Entries: []*raftypb.LogEntry{
 					{
 						Term:      1,
 						Timestamp: uint32(now),
+						Index:     3,
 					},
 					{
 						Term:      1,
 						Timestamp: uint32(now),
-						Index:     1,
+						Index:     4,
 					},
 				},
 			},

@@ -44,6 +44,12 @@ type metadata struct {
 
 	// Configuration hold server members
 	Configuration Configuration `json:"configuration"`
+
+	// LastIncludedIndex is the index included in the last snapshot
+	LastIncludedIndex uint64 `json:"lastIncludedIndex"`
+
+	// lastIncludedTerm is the term linked to LastSnapshotIndex
+	LastIncludedTerm uint64 `json:"lastIncludedTerm"`
 }
 
 // metaFile hold all requirements to manage file metadata
