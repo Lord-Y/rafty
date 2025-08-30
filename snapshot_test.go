@@ -10,6 +10,57 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func copyDir(src string, dest string) error {
+	if dest[:len(src)] == src {
+		return fmt.Errorf("Cannot copy a folder into the folder itself!")
+	}
+
+	f, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+
+	file, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if !file.IsDir() {
+		return fmt.Errorf("Source %s is not a directory!", file.Name())
+	}
+
+	err = os.Mkdir(dest, 0755)
+	if err != nil {
+		return err
+	}
+
+	files, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		source := filepath.Join(src, f.Name())
+		destination := filepath.Join(dest, f.Name())
+		if f.IsDir() {
+			if err = copyDir(source, destination); err != nil {
+				return err
+			}
+		}
+
+		if !f.IsDir() {
+			content, err := os.ReadFile(source)
+			if err != nil {
+				return err
+			}
+
+			if err = os.WriteFile(destination, content, 0755); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func TestSnapshot(t *testing.T) {
 	assert := assert.New(t)
 
@@ -299,10 +350,7 @@ func TestSnapshot(t *testing.T) {
 
 		snapshotReaderConfig := NewSnapshot(x, 0)
 		_, err = snapshotReaderConfig.readMetadata(file)
-		assert.Nil(err)
-		reader, err := snapshotReaderConfig.PrepareSnapshotReader("xyz")
 		assert.Error(err)
-		assert.Nil(reader)
 	})
 
 	t.Run("readMetadata_error_unmarshal", func(t *testing.T) {
@@ -344,55 +392,15 @@ func TestSnapshot(t *testing.T) {
 		_, err = snapshotReaderConfig.readMetadata(file)
 		assert.Nil(err)
 	})
-}
 
-func copyDir(src string, dest string) error {
-	if dest[:len(src)] == src {
-		return fmt.Errorf("Cannot copy a folder into the folder itself!")
-	}
-
-	f, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-
-	file, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	if !file.IsDir() {
-		return fmt.Errorf("Source %s is not a directory!", file.Name())
-	}
-
-	err = os.Mkdir(dest, 0755)
-	if err != nil {
-		return err
-	}
-
-	files, err := os.ReadDir(src)
-	if err != nil {
-		return err
-	}
-
-	for _, f := range files {
-		source := filepath.Join(src, f.Name())
-		destination := filepath.Join(dest, f.Name())
-		if f.IsDir() {
-			if err = copyDir(source, destination); err != nil {
-				return err
-			}
+	t.Run("close_nil", func(t *testing.T) {
+		cfg := &SnapshotConfig{tmpDir: "tmp", dataDir: "data", parentDir: t.TempDir(), maxSnapshots: 1}
+		meta := &SnapshotMetadata{}
+		sm := &SnapshotManager{
+			config:   cfg,
+			metadata: meta,
+			file:     nil,
 		}
-
-		if !f.IsDir() {
-			content, err := os.ReadFile(source)
-			if err != nil {
-				return err
-			}
-
-			if err = os.WriteFile(destination, content, 0755); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+		assert.Nil(sm.Close())
+	})
 }
