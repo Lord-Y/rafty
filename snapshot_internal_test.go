@@ -1,13 +1,73 @@
 package rafty
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 )
+
+type mockSnapshot struct {
+	discardCalled int
+}
+
+type mockSnapshotter struct {
+	prepareErr error
+	snap       *mockSnapshot
+}
+
+func (m *mockSnapshot) Name() string { return "mock" }
+func (m *mockSnapshot) Discard() error {
+	m.discardCalled++
+	return errors.New("discard error")
+}
+func (m *mockSnapshot) Close() error { return errors.New("close error") }
+func (m *mockSnapshot) Metadata() SnapshotMetadata {
+	return SnapshotMetadata{}
+}
+func (m *mockSnapshot) Read(p []byte) (n int, err error) {
+	return 0, errors.New("read error")
+}
+func (m *mockSnapshot) Reader() (bytes.Buffer, error) {
+	var x bytes.Buffer
+	return x, errors.New("buffer error")
+}
+
+func (m *mockSnapshot) Seek(offset int64, whence int) (int64, error) {
+	return 0, errors.New("write error")
+}
+func (m *mockSnapshot) Write(p []byte) (n int, err error) {
+	return 0, errors.New("seek error")
+}
+
+func (m *mockSnapshotter) List() (l []*SnapshotMetadata) {
+	return
+}
+
+func (m *mockSnapshotter) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm uint64, currentConfig Configuration) (Snapshot, error) {
+	return m.snap, m.prepareErr
+}
+
+func (m *mockSnapshotter) PrepareSnapshotReader(name string) (Snapshot, error) {
+	return nil, errors.New("fail to prepare snapshot reader")
+}
+
+type mockFSM struct {
+	snapshotErr error
+}
+
+func (m *mockFSM) Snapshot(w io.Writer) error {
+	return m.snapshotErr
+}
+
+func (m *mockFSM) Restore(io.Reader) error {
+	return m.snapshotErr
+}
 
 func TestSnapshot_internal(t *testing.T) {
 	assert := assert.New(t)
@@ -99,5 +159,58 @@ func TestSnapshot_internal(t *testing.T) {
 		snaphoName, err := s.takeSnapshot()
 		assert.Nil(err)
 		assert.NotNil(snaphoName)
+	})
+
+	t.Run("takeSnapshot_snapshotHook", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+
+		snapshotTestHook = func() error { return errors.New("test error") }
+		defer func() { snapshotTestHook = nil }()
+		_, err := s.takeSnapshot()
+		assert.Error(err)
+	})
+
+	t.Run("takeSnapshot_discard_error", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+
+		for index := range 100 {
+			var entries []*raftypb.LogEntry
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		}
+
+		mockSnap := &mockSnapshot{}
+		s.snapshot = &mockSnapshotter{prepareErr: errors.New("prepare error"), snap: mockSnap}
+
+		_, err := s.takeSnapshot()
+		assert.Error(err)
+		assert.Equal(1, mockSnap.discardCalled)
+
+		// fsm err
+		s.snapshot = &mockSnapshotter{prepareErr: nil, snap: mockSnap}
+		s.fsm = &mockFSM{snapshotErr: errors.New("fsm snapshot error")}
+
+		_, err = s.takeSnapshot()
+		assert.Error(err)
+		assert.Equal(2, mockSnap.discardCalled)
+
+		// close err
+		s.snapshot = &mockSnapshotter{prepareErr: nil, snap: mockSnap}
+		s.fsm = &mockFSM{snapshotErr: nil}
+
+		_, err = s.takeSnapshot()
+		assert.Error(err)
+		assert.Equal(3, mockSnap.discardCalled)
 	})
 }
