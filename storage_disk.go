@@ -242,12 +242,12 @@ func (r dataFile) restore() error {
 	scanner := bufio.NewScanner(r.file)
 	for scanner.Scan() {
 		if len(scanner.Bytes()) > 0 {
-			var data *raftypb.LogEntry
+			var data *logEntry
 			if data, err = UnmarshalBinaryWithChecksum(scanner.Bytes()); err != nil && err != io.EOF {
 				return err
 			}
 			if data != nil {
-				r.rafty.logs.appendEntries([]*raftypb.LogEntry{data}, true)
+				r.rafty.logs.appendEntries(makeProtobufLogEntry(data), true)
 			}
 		}
 	}
@@ -268,19 +268,9 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 		return nil
 	}
 
-	logEntry := &logEntry{
-		FileFormat: uint8(entry.FileFormat),
-		Tombstone:  uint8(entry.Tombstone),
-		LogType:    uint8(entry.LogType),
-		Timestamp:  entry.Timestamp,
-		Term:       entry.Term,
-		Index:      entry.Index,
-		Command:    entry.Command,
-	}
-
 	var err error
 	buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
-	if err = MarshalBinary(logEntry, buffer); err != nil {
+	if err = MarshalBinary(makeLogEntry(entry)[0], buffer); err != nil {
 		return err
 	}
 

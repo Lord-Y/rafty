@@ -144,9 +144,9 @@ func (b *BoltStore) GetLogByIndex(index uint64) (*logEntry, error) {
 			return err
 		}
 		log = logEntry{
-			FileFormat: uint8(entry.FileFormat),
-			Tombstone:  uint8(entry.Tombstone),
-			LogType:    uint8(entry.LogType),
+			FileFormat: entry.FileFormat,
+			Tombstone:  entry.Tombstone,
+			LogType:    entry.LogType,
 			Timestamp:  entry.Timestamp,
 			Term:       entry.Term,
 			Index:      entry.Index,
@@ -172,9 +172,9 @@ func (b *BoltStore) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 				return err
 			}
 			response.Logs = append(response.Logs, &logEntry{
-				FileFormat: uint8(entry.FileFormat),
-				Tombstone:  uint8(entry.Tombstone),
-				LogType:    uint8(entry.LogType),
+				FileFormat: entry.FileFormat,
+				Tombstone:  entry.Tombstone,
+				LogType:    entry.LogType,
 				Timestamp:  entry.Timestamp,
 				Term:       entry.Term,
 				Index:      entry.Index,
@@ -206,9 +206,9 @@ func (b *BoltStore) GetLastConfiguration() (*logEntry, error) {
 			}
 			if logKind(entry.LogType) == logConfiguration {
 				log = logEntry{
-					FileFormat: uint8(entry.FileFormat),
-					Tombstone:  uint8(entry.Tombstone),
-					LogType:    uint8(entry.LogType),
+					FileFormat: entry.FileFormat,
+					Tombstone:  entry.Tombstone,
+					LogType:    entry.LogType,
 					Timestamp:  entry.Timestamp,
 					Term:       entry.Term,
 					Index:      entry.Index,

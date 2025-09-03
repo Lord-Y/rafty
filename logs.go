@@ -79,12 +79,12 @@ type logOperationWipeResponse struct {
 // logEntry is hold requirements that will be used
 // to store logs on disk
 type logEntry struct {
-	FileFormat uint8  // 1 byte
-	Tombstone  uint8  // 1 byte
-	LogType    uint8  // 1 byte
-	Timestamp  uint32 // 4 bytes
-	Term       uint64 // 8 bytes
-	Index      uint64 // 8 bytes
+	FileFormat uint32
+	Tombstone  uint32
+	LogType    uint32
+	Timestamp  uint32
+	Term       uint64
+	Index      uint64
 	Command    []byte
 }
 
@@ -100,9 +100,9 @@ func (r *Rafty) newLogs() logs {
 func makeLogEntries(entries []*raftypb.LogEntry) (logs []*logEntry) {
 	for _, entry := range entries {
 		logs = append(logs, &logEntry{
-			FileFormat: uint8(entry.FileFormat),
-			Tombstone:  uint8(entry.Tombstone),
-			LogType:    uint8(entry.LogType),
+			FileFormat: entry.FileFormat,
+			Tombstone:  entry.Tombstone,
+			LogType:    entry.LogType,
 			Timestamp:  entry.Timestamp,
 			Term:       entry.Term,
 			Index:      entry.Index,
