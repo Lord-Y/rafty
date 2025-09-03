@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Lord-Y/rafty/logger"
-	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -119,7 +118,7 @@ func TestEncoding_EncodeDecodeCommand(t *testing.T) {
 	})
 }
 
-func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
+func TestEncoding_MarshalUnmarshalBinary(t *testing.T) {
 	assert := assert.New(t)
 
 	cc := clusterConfig{
@@ -174,12 +173,12 @@ func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
 		assert.NotNil(enc)
 		dec, err := UnmarshalBinary(enc)
 		assert.Nil(err)
-		assert.Equal(&raftypb.LogEntry{Command: []byte{}}, dec)
+		assert.Equal(&logEntry{Command: []byte{}}, dec)
 
 		now := uint32(time.Now().Unix())
 		data := []byte("a=b")
-		cmd.FileFormat = uint8(index)
-		cmd.LogType = uint8(index)
+		cmd.FileFormat = uint32(index)
+		cmd.LogType = uint32(index)
 		cmd.Term = 1
 		cmd.Index = uint64(index)
 		cmd.Timestamp = now
@@ -215,12 +214,12 @@ func TestEncoding_MarshallUnmarshallBinary(t *testing.T) {
 
 		dec, err = UnmarshalBinary(enc)
 		assert.Nil(err)
-		assert.Equal(cmd.FileFormat, uint8(dec.FileFormat))
-		assert.Equal(cmd.LogType, uint8(dec.LogType))
+		assert.Equal(cmd.FileFormat, dec.FileFormat)
+		assert.Equal(cmd.LogType, dec.LogType)
 		assert.Equal(cmd.Term, dec.Term)
 		assert.Equal(cmd.Index, dec.Index)
 		assert.Equal(cmd.Timestamp, dec.Timestamp)
-		assert.Equal(cmd.Tombstone, uint8(dec.Tombstone))
+		assert.Equal(cmd.Tombstone, dec.Tombstone)
 		assert.Equal(cmd.Command, dec.Command)
 
 		// Error reading FileFormat

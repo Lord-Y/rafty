@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"hash/crc32"
 	"io"
-
-	"github.com/Lord-Y/rafty/raftypb"
 )
 
 // encodeCommand permits to transform command receive from clients to binary language machine
@@ -103,7 +101,7 @@ func MarshalBinary(entry *logEntry, w io.Writer) error {
 }
 
 // UnmarshalBinary permit to decode data in binary format
-func UnmarshalBinary(data []byte) (*raftypb.LogEntry, error) {
+func UnmarshalBinary(data []byte) (*logEntry, error) {
 	var entry logEntry
 	buffer := bytes.NewBuffer(data)
 
@@ -141,16 +139,7 @@ func UnmarshalBinary(data []byte) (*raftypb.LogEntry, error) {
 		return nil, err
 	}
 
-	logEntry := raftypb.LogEntry{
-		FileFormat: uint32(entry.FileFormat),
-		Tombstone:  uint32(entry.Tombstone),
-		LogType:    uint32(entry.LogType),
-		Timestamp:  entry.Timestamp,
-		Term:       entry.Term,
-		Index:      entry.Index,
-		Command:    entry.Command,
-	}
-	return &logEntry, nil
+	return &entry, nil
 }
 
 // MarshalBinaryWithChecksum permit to encode data in binary format
@@ -171,7 +160,7 @@ func MarshalBinaryWithChecksum(buffer *bytes.Buffer, w io.Writer) error {
 
 // UnmarshalBinaryWithChecksum permit to decode data in binary format
 // by validating its checksum before moving further
-func UnmarshalBinaryWithChecksum(data []byte) (entry *raftypb.LogEntry, err error) {
+func UnmarshalBinaryWithChecksum(data []byte) (*logEntry, error) {
 	if len(data) < 4 {
 		return nil, ErrChecksumDataTooShort
 	}
