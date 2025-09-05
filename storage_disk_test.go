@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/Lord-Y/rafty/logger"
 	"github.com/Lord-Y/rafty/raftypb"
+	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -328,9 +330,9 @@ func TestStorageDisk(t *testing.T) {
 		assert.Nil(err)
 	})
 
-	t.Run("data_store_nil", func(t *testing.T) {
+	t.Run("data_store_success", func(t *testing.T) {
 		s := basicNodeSetup()
-		s.options.DataDir = filepath.Join(os.TempDir(), "rafty_store_nil")
+		s.options.DataDir = filepath.Join(os.TempDir(), "data_store_success")
 		makeStorage(s, false)
 		s.storage.data.file = nil
 
@@ -342,6 +344,30 @@ func TestStorageDisk(t *testing.T) {
 		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		assert.Equal(1, len(s.logs.log))
 		assert.Nil(s.storage.data.store(&entry))
+	})
+
+	t.Run("data_store_restore_success_multiple_data", func(t *testing.T) {
+		s := basicNodeSetup()
+		s.options.DataDir = filepath.Join(os.TempDir(), "data_store_success_multiple_data")
+		makeStorage(s, false)
+
+		max := 100
+		for index := range max {
+			userCommand := Command{Kind: CommandSet, Key: fmt.Sprintf("a%d=%s", index, fake.CharactersN(5)), Value: fmt.Sprintf("b%d=%s", index, fake.WordsN(5))}
+			now := uint32(time.Now().Unix())
+			buffer := new(bytes.Buffer)
+			assert.Nil(encodeCommand(userCommand, buffer))
+			entry := &raftypb.LogEntry{Timestamp: now, Term: s.currentTerm.Load(), Command: buffer.Bytes()}
+			_ = s.logs.appendEntries([]*raftypb.LogEntry{entry}, false)
+			assert.Nil(s.storage.data.store(entry))
+		}
+		assert.Equal(max, len(s.logs.log))
+		s.storage.data.close()
+		makeStorage(s, false)
+		s.logs.log = nil
+		assert.Nil(s.storage.data.restore())
+		assert.Equal(max, len(s.logs.log))
+		s.storage.data.close()
 	})
 
 	t.Run("metadata_store_nil", func(t *testing.T) {
