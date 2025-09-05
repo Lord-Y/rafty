@@ -185,10 +185,9 @@ func (b *BoltStore) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 			response.LastLogTerm = entry.Term
 			if response.Total+1 > maxAppendEntries {
 				response.SendSnapshot = true
-				return nil
 			}
 		}
-		return ErrLogNotFound
+		return nil
 	})
 	return
 }

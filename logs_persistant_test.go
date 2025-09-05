@@ -130,11 +130,11 @@ func TestLogsPersistant(t *testing.T) {
 
 		min, max, maxAppendEntries := uint64(0), uint64(50), uint64(10)
 		response := store.GetLogsByRange(min, max, maxAppendEntries)
-		assert.Error(response.Err)
+		assert.Nil(response.Err)
 
 		assert.Nil(store.StoreLogs(logs))
 		response = store.GetLogsByRange(min, max, maxAppendEntries)
-		assert.Equal(maxAppendEntries, response.Total)
+		assert.Greater(response.Total, maxAppendEntries)
 		assert.Equal(true, response.SendSnapshot)
 		assert.Nil(store.Close())
 	})
