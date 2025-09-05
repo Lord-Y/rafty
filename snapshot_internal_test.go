@@ -53,8 +53,8 @@ func (m *mockSnapshotter) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedT
 	return m.snap, m.prepareErr
 }
 
-func (m *mockSnapshotter) PrepareSnapshotReader(name string) (Snapshot, error) {
-	return nil, errors.New("fail to prepare snapshot reader")
+func (m *mockSnapshotter) PrepareSnapshotReader(name string) (Snapshot, io.ReadCloser, error) {
+	return nil, nil, errors.New("fail to prepare snapshot reader")
 }
 
 type mockFSM struct {
