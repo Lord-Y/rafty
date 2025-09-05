@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -190,12 +191,16 @@ func TestEncoding_MarshalUnmarshalBinary(t *testing.T) {
 		enc = buffer.Bytes()
 		assert.NotNil(enc)
 
-		// Testing error on buffer write
+		// Testing error on length write
 		w = &failWriter{failOn: 1}
 		assert.Error(MarshalBinaryWithChecksum(buffer, w))
 
-		// Testing error on checksum write
+		// Testing error on buffer write
 		w = &failWriter{failOn: 2}
+		assert.Error(MarshalBinaryWithChecksum(buffer, w))
+
+		// Testing error on checksum write
+		w = &failWriter{failOn: 3}
 		assert.Error(MarshalBinaryWithChecksum(buffer, w))
 
 		// Testing error on data too short
@@ -209,17 +214,24 @@ func TestEncoding_MarshalUnmarshalBinary(t *testing.T) {
 		// No errors expected here
 		bufferChecksum := new(bytes.Buffer)
 		assert.Nil(MarshalBinaryWithChecksum(buffer, bufferChecksum))
-		_, err = UnmarshalBinaryWithChecksum(bufferChecksum.Bytes())
+
+		var length uint32
+		assert.Nil(binary.Read(bufferChecksum, binary.LittleEndian, &length))
+
+		record := make([]byte, length)
+		_, err = io.ReadFull(bufferChecksum, record)
+		assert.Nil(err)
+		_, err = UnmarshalBinaryWithChecksum(record)
 		assert.Nil(err)
 
 		dec, err = UnmarshalBinary(enc)
 		assert.Nil(err)
 		assert.Equal(cmd.FileFormat, dec.FileFormat)
+		assert.Equal(cmd.Tombstone, dec.Tombstone)
 		assert.Equal(cmd.LogType, dec.LogType)
+		assert.Equal(cmd.Timestamp, dec.Timestamp)
 		assert.Equal(cmd.Term, dec.Term)
 		assert.Equal(cmd.Index, dec.Index)
-		assert.Equal(cmd.Timestamp, dec.Timestamp)
-		assert.Equal(cmd.Tombstone, dec.Tombstone)
 		assert.Equal(cmd.Command, dec.Command)
 
 		// Error reading FileFormat
@@ -228,39 +240,39 @@ func TestEncoding_MarshalUnmarshalBinary(t *testing.T) {
 
 		// Error reading Tombstone
 		buf := new(bytes.Buffer)
-		_ = binary.Write(buf, binary.LittleEndian, uint8(1)) // FileFormat
+		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // FileFormat
 		_, err = UnmarshalBinary(buf.Bytes())
 		assert.Error(err)
 
 		// Error reading LogType
 		buf.Reset()
-		_ = binary.Write(buf, binary.LittleEndian, uint8(1)) // FileFormat
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0)) // Tombstone
+		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // FileFormat
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // Tombstone
 		_, err = UnmarshalBinary(buf.Bytes())
 		assert.Error(err)
 
 		// Error reading Timestamp
 		buf.Reset()
-		_ = binary.Write(buf, binary.LittleEndian, uint8(1)) // FileFormat
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0)) // Tombstone
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0)) // LogType
+		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // FileFormat
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // Tombstone
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // LogType
 		_, err = UnmarshalBinary(buf.Bytes())
 		assert.Error(err)
 
 		// Error reading Term
 		buf.Reset()
-		_ = binary.Write(buf, binary.LittleEndian, uint8(1))  // FileFormat
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0))  // Tombstone
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0))  // LogType
+		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // FileFormat
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // Tombstone
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // LogType
 		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // Timestamp
 		_, err = UnmarshalBinary(buf.Bytes())
 		assert.Error(err)
 
 		// Error reading Index
 		buf.Reset()
-		_ = binary.Write(buf, binary.LittleEndian, uint8(1))  // FileFormat
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0))  // Tombstone
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0))  // LogType
+		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // FileFormat
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // Tombstone
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // LogType
 		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // Timestamp
 		_ = binary.Write(buf, binary.LittleEndian, uint64(1)) // Term
 		_, err = UnmarshalBinary(buf.Bytes())
@@ -268,9 +280,9 @@ func TestEncoding_MarshalUnmarshalBinary(t *testing.T) {
 
 		// Error reading Command length
 		buf.Reset()
-		_ = binary.Write(buf, binary.LittleEndian, uint8(1))  // FileFormat
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0))  // Tombstone
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0))  // LogType
+		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // FileFormat
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // Tombstone
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // LogType
 		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // Timestamp
 		_ = binary.Write(buf, binary.LittleEndian, uint64(1)) // Term
 		_ = binary.Write(buf, binary.LittleEndian, uint64(1)) // Index
@@ -279,9 +291,9 @@ func TestEncoding_MarshalUnmarshalBinary(t *testing.T) {
 
 		// Error reading Command bytes
 		buf.Reset()
-		_ = binary.Write(buf, binary.LittleEndian, uint8(1))  // FileFormat
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0))  // Tombstone
-		_ = binary.Write(buf, binary.LittleEndian, uint8(0))  // LogType
+		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // FileFormat
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // Tombstone
+		_ = binary.Write(buf, binary.LittleEndian, uint32(0)) // LogType
 		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // Timestamp
 		_ = binary.Write(buf, binary.LittleEndian, uint64(1)) // Term
 		_ = binary.Write(buf, binary.LittleEndian, uint64(1)) // Index

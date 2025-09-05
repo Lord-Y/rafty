@@ -147,6 +147,11 @@ func UnmarshalBinary(data []byte) (*logEntry, error) {
 func MarshalBinaryWithChecksum(buffer *bytes.Buffer, w io.Writer) error {
 	checksum := crc32.ChecksumIEEE(buffer.Bytes())
 
+	length := uint32(buffer.Len() + 4)
+	if err := binary.Write(w, binary.LittleEndian, length); err != nil {
+		return err
+	}
+
 	if _, err := w.Write(buffer.Bytes()); err != nil {
 		return err
 	}

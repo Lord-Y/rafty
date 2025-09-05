@@ -3,6 +3,7 @@ package rafty
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -237,24 +238,32 @@ func (r dataFile) restore() error {
 		return nil
 	}
 
-	var err error
 	_, _ = r.file.Seek(0, 0)
-	scanner := bufio.NewScanner(r.file)
-	for scanner.Scan() {
-		if len(scanner.Bytes()) > 0 {
-			var data *logEntry
-			if data, err = UnmarshalBinaryWithChecksum(scanner.Bytes()); err != nil && err != io.EOF {
-				return err
-			}
-			if data != nil {
-				r.rafty.logs.appendEntries(makeProtobufLogEntry(data), true)
-			}
-		}
-	}
+	reader := bufio.NewReader(r.file)
 
-	// Check for scanning errors
-	if err := scanner.Err(); err != nil && err != io.EOF {
-		return err
+	for {
+		var length uint32
+		if err := binary.Read(reader, binary.LittleEndian, &length); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		// Read first 4 bytes to get entry size
+		record := make([]byte, length)
+		if _, err := io.ReadFull(reader, record); err != nil {
+			return err
+		}
+
+		data, err := UnmarshalBinaryWithChecksum(record)
+		if err != nil {
+			return err
+		}
+
+		if data != nil {
+			r.rafty.logs.appendEntries(makeProtobufLogEntry(data), true)
+		}
 	}
 
 	return nil
@@ -280,11 +289,6 @@ func (r dataFile) store(entry *raftypb.LogEntry) error {
 
 	writer := bufio.NewWriter(r.file)
 	if _, err = writer.Write(bufferChecksum.Bytes()); err != nil {
-		return err
-	}
-
-	// Write a newline after each struct
-	if _, err = writer.WriteString("\n"); err != nil {
 		return err
 	}
 
