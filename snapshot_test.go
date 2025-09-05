@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 )
@@ -318,11 +319,8 @@ func TestSnapshot(t *testing.T) {
 		snapshotReaderConfig := NewSnapshot(dataDir, 0)
 		snapshots := snapshotReaderConfig.List()
 		last := snapshots[0]
-		reader, err := snapshotReaderConfig.PrepareSnapshotReader(last.SnapshotName)
+		reader, _, err := snapshotReaderConfig.PrepareSnapshotReader(last.SnapshotName)
 		assert.Nil(err)
-		buffer, err := reader.Reader()
-		assert.Nil(err)
-		assert.Equal(data, buffer.Bytes())
 		assert.Equal(lastIncludedIndex, reader.Metadata().LastIncludedIndex)
 		assert.Equal(lastIncludedTerm, reader.Metadata().LastIncludedTerm)
 	})
@@ -332,7 +330,7 @@ func TestSnapshot(t *testing.T) {
 		dataDir := filepath.Join(x, "reader_error")
 
 		snapshotReaderConfig := NewSnapshot(dataDir, 0)
-		reader, err := snapshotReaderConfig.PrepareSnapshotReader("xyz")
+		reader, _, err := snapshotReaderConfig.PrepareSnapshotReader("xyz")
 		assert.Error(err)
 		assert.Nil(reader)
 	})
@@ -402,5 +400,46 @@ func TestSnapshot(t *testing.T) {
 			file:     nil,
 		}
 		assert.Nil(sm.Close())
+	})
+
+	t.Run("backup_restore", func(t *testing.T) {
+		s := basicNodeSetup()
+		r := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(r.logStore.Close())
+		}()
+		s.currentTerm.Store(1)
+
+		for index := range 100 {
+			var entries []*raftypb.LogEntry
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		}
+
+		_, err := s.takeSnapshot()
+		assert.Nil(err)
+
+		sdatadir := filepath.Join(s.options.DataDir, snapshotDir)
+		rdatadir := filepath.Join(r.options.DataDir, snapshotDir)
+		assert.Nil(os.MkdirAll(r.options.DataDir, 0750))
+		assert.Nil(copyDir(sdatadir, rdatadir))
+		snapshotReaderConfig := NewSnapshot(r.options.DataDir, 0)
+		snapshots := snapshotReaderConfig.List()
+		last := snapshots[0]
+
+		_, file, err := snapshotReaderConfig.PrepareSnapshotReader(last.SnapshotName)
+		assert.Nil(err)
+
+		fmt.Println("SDATADIR", sdatadir)
+		fmt.Println("RDATADIR", rdatadir)
+		fmt.Println("RESTORING")
+		assert.Nil(r.fsm.Restore(file))
+		assert.Nil(file.Close())
 	})
 }

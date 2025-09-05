@@ -2,7 +2,6 @@ package rafty
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -70,7 +69,7 @@ type SnapshotStore interface {
 
 	// PrepareSnapshotReader will return the appropriate config to read
 	// the snapshot name
-	PrepareSnapshotReader(name string) (Snapshot, error)
+	PrepareSnapshotReader(name string) (Snapshot, io.ReadCloser, error)
 
 	// List will return the list of snapshots
 	List() []*SnapshotMetadata
@@ -106,9 +105,6 @@ type Snapshot interface {
 
 	// Discard will remove the snapshot actually in progress
 	Discard() error
-
-	// Reader will return snapshot metadata and data
-	Reader() (bytes.Buffer, error)
 }
 
 // NewSnapshot will return the snapshot config that allow us to
@@ -159,6 +155,7 @@ func (s *SnapshotConfig) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTe
 		return nil, fmt.Errorf("fail to create snapshot file %s: %w", snapshotFile, err)
 	}
 
+	fmt.Println("OPENING", snapshotFile)
 	snapshotManager := &SnapshotManager{
 		ReadWriteSeeker: dataFile,
 		config:          s,
@@ -171,23 +168,23 @@ func (s *SnapshotConfig) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTe
 
 // PrepareSnapshotReader will return the appropriate config to read
 // the snapshot name
-func (s *SnapshotConfig) PrepareSnapshotReader(name string) (Snapshot, error) {
+func (s *SnapshotConfig) PrepareSnapshotReader(name string) (Snapshot, io.ReadCloser, error) {
 	s.dataDir = filepath.Join(s.parentDir, name)
 	metadataFilePath := filepath.Join(s.dataDir, snapshotMetadataFile)
 	metadataFile, err := os.Open(metadataFilePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	metadata, err := s.readMetadata(metadataFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	dataFilePath := filepath.Join(s.dataDir, snapshotStateFile)
 	dataFile, err := os.Open(dataFilePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	snapshotManager := &SnapshotManager{
@@ -195,9 +192,8 @@ func (s *SnapshotConfig) PrepareSnapshotReader(name string) (Snapshot, error) {
 		config:          s,
 		metadata:        metadata,
 		file:            dataFile,
-		buffer:          bufio.NewWriter(dataFile),
 	}
-	return snapshotManager, nil
+	return snapshotManager, dataFile, nil
 }
 
 // List will return the list of snapshots
@@ -229,16 +225,6 @@ func (s *SnapshotManager) Name() string {
 // Metadata will return snapshot metadata
 func (s *SnapshotManager) Metadata() SnapshotMetadata {
 	return *s.metadata
-}
-
-// Reader will return snapshot metadata and data
-// The underlying files handlers will autocatically closed
-func (s *SnapshotManager) Reader() (bytes.Buffer, error) {
-	var buf bytes.Buffer
-	_, err := io.Copy(&buf, s.file)
-	_ = s.file.Close()
-	_ = s.metadata.file.Close()
-	return buf, err
 }
 
 // Close will close the snapshot file
