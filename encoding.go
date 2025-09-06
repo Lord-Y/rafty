@@ -64,7 +64,7 @@ func decodeCommand(data []byte) (Command, error) {
 }
 
 // marshalBinary permit to encode data in binary format
-func MarshalBinary(entry *logEntry, w io.Writer) error {
+func MarshalBinary(entry *LogEntry, w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, entry.FileFormat); err != nil {
 		return err
 	}
@@ -101,8 +101,8 @@ func MarshalBinary(entry *logEntry, w io.Writer) error {
 }
 
 // UnmarshalBinary permit to decode data in binary format
-func UnmarshalBinary(data []byte) (*logEntry, error) {
-	var entry logEntry
+func UnmarshalBinary(data []byte) (*LogEntry, error) {
+	var entry LogEntry
 	buffer := bytes.NewBuffer(data)
 
 	if err := binary.Read(buffer, binary.LittleEndian, &entry.FileFormat); err != nil {
@@ -165,7 +165,7 @@ func MarshalBinaryWithChecksum(buffer *bytes.Buffer, w io.Writer) error {
 
 // UnmarshalBinaryWithChecksum permit to decode data in binary format
 // by validating its checksum before moving further
-func UnmarshalBinaryWithChecksum(data []byte) (*logEntry, error) {
+func UnmarshalBinaryWithChecksum(data []byte) (*LogEntry, error) {
 	if len(data) < 4 {
 		return nil, ErrChecksumDataTooShort
 	}

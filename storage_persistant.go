@@ -7,13 +7,13 @@ type Store interface {
 	Close() error
 
 	// StoreLogs stores multiple log entries
-	StoreLogs(logs []*logEntry) error
+	StoreLogs(logs []*LogEntry) error
 
 	// StoreLog stores a single log entry
-	StoreLog(log *logEntry) error
+	StoreLog(log *LogEntry) error
 
 	// GetLogByIndex permits to retrieve log from specified index
-	GetLogByIndex(index uint64) (*logEntry, error)
+	GetLogByIndex(index uint64) (*LogEntry, error)
 
 	// GetLogsByRange will return a slice of logs
 	// with peer lastLogIndex and leader lastLogIndex capped
@@ -22,7 +22,7 @@ type Store interface {
 
 	// GetLastConfiguration returns the last configuration found
 	// in logs
-	GetLastConfiguration() (*logEntry, error)
+	GetLastConfiguration() (*LogEntry, error)
 
 	// DiscardLogs permits to wipe entries with the provided range indexes
 	DiscardLogs(from, to uint64) error
@@ -55,7 +55,7 @@ type Store interface {
 
 // GetLogsByRangeResponse returns response from GetLogsByRange func
 type GetLogsByRangeResponse struct {
-	Logs                             []*logEntry
+	Logs                             []*LogEntry
 	Total, LastLogIndex, LastLogTerm uint64
 	SendSnapshot                     bool
 	Err                              error

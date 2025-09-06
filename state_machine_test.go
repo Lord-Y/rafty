@@ -44,10 +44,10 @@ func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
 		if response.Err != nil {
 			return err
 		}
-		for _, logEntry := range response.Logs {
+		for _, LogEntry := range response.Logs {
 			var err error
 			buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
-			if err = MarshalBinary(logEntry, buffer); err != nil {
+			if err = MarshalBinary(LogEntry, buffer); err != nil {
 				return err
 			}
 			if err = MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
@@ -65,7 +65,7 @@ func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
 
 // Restore allow us to restore a snapshot
 func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
-	var logs []*logEntry
+	var logs []*LogEntry
 	reader := bufio.NewReader(snapshotReader)
 
 	for {
