@@ -76,9 +76,9 @@ type logOperationWipeResponse struct {
 	err error
 }
 
-// logEntry is hold requirements that will be used
+// LogEntry is hold requirements that will be used
 // to store logs on disk
-type logEntry struct {
+type LogEntry struct {
 	FileFormat uint32
 	Tombstone  uint32
 	LogType    uint32
@@ -97,9 +97,9 @@ func (r *Rafty) newLogs() logs {
 }
 
 // makeLogEntries will convert slice of protobuf entries to slice of log entries
-func makeLogEntries(entries []*raftypb.LogEntry) (logs []*logEntry) {
+func makeLogEntries(entries []*raftypb.LogEntry) (logs []*LogEntry) {
 	for _, entry := range entries {
-		logs = append(logs, &logEntry{
+		logs = append(logs, &LogEntry{
 			FileFormat: entry.FileFormat,
 			Tombstone:  entry.Tombstone,
 			LogType:    entry.LogType,
@@ -113,12 +113,12 @@ func makeLogEntries(entries []*raftypb.LogEntry) (logs []*logEntry) {
 }
 
 // makeLogEntry will convert protobuf entry to slice of protobuf entries
-func makeLogEntry(entry *raftypb.LogEntry) (logs []*logEntry) {
+func makeLogEntry(entry *raftypb.LogEntry) (logs []*LogEntry) {
 	return makeLogEntries([]*raftypb.LogEntry{entry})
 }
 
 // makeProtobufLogEntries will convert slice of log entries to slice of protobuf entries
-func makeProtobufLogEntries(entries []*logEntry) (logs []*raftypb.LogEntry) {
+func makeProtobufLogEntries(entries []*LogEntry) (logs []*raftypb.LogEntry) {
 	for _, entry := range entries {
 		logs = append(logs, &raftypb.LogEntry{
 			FileFormat: uint32(entry.FileFormat),
@@ -134,8 +134,8 @@ func makeProtobufLogEntries(entries []*logEntry) (logs []*raftypb.LogEntry) {
 }
 
 // makeProtobufLogEntry will convert log entry to slice of log entries
-func makeProtobufLogEntry(entry *logEntry) (logs []*raftypb.LogEntry) {
-	return makeProtobufLogEntries([]*logEntry{entry})
+func makeProtobufLogEntry(entry *LogEntry) (logs []*raftypb.LogEntry) {
+	return makeProtobufLogEntries([]*LogEntry{entry})
 }
 
 // /!\ DO NOT USE MAKE AND COPY IN THE FOLLOWING FUNCTIONS

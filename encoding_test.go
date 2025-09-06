@@ -134,7 +134,7 @@ func TestEncoding_MarshalUnmarshalBinary(t *testing.T) {
 	node.Logger = &logger
 
 	for index := range 2 {
-		cmd := &logEntry{}
+		cmd := &LogEntry{}
 		// Testing error on FileFormat write
 		w := &failWriter{failOn: 1}
 		assert.Error(MarshalBinary(cmd, w))
@@ -174,7 +174,7 @@ func TestEncoding_MarshalUnmarshalBinary(t *testing.T) {
 		assert.NotNil(enc)
 		dec, err := UnmarshalBinary(enc)
 		assert.Nil(err)
-		assert.Equal(&logEntry{Command: []byte{}}, dec)
+		assert.Equal(&LogEntry{Command: []byte{}}, dec)
 
 		now := uint32(time.Now().Unix())
 		data := []byte("a=b")

@@ -81,7 +81,7 @@ func TestLogsPersistant(t *testing.T) {
 		assert.Nil(err)
 
 		index := uint64(1)
-		entry := &logEntry{
+		entry := &LogEntry{
 			Index: index,
 			Term:  1,
 		}
@@ -120,9 +120,9 @@ func TestLogsPersistant(t *testing.T) {
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
 
-		var logs []*logEntry
+		var logs []*LogEntry
 		for index := range 100 {
-			logs = append(logs, &logEntry{
+			logs = append(logs, &LogEntry{
 				Index: uint64(index),
 				Term:  1,
 			})
@@ -153,9 +153,9 @@ func TestLogsPersistant(t *testing.T) {
 		_, err = store.GetLastConfiguration()
 		assert.Error(err)
 
-		var logs []*logEntry
+		var logs []*LogEntry
 		for index := range 50 {
-			logs = append(logs, &logEntry{
+			logs = append(logs, &LogEntry{
 				Index: uint64(index),
 				Term:  1,
 			})
@@ -163,7 +163,7 @@ func TestLogsPersistant(t *testing.T) {
 
 		enc := encodePeers([]Peer{{Address: "127.0.0.1:60000", ID: "60"}, {Address: "127.0.0.1:61000", ID: "61"}, {Address: "127.0.0.1:62000", ID: "62"}})
 		configIndex := uint64(50)
-		logs = append(logs, &logEntry{
+		logs = append(logs, &LogEntry{
 			LogType: uint32(logConfiguration),
 			Index:   configIndex,
 			Term:    1,
@@ -171,7 +171,7 @@ func TestLogsPersistant(t *testing.T) {
 		})
 
 		for index := range 50 {
-			logs = append(logs, &logEntry{
+			logs = append(logs, &LogEntry{
 				Index: uint64(index + 51),
 				Term:  1,
 			})
@@ -198,9 +198,9 @@ func TestLogsPersistant(t *testing.T) {
 		assert.Nil(store.Close())
 		assert.Error(store.DiscardLogs(10, 20))
 
-		var logs []*logEntry
+		var logs []*LogEntry
 		for index := range 50 {
-			logs = append(logs, &logEntry{
+			logs = append(logs, &LogEntry{
 				Index: uint64(index),
 				Term:  1,
 			})
@@ -298,9 +298,9 @@ func TestLogsPersistant(t *testing.T) {
 		_, err = store.LastIndex()
 		assert.Error(err)
 
-		var logs []*logEntry
+		var logs []*LogEntry
 		for index := range 50 {
-			logs = append(logs, &logEntry{
+			logs = append(logs, &LogEntry{
 				Index: uint64(index),
 				Term:  1,
 			})

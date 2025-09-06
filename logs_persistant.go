@@ -98,7 +98,7 @@ func (b *BoltStore) Close() error {
 }
 
 // StoreLogs stores multiple log entries
-func (b *BoltStore) StoreLogs(logs []*logEntry) error {
+func (b *BoltStore) StoreLogs(logs []*LogEntry) error {
 	tx, err := b.db.Begin(true)
 	if err != nil {
 		return err
@@ -125,13 +125,13 @@ func (b *BoltStore) StoreLogs(logs []*logEntry) error {
 }
 
 // StoreLog stores a single log entry
-func (b *BoltStore) StoreLog(log *logEntry) error {
-	return b.StoreLogs([]*logEntry{log})
+func (b *BoltStore) StoreLog(log *LogEntry) error {
+	return b.StoreLogs([]*LogEntry{log})
 }
 
 // GetLogByIndex permits to retrieve log from specified index
-func (b *BoltStore) GetLogByIndex(index uint64) (*logEntry, error) {
-	var log logEntry
+func (b *BoltStore) GetLogByIndex(index uint64) (*LogEntry, error) {
+	var log LogEntry
 	err := b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(bucketLogsName))
 		value := bucket.Get(encodeUint64ToBytes(index))
@@ -143,7 +143,7 @@ func (b *BoltStore) GetLogByIndex(index uint64) (*logEntry, error) {
 		if err != nil {
 			return err
 		}
-		log = logEntry{
+		log = LogEntry{
 			FileFormat: entry.FileFormat,
 			Tombstone:  entry.Tombstone,
 			LogType:    entry.LogType,
@@ -171,7 +171,7 @@ func (b *BoltStore) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 			if err != nil {
 				return err
 			}
-			response.Logs = append(response.Logs, &logEntry{
+			response.Logs = append(response.Logs, &LogEntry{
 				FileFormat: entry.FileFormat,
 				Tombstone:  entry.Tombstone,
 				LogType:    entry.LogType,
@@ -194,8 +194,8 @@ func (b *BoltStore) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 
 // GetLastConfiguration returns the last configuration found
 // in logs
-func (b *BoltStore) GetLastConfiguration() (*logEntry, error) {
-	var log logEntry
+func (b *BoltStore) GetLastConfiguration() (*LogEntry, error) {
+	var log LogEntry
 	err := b.db.View(func(tx *bolt.Tx) error {
 		cursor := tx.Bucket([]byte(bucketLogsName)).Cursor()
 		for k, v := cursor.Last(); k != nil; k, v = cursor.Prev() {
@@ -204,7 +204,7 @@ func (b *BoltStore) GetLastConfiguration() (*logEntry, error) {
 				return err
 			}
 			if logKind(entry.LogType) == logConfiguration {
-				log = logEntry{
+				log = LogEntry{
 					FileFormat: entry.FileFormat,
 					Tombstone:  entry.Tombstone,
 					LogType:    entry.LogType,
