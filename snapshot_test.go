@@ -13,7 +13,7 @@ import (
 
 func copyDir(src string, dest string) error {
 	if dest[:len(src)] == src {
-		return fmt.Errorf("Cannot copy a folder into the folder itself!")
+		return fmt.Errorf("Cannot copy a folder into the folder itself src: %s dest: %s!", src, dest)
 	}
 
 	f, err := os.Open(src)
@@ -301,11 +301,11 @@ func TestSnapshot(t *testing.T) {
 			assert.Nil(os.RemoveAll(x))
 		}()
 
-		snapshotWriterConfig := NewSnapshot(dataDir, 0)
-		assert.Equal(1, snapshotWriterConfig.maxSnapshots)
+		snapshotConfig := NewSnapshot(dataDir, 0)
+		assert.Equal(1, snapshotConfig.maxSnapshots)
 
 		lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm := uint64(1), uint64(1), uint64(1), uint64(1)
-		snapshot, err := snapshotWriterConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
+		snapshot, err := snapshotConfig.PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm, Configuration{})
 		assert.Nil(err)
 
 		assert.NotEmpty(snapshot.Name())
@@ -316,10 +316,9 @@ func TestSnapshot(t *testing.T) {
 		assert.Nil(err)
 		assert.Nil(snapshot.Close())
 
-		snapshotReaderConfig := NewSnapshot(dataDir, 0)
-		snapshots := snapshotReaderConfig.List()
+		snapshots := snapshotConfig.List()
 		last := snapshots[0]
-		reader, _, err := snapshotReaderConfig.PrepareSnapshotReader(last.SnapshotName)
+		reader, _, err := snapshotConfig.PrepareSnapshotReader(last.SnapshotName)
 		assert.Nil(err)
 		assert.Equal(lastIncludedIndex, reader.Metadata().LastIncludedIndex)
 		assert.Equal(lastIncludedTerm, reader.Metadata().LastIncludedTerm)
@@ -328,9 +327,12 @@ func TestSnapshot(t *testing.T) {
 	t.Run("reader_error", func(t *testing.T) {
 		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
 		dataDir := filepath.Join(x, "reader_error")
+		defer func() {
+			assert.Nil(os.RemoveAll(x))
+		}()
 
-		snapshotReaderConfig := NewSnapshot(dataDir, 0)
-		reader, _, err := snapshotReaderConfig.PrepareSnapshotReader("xyz")
+		snapshotConfig := NewSnapshot(dataDir, 0)
+		reader, _, err := snapshotConfig.PrepareSnapshotReader("xyz")
 		assert.Error(err)
 		assert.Nil(reader)
 	})
@@ -346,8 +348,8 @@ func TestSnapshot(t *testing.T) {
 			assert.Nil(os.RemoveAll(x))
 		}()
 
-		snapshotReaderConfig := NewSnapshot(x, 0)
-		_, err = snapshotReaderConfig.readMetadata(file)
+		snapshotConfig := NewSnapshot(x, 0)
+		_, err = snapshotConfig.readMetadata(file)
 		assert.Error(err)
 	})
 
@@ -364,8 +366,8 @@ func TestSnapshot(t *testing.T) {
 			assert.Nil(os.RemoveAll(x))
 		}()
 
-		snapshotReaderConfig := NewSnapshot(x, 0)
-		reader, err := snapshotReaderConfig.readMetadata(file)
+		snapshotConfig := NewSnapshot(x, 0)
+		reader, err := snapshotConfig.readMetadata(file)
 		assert.Error(err)
 		assert.Nil(reader)
 	})
@@ -386,8 +388,8 @@ func TestSnapshot(t *testing.T) {
 			assert.Nil(os.RemoveAll(x))
 		}()
 
-		snapshotReaderConfig := NewSnapshot(x, 0)
-		_, err = snapshotReaderConfig.readMetadata(file)
+		snapshotConfig := NewSnapshot(x, 0)
+		_, err = snapshotConfig.readMetadata(file)
 		assert.Nil(err)
 	})
 
@@ -408,10 +410,13 @@ func TestSnapshot(t *testing.T) {
 		defer func() {
 			assert.Nil(s.logStore.Close())
 			assert.Nil(r.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(r.options.DataDir))
 		}()
 		s.currentTerm.Store(1)
 
-		for index := range 100 {
+		max := 100
+		for index := range max {
 			var entries []*raftypb.LogEntry
 			entries = append(entries, &raftypb.LogEntry{
 				Term:    1,
@@ -429,17 +434,18 @@ func TestSnapshot(t *testing.T) {
 		rdatadir := filepath.Join(r.options.DataDir, snapshotDir)
 		assert.Nil(os.MkdirAll(r.options.DataDir, 0750))
 		assert.Nil(copyDir(sdatadir, rdatadir))
-		snapshotReaderConfig := NewSnapshot(r.options.DataDir, 0)
-		snapshots := snapshotReaderConfig.List()
+		snapshotConfig := NewSnapshot(r.options.DataDir, 0)
+		snapshots := snapshotConfig.List()
 		last := snapshots[0]
 
-		_, file, err := snapshotReaderConfig.PrepareSnapshotReader(last.SnapshotName)
+		_, file, err := snapshotConfig.PrepareSnapshotReader(last.SnapshotName)
 		assert.Nil(err)
 
-		fmt.Println("SDATADIR", sdatadir)
-		fmt.Println("RDATADIR", rdatadir)
-		fmt.Println("RESTORING")
 		assert.Nil(r.fsm.Restore(file))
 		assert.Nil(file.Close())
+
+		lastIndex, err := r.logStore.LastIndex()
+		assert.Nil(err)
+		assert.Equal(uint64(max), lastIndex)
 	})
 }

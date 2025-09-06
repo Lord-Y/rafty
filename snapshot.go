@@ -155,7 +155,6 @@ func (s *SnapshotConfig) PrepareSnapshotWriter(lastIncludedIndex, lastIncludedTe
 		return nil, fmt.Errorf("fail to create snapshot file %s: %w", snapshotFile, err)
 	}
 
-	fmt.Println("OPENING", snapshotFile)
 	snapshotManager := &SnapshotManager{
 		ReadWriteSeeker: dataFile,
 		config:          s,
