@@ -80,7 +80,7 @@ func singleServerClusterSetup(address string) *Rafty {
 	id = id[len(id)-2:]
 	options := Options{
 		IsSingleServerCluster: true,
-		DataDir:               filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "single_server_setup_"+id),
+		DataDir:               filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "single_server_setup_"+id),
 	}
 	storeOptions := BoltOptions{
 		DataDir: options.DataDir,
