@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"flag"
 	"fmt"
@@ -130,12 +132,15 @@ type SnapshotState struct {
 	logStore rafty.Store
 }
 
+// NewSnapshotState return a SnapshotState that allow us to
+// take or restore snapshots
 func NewSnapshotState(logStore rafty.Store) *SnapshotState {
 	return &SnapshotState{
 		logStore: logStore,
 	}
 }
 
+// Snapshot allow us to take snapshots
 func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
 	var err error
 	firstIndex, err := s.logStore.FirstIndex()
@@ -155,29 +160,54 @@ func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
 		if response.Err != nil {
 			return err
 		}
-		data := new(bytes.Buffer)
 		for _, logEntry := range response.Logs {
 			var err error
 			buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
 			if err = rafty.MarshalBinary(logEntry, buffer); err != nil {
 				return err
 			}
-
 			if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
 				return err
 			}
-			if _, err = data.Write(bufferChecksum.Bytes()); err != nil {
+			// writting data to the file handler
+			if _, err = snapshotWriter.Write(bufferChecksum.Bytes()); err != nil {
 				return err
 			}
 		}
-		// writting data to the file handler
-		if _, err = snapshotWriter.Write(data.Bytes()); err != nil {
-			return err
-		}
+		return nil
 	}
 	return nil
 }
 
+// Restore allow us to restore a snapshot
 func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
-	return nil
+	var logs []*rafty.LogEntry
+	reader := bufio.NewReader(snapshotReader)
+
+	for {
+		var length uint32
+		if err := binary.Read(reader, binary.LittleEndian, &length); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		// Read first 4 bytes to get entry size
+		record := make([]byte, length)
+		if _, err := io.ReadFull(reader, record); err != nil {
+			return err
+		}
+
+		data, err := rafty.UnmarshalBinaryWithChecksum(record)
+		if err != nil {
+			return err
+		}
+
+		if data != nil {
+			logs = append(logs, data)
+		}
+	}
+
+	return s.logStore.StoreLogs(logs)
 }
