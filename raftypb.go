@@ -102,7 +102,7 @@ func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVote
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 
 	select {
@@ -116,7 +116,7 @@ func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVote
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 }
 
@@ -142,7 +142,7 @@ func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteReques
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 
 	select {
@@ -156,7 +156,7 @@ func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteReques
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 }
 
@@ -182,7 +182,7 @@ func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.A
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 
 	select {
@@ -196,7 +196,7 @@ func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.A
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 }
 
@@ -255,7 +255,7 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 			return nil, ErrShutdown
 
 		case <-time.After(500 * time.Millisecond):
-			return nil, errTimeoutSendingRequest
+			return nil, ErrTimeoutSendingRequest
 		}
 
 		select {
@@ -269,7 +269,7 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 			return nil, ErrShutdown
 
 		case <-time.After(time.Second):
-			return nil, errTimeoutSendingRequest
+			return nil, ErrTimeoutSendingRequest
 		}
 	}
 	return nil, nil
@@ -315,7 +315,7 @@ func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 
 	select {
@@ -329,7 +329,7 @@ func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(membershipTimeoutSeconds * time.Second):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 }
 
@@ -354,7 +354,7 @@ func (r *rpcManager) SendBootstrapClusterRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
 	}
 
 	select {
@@ -368,6 +368,45 @@ func (r *rpcManager) SendBootstrapClusterRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, errTimeoutSendingRequest
+		return nil, ErrTimeoutSendingRequest
+	}
+}
+
+// SendInstallSnapshotRequest allow the current node to bootstrap the cluster
+func (r *rpcManager) SendInstallSnapshotRequest(ctx context.Context, in *raftypb.InstallSnapshotRequest) (*raftypb.InstallSnapshotResponse, error) {
+	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
+		return nil, ErrShutdown
+	}
+
+	responseChan := make(chan RPCResponse, 1)
+	select {
+	case r.rafty.rpcInstallSnapshotRequestChan <- RPCRequest{
+		RPCType:      InstallSnapshotRequest,
+		Request:      in,
+		ResponseChan: responseChan,
+	}:
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(500 * time.Millisecond):
+		return nil, ErrTimeoutSendingRequest
+	}
+
+	select {
+	case response := <-responseChan:
+		return response.Response.(*raftypb.InstallSnapshotResponse), response.Error
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(5 * time.Second):
+		return nil, ErrTimeoutSendingRequest
 	}
 }

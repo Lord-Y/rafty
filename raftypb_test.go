@@ -1167,3 +1167,156 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		assert.Error(err)
 	})
 }
+
+func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
+	assert := assert.New(t)
+	request := &raftypb.InstallSnapshotRequest{}
+
+	t.Run("down", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.State = Down
+		rpcm := rpcManager{rafty: s}
+
+		_, err := rpcm.SendInstallSnapshotRequest(context.Background(), request)
+		assert.Equal(ErrShutdown, err)
+	})
+
+	t.Run("context_done_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err := rpcm.SendInstallSnapshotRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+		_, err := rpcm.SendInstallSnapshotRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		_, err := rpcm.SendInstallSnapshotRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("up", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			data := <-s.rpcInstallSnapshotRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.InstallSnapshotResponse{},
+			}
+		}()
+
+		_, err := rpcm.SendInstallSnapshotRequest(context.Background(), request)
+		assert.Nil(err)
+	})
+
+	t.Run("context_done_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			<-s.rpcInstallSnapshotRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			cancel()
+		}()
+
+		_, err := rpcm.SendInstallSnapshotRequest(ctx, request)
+		assert.Error(err)
+	})
+
+	t.Run("quit_context_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			<-s.rpcInstallSnapshotRequestChan
+		}()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
+		_, err := rpcm.SendInstallSnapshotRequest(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("timeout_second", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		go func() {
+			<-s.rpcInstallSnapshotRequestChan
+			time.Sleep(5 * time.Second)
+		}()
+
+		_, err := rpcm.SendInstallSnapshotRequest(context.Background(), request)
+		assert.Error(err)
+	})
+}

@@ -142,7 +142,7 @@ func TestUtils_parsePeers(t *testing.T) {
 	id = id[len(id)-2:]
 	options := Options{
 		InitialPeers: peers,
-		DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
+		DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "basic_setup", id),
 	}
 	storeOptions := BoltOptions{
 		DataDir: options.DataDir,

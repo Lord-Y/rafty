@@ -20,7 +20,7 @@ func TestRafty_newRafty(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("options", func(t *testing.T) {
-		fakeDataDir := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "newrafty")
+		fakeDataDir := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "newrafty")
 		tests := []struct {
 			id, IdExpected                                 string
 			TimeMultiplier, TimeMultiplierExpected         uint
@@ -140,7 +140,7 @@ func TestRafty_newRafty(t *testing.T) {
 		id = id[len(id)-2:]
 		options := Options{
 			InitialPeers: initialPeers,
-			DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "basic_setup", id),
+			DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "basic_setup", id),
 		}
 		storeOptions := BoltOptions{
 			DataDir: options.DataDir,
@@ -359,10 +359,12 @@ func TestRafty_start5Nodes_normal(t *testing.T) {
 		testName:                  "5_nodes_normal",
 		clusterSize:               5,
 		delayLastNode:             true,
-		delayLastNodeTimeDuration: time.Duration(30) * time.Second,
+		delayLastNodeTimeDuration: 30 * time.Second,
 		autoSetMinimumClusterSize: true,
 		portStartRange:            32000,
 		// runTestInParallel:         true,
+		snapshotInterval:  15 * time.Second,
+		snapshotThreshold: 2,
 	}
 	cc.assert = assert.New(t)
 	cc.testClustering(t)

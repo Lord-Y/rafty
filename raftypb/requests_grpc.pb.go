@@ -29,6 +29,7 @@ const (
 	Rafty_SendTimeoutNowRequest_FullMethodName       = "/raftypb.Rafty/SendTimeoutNowRequest"
 	Rafty_SendMembershipChangeRequest_FullMethodName = "/raftypb.Rafty/SendMembershipChangeRequest"
 	Rafty_SendBootstrapClusterRequest_FullMethodName = "/raftypb.Rafty/SendBootstrapClusterRequest"
+	Rafty_SendInstallSnapshotRequest_FullMethodName  = "/raftypb.Rafty/SendInstallSnapshotRequest"
 )
 
 // RaftyClient is the client API for Rafty service.
@@ -45,6 +46,7 @@ type RaftyClient interface {
 	SendTimeoutNowRequest(ctx context.Context, in *TimeoutNowRequest, opts ...grpc.CallOption) (*TimeoutNowResponse, error)
 	SendMembershipChangeRequest(ctx context.Context, in *MembershipChangeRequest, opts ...grpc.CallOption) (*MembershipChangeResponse, error)
 	SendBootstrapClusterRequest(ctx context.Context, in *BootstrapClusterRequest, opts ...grpc.CallOption) (*BootstrapClusterResponse, error)
+	SendInstallSnapshotRequest(ctx context.Context, in *InstallSnapshotRequest, opts ...grpc.CallOption) (*InstallSnapshotResponse, error)
 }
 
 type raftyClient struct {
@@ -155,6 +157,16 @@ func (c *raftyClient) SendBootstrapClusterRequest(ctx context.Context, in *Boots
 	return out, nil
 }
 
+func (c *raftyClient) SendInstallSnapshotRequest(ctx context.Context, in *InstallSnapshotRequest, opts ...grpc.CallOption) (*InstallSnapshotResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InstallSnapshotResponse)
+	err := c.cc.Invoke(ctx, Rafty_SendInstallSnapshotRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RaftyServer is the server API for Rafty service.
 // All implementations must embed UnimplementedRaftyServer
 // for forward compatibility.
@@ -169,6 +181,7 @@ type RaftyServer interface {
 	SendTimeoutNowRequest(context.Context, *TimeoutNowRequest) (*TimeoutNowResponse, error)
 	SendMembershipChangeRequest(context.Context, *MembershipChangeRequest) (*MembershipChangeResponse, error)
 	SendBootstrapClusterRequest(context.Context, *BootstrapClusterRequest) (*BootstrapClusterResponse, error)
+	SendInstallSnapshotRequest(context.Context, *InstallSnapshotRequest) (*InstallSnapshotResponse, error)
 	mustEmbedUnimplementedRaftyServer()
 }
 
@@ -208,6 +221,9 @@ func (UnimplementedRaftyServer) SendMembershipChangeRequest(context.Context, *Me
 }
 func (UnimplementedRaftyServer) SendBootstrapClusterRequest(context.Context, *BootstrapClusterRequest) (*BootstrapClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendBootstrapClusterRequest not implemented")
+}
+func (UnimplementedRaftyServer) SendInstallSnapshotRequest(context.Context, *InstallSnapshotRequest) (*InstallSnapshotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendInstallSnapshotRequest not implemented")
 }
 func (UnimplementedRaftyServer) mustEmbedUnimplementedRaftyServer() {}
 func (UnimplementedRaftyServer) testEmbeddedByValue()               {}
@@ -410,6 +426,24 @@ func _Rafty_SendBootstrapClusterRequest_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Rafty_SendInstallSnapshotRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InstallSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RaftyServer).SendInstallSnapshotRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Rafty_SendInstallSnapshotRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RaftyServer).SendInstallSnapshotRequest(ctx, req.(*InstallSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Rafty_ServiceDesc is the grpc.ServiceDesc for Rafty service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -456,6 +490,10 @@ var Rafty_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendBootstrapClusterRequest",
 			Handler:    _Rafty_SendBootstrapClusterRequest_Handler,
+		},
+		{
+			MethodName: "SendInstallSnapshotRequest",
+			Handler:    _Rafty_SendInstallSnapshotRequest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

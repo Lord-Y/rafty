@@ -338,3 +338,52 @@ func TestDrainBootstrapClusterRequests(t *testing.T) {
 	}()
 	s.wg.Wait()
 }
+
+func TestDrainInstallSnapshotRequests(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		defer func() {
+			assert.Nil(s.logStore.Close())
+		}()
+	}()
+	s.currentTerm.Store(1)
+
+	responseChan := make(chan RPCResponse, 1)
+	request := RPCRequest{
+		RPCType:      BootstrapClusterRequest,
+		Request:      &raftypb.InstallSnapshotRequest{},
+		Timeout:      time.Second,
+		ResponseChan: responseChan,
+	}
+	s.wg.Add(3)
+	go func() {
+		defer s.wg.Done()
+		for {
+			select {
+			case s.rpcInstallSnapshotRequestChan <- request:
+			case <-time.After(500 * time.Millisecond):
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer s.wg.Done()
+		time.Sleep(100 * time.Millisecond) // Ensure the request is sent before draining
+		s.drainInstallSnapshotRequests()
+	}()
+
+	go func() {
+		defer s.wg.Done()
+		for {
+			select {
+			case <-responseChan:
+			case <-time.After(500 * time.Millisecond):
+				return
+			}
+		}
+	}()
+	s.wg.Wait()
+}

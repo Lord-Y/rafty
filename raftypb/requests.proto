@@ -9,6 +9,8 @@ package raftypb;
 Naming convention:
 https://protobuf.dev/programming-guides/style/
 
+Types:
+https://protobuf.dev/programming-guides/proto3/
 */
 
 message PreVoteRequest {
@@ -139,6 +141,24 @@ message BootstrapClusterResponse {
   bool success = 1;
 }
 
+message InstallSnapshotRequest {
+  string  leader_id                 = 1;
+  string  leader_address            = 2;
+  uint64  last_included_index       = 3;
+  uint64  last_included_term        = 4;
+  uint64  last_applied_config_index = 5;
+  uint64  last_applied_config_term  = 6;
+  bytes   configuration             = 7;
+  bytes   data                      = 8;
+  uint64  size                      = 9;
+  uint64  current_term              = 10;
+}
+
+message InstallSnapshotResponse {
+  uint64 term    = 1;
+  bool success = 2;
+}
+
 service Rafty {
   rpc SendPreVoteRequest(PreVoteRequest) returns (PreVoteResponse) {}
   rpc SendVoteRequest(VoteRequest) returns (VoteResponse) {}
@@ -150,4 +170,5 @@ service Rafty {
   rpc SendTimeoutNowRequest(TimeoutNowRequest) returns (TimeoutNowResponse) {}
   rpc SendMembershipChangeRequest(MembershipChangeRequest) returns (MembershipChangeResponse) {}
   rpc SendBootstrapClusterRequest(BootstrapClusterRequest) returns (BootstrapClusterResponse) {}
+  rpc SendInstallSnapshotRequest(InstallSnapshotRequest) returns (InstallSnapshotResponse) {}
 }

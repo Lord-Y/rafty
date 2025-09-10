@@ -291,6 +291,9 @@ type Rafty struct {
 	// rpcMembershipChangeRequestChan will be used by the leader to handle rpc call from followers
 	rpcMembershipChangeRequestChan chan RPCRequest
 
+	// rpcInstallSnapshotRequestChan will be used to install/restore snapshot
+	rpcInstallSnapshotRequestChan chan RPCRequest
+
 	// rpcMembershipChangeChan will be used to handle rpc call from the leader
 	rpcMembershipChangeChan chan RPCResponse
 
@@ -468,6 +471,7 @@ func NewRafty(address net.TCPAddr, id string, options Options, store Store, fsm 
 		rpcMembershipChangeRequestChan:       make(chan RPCRequest),
 		rpcMembershipChangeChan:              make(chan RPCResponse),
 		rpcBootstrapClusterRequestChan:       make(chan RPCRequest),
+		rpcInstallSnapshotRequestChan:        make(chan RPCRequest),
 	}
 	r.Address = address
 	r.id = id

@@ -1,8 +1,10 @@
 package rafty
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sync/atomic"
 	"time"
 
@@ -76,6 +78,9 @@ type followerReplication struct {
 
 	// lastContactDate is the last date we heard the follower
 	lastContactDate atomic.Value
+
+	// sendSnapshotInProgress tell us if we are currently sending a snapshot to the follower
+	sendSnapshotInProgress atomic.Bool
 }
 
 // onAppendEntriesRequest hold all requirements that allow the leader
@@ -443,6 +448,18 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		return
 	}
 
+	r.rafty.Logger.Info().
+		Str("peerAddress", r.address.String()).
+		Str("peerId", r.ID).
+		Str("maxAppendEntries", fmt.Sprintf("%d", r.rafty.options.MaxAppendEntries)).
+		Str("snapshot", fmt.Sprintf("%t", result.SendSnapshot)).
+		Msg("SNAP")
+
+	if result.SendSnapshot {
+		r.sendInstallSnapshot(client)
+		return
+	}
+
 	r.rafty.Logger.Trace().
 		Str("address", r.rafty.Address.String()).
 		Str("id", r.rafty.id).
@@ -591,4 +608,128 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 		case request.replyToClientChan <- appendEntriesResponse{}:
 		}
 	}
+}
+
+// sendAppendEntries send append entries to the current follower
+func (r *followerReplication) sendInstallSnapshot(client raftypb.RaftyClient) {
+	if r.sendSnapshotInProgress.Load() {
+		return
+	}
+
+	r.sendSnapshotInProgress.Store(true)
+	defer r.sendSnapshotInProgress.Store(false)
+
+	snapshots := r.rafty.snapshot.List()
+	if len(snapshots) == 0 {
+		r.rafty.Logger.Warn().
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("peerAddress", r.address.String()).
+			Str("peerId", r.ID).
+			Msgf("No snapshot found to send")
+		return
+	}
+
+	metadata := snapshots[0]
+	_, file, err := r.rafty.snapshot.PrepareSnapshotReader(metadata.SnapshotName)
+	if err != nil {
+		r.rafty.Logger.Error().Err(err).
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("peerAddress", r.address.String()).
+			Str("peerId", r.ID).
+			Str("snapshotName", metadata.SnapshotName).
+			Msgf("Snapshot not found")
+		return
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	var buffer bytes.Buffer
+	_, err = io.Copy(&buffer, file)
+	if err != nil {
+		r.rafty.Logger.Error().Err(err).
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("peerAddress", r.address.String()).
+			Str("peerId", r.ID).
+			Str("snapshotName", metadata.SnapshotName).
+			Msgf("Fail to read snapshot")
+		return
+	}
+
+	currentTerm := r.rafty.currentTerm.Load()
+	response, err := client.SendInstallSnapshotRequest(
+		context.Background(),
+		&raftypb.InstallSnapshotRequest{
+			LeaderAddress:          r.rafty.Address.String(),
+			LeaderId:               r.rafty.id,
+			LastIncludedIndex:      metadata.LastIncludedIndex,
+			LastIncludedTerm:       metadata.LastIncludedTerm,
+			LastAppliedConfigIndex: metadata.LastAppliedConfigIndex,
+			LastAppliedConfigTerm:  metadata.LastAppliedConfigTerm,
+			Configuration:          encodePeers(metadata.Configuration.ServerMembers),
+			Data:                   buffer.Bytes(),
+			Size:                   uint64(metadata.Size),
+			CurrentTerm:            currentTerm,
+		},
+	)
+
+	if err != nil {
+		r.failures.Add(1)
+		r.rafty.Logger.Error().Err(err).
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("peerAddress", r.address.String()).
+			Str("peerId", r.ID).
+			Str("snapshotName", metadata.SnapshotName).
+			Msgf("Fail to perform install snapshot request")
+		return
+	}
+
+	r.lastContactDate.Store(time.Now())
+	if response.Term > currentTerm {
+		r.rafty.leadershipTransferDisabled.Store(true)
+		r.rafty.currentTerm.Store(response.Term)
+		r.rafty.switchState(Follower, stepDown, true, response.Term)
+	}
+
+	if response.Success {
+		r.nextIndex.Add(metadata.LastIncludedIndex + 1)
+		r.matchIndex.Add(metadata.LastIncludedIndex)
+		r.failures.Store(0)
+
+		r.rafty.Logger.Info().
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("peerAddress", r.address.String()).
+			Str("snapshotName", metadata.SnapshotName).
+			Str("peerId", r.ID).
+			Str("peerTerm", fmt.Sprintf("%d", response.Term)).
+			Str("peerNextIndex", fmt.Sprintf("%d", metadata.LastIncludedIndex+1)).
+			Str("peerMatchIndex", fmt.Sprintf("%d", metadata.LastIncludedIndex)).
+			Msgf("Install snapshot successful")
+		return
+	}
+
+	r.failures.Add(1)
+	r.rafty.Logger.Error().Err(err).
+		Str("address", r.rafty.Address.String()).
+		Str("id", r.rafty.id).
+		Str("state", r.rafty.getState().String()).
+		Str("snapshotName", metadata.SnapshotName).
+		Str("peerAddress", r.address.String()).
+		Str("peerId", r.ID).
+		Str("snapshotLastIncludedIndex", fmt.Sprintf("%d", metadata.LastIncludedIndex)).
+		Str("snapshotLastIncludedTerm", fmt.Sprintf("%d", metadata.LastIncludedTerm)).
+		Str("snapshotLastAppliedConfigIndex", fmt.Sprintf("%d", metadata.LastAppliedConfigIndex)).
+		Str("snapshotLastAppliedConfigTerm", fmt.Sprintf("%d", metadata.LastAppliedConfigTerm)).
+		Str("peerTerm", fmt.Sprintf("%d", response.Term)).
+		Msgf("Fail install snapshot to peer")
 }

@@ -349,7 +349,7 @@ func TestStorageDisk(t *testing.T) {
 
 		max := 100
 		for index := range max {
-			userCommand := Command{Kind: CommandSet, Key: fmt.Sprintf("a%d=%s", index, fake.CharactersN(5)), Value: fmt.Sprintf("b%d=%s", index, fake.WordsN(5))}
+			userCommand := Command{Kind: CommandSet, Key: fmt.Sprintf("a%d=%s", index, fake.CharactersN(20)), Value: fmt.Sprintf("b%d=%s", index, fake.WordsN(5))}
 			now := uint32(time.Now().Unix())
 			buffer := new(bytes.Buffer)
 			assert.Nil(encodeCommand(userCommand, buffer))

@@ -164,3 +164,29 @@ func (r *Rafty) drainBootstrapClusterRequests() {
 		}
 	}
 }
+
+// drainInstallSnapshotRequests will drain all remaining requests in the chan
+func (r *Rafty) drainInstallSnapshotRequests() {
+	r.Logger.Trace().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Msgf("Draining install snapshot requests chan")
+
+	for {
+		select {
+		case data := <-r.rpcInstallSnapshotRequestChan:
+			select {
+			case data.ResponseChan <- RPCResponse{
+				Response: &raftypb.InstallSnapshotResponse{},
+				Error:    ErrShutdown,
+			}:
+			//nolint staticcheck
+			default:
+			}
+		//nolint staticcheck
+		default:
+			return
+		}
+	}
+}

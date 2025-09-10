@@ -1313,6 +1313,174 @@ func (x *BootstrapClusterResponse) GetSuccess() bool {
 	return false
 }
 
+type InstallSnapshotRequest struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	LeaderId               string                 `protobuf:"bytes,1,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	LeaderAddress          string                 `protobuf:"bytes,2,opt,name=leader_address,json=leaderAddress,proto3" json:"leader_address,omitempty"`
+	LastIncludedIndex      uint64                 `protobuf:"varint,3,opt,name=last_included_index,json=lastIncludedIndex,proto3" json:"last_included_index,omitempty"`
+	LastIncludedTerm       uint64                 `protobuf:"varint,4,opt,name=last_included_term,json=lastIncludedTerm,proto3" json:"last_included_term,omitempty"`
+	LastAppliedConfigIndex uint64                 `protobuf:"varint,5,opt,name=last_applied_config_index,json=lastAppliedConfigIndex,proto3" json:"last_applied_config_index,omitempty"`
+	LastAppliedConfigTerm  uint64                 `protobuf:"varint,6,opt,name=last_applied_config_term,json=lastAppliedConfigTerm,proto3" json:"last_applied_config_term,omitempty"`
+	Configuration          []byte                 `protobuf:"bytes,7,opt,name=configuration,proto3" json:"configuration,omitempty"`
+	Data                   []byte                 `protobuf:"bytes,8,opt,name=data,proto3" json:"data,omitempty"`
+	Size                   uint64                 `protobuf:"varint,9,opt,name=size,proto3" json:"size,omitempty"`
+	CurrentTerm            uint64                 `protobuf:"varint,10,opt,name=current_term,json=currentTerm,proto3" json:"current_term,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *InstallSnapshotRequest) Reset() {
+	*x = InstallSnapshotRequest{}
+	mi := &file_raftypb_requests_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InstallSnapshotRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InstallSnapshotRequest) ProtoMessage() {}
+
+func (x *InstallSnapshotRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_raftypb_requests_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InstallSnapshotRequest.ProtoReflect.Descriptor instead.
+func (*InstallSnapshotRequest) Descriptor() ([]byte, []int) {
+	return file_raftypb_requests_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *InstallSnapshotRequest) GetLeaderId() string {
+	if x != nil {
+		return x.LeaderId
+	}
+	return ""
+}
+
+func (x *InstallSnapshotRequest) GetLeaderAddress() string {
+	if x != nil {
+		return x.LeaderAddress
+	}
+	return ""
+}
+
+func (x *InstallSnapshotRequest) GetLastIncludedIndex() uint64 {
+	if x != nil {
+		return x.LastIncludedIndex
+	}
+	return 0
+}
+
+func (x *InstallSnapshotRequest) GetLastIncludedTerm() uint64 {
+	if x != nil {
+		return x.LastIncludedTerm
+	}
+	return 0
+}
+
+func (x *InstallSnapshotRequest) GetLastAppliedConfigIndex() uint64 {
+	if x != nil {
+		return x.LastAppliedConfigIndex
+	}
+	return 0
+}
+
+func (x *InstallSnapshotRequest) GetLastAppliedConfigTerm() uint64 {
+	if x != nil {
+		return x.LastAppliedConfigTerm
+	}
+	return 0
+}
+
+func (x *InstallSnapshotRequest) GetConfiguration() []byte {
+	if x != nil {
+		return x.Configuration
+	}
+	return nil
+}
+
+func (x *InstallSnapshotRequest) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *InstallSnapshotRequest) GetSize() uint64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *InstallSnapshotRequest) GetCurrentTerm() uint64 {
+	if x != nil {
+		return x.CurrentTerm
+	}
+	return 0
+}
+
+type InstallSnapshotResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Term          uint64                 `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
+	Success       bool                   `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *InstallSnapshotResponse) Reset() {
+	*x = InstallSnapshotResponse{}
+	mi := &file_raftypb_requests_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *InstallSnapshotResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InstallSnapshotResponse) ProtoMessage() {}
+
+func (x *InstallSnapshotResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_raftypb_requests_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InstallSnapshotResponse.ProtoReflect.Descriptor instead.
+func (*InstallSnapshotResponse) Descriptor() ([]byte, []int) {
+	return file_raftypb_requests_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *InstallSnapshotResponse) GetTerm() uint64 {
+	if x != nil {
+		return x.Term
+	}
+	return 0
+}
+
+func (x *InstallSnapshotResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
 var File_raftypb_requests_proto protoreflect.FileDescriptor
 
 const file_raftypb_requests_proto_rawDesc = "" +
@@ -1406,7 +1574,22 @@ const file_raftypb_requests_proto_rawDesc = "" +
 	"\x0eleader_address\x18\x03 \x01(\tR\rleaderAddress\"\x19\n" +
 	"\x17BootstrapClusterRequest\"4\n" +
 	"\x18BootstrapClusterResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess2\xde\x06\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\"\x9f\x03\n" +
+	"\x16InstallSnapshotRequest\x12\x1b\n" +
+	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x12%\n" +
+	"\x0eleader_address\x18\x02 \x01(\tR\rleaderAddress\x12.\n" +
+	"\x13last_included_index\x18\x03 \x01(\x04R\x11lastIncludedIndex\x12,\n" +
+	"\x12last_included_term\x18\x04 \x01(\x04R\x10lastIncludedTerm\x129\n" +
+	"\x19last_applied_config_index\x18\x05 \x01(\x04R\x16lastAppliedConfigIndex\x127\n" +
+	"\x18last_applied_config_term\x18\x06 \x01(\x04R\x15lastAppliedConfigTerm\x12$\n" +
+	"\rconfiguration\x18\a \x01(\fR\rconfiguration\x12\x12\n" +
+	"\x04data\x18\b \x01(\fR\x04data\x12\x12\n" +
+	"\x04size\x18\t \x01(\x04R\x04size\x12!\n" +
+	"\fcurrent_term\x18\n" +
+	" \x01(\x04R\vcurrentTerm\"G\n" +
+	"\x17InstallSnapshotResponse\x12\x12\n" +
+	"\x04term\x18\x01 \x01(\x04R\x04term\x12\x18\n" +
+	"\asuccess\x18\x02 \x01(\bR\asuccess2\xc1\a\n" +
 	"\x05Rafty\x12I\n" +
 	"\x12SendPreVoteRequest\x12\x17.raftypb.PreVoteRequest\x1a\x18.raftypb.PreVoteResponse\"\x00\x12@\n" +
 	"\x0fSendVoteRequest\x12\x14.raftypb.VoteRequest\x1a\x15.raftypb.VoteResponse\"\x00\x12V\n" +
@@ -1417,7 +1600,8 @@ const file_raftypb_requests_proto_rawDesc = "" +
 	"\x16ForwardCommandToLeader\x12&.raftypb.ForwardCommandToLeaderRequest\x1a'.raftypb.ForwardCommandToLeaderResponse\"\x00\x12R\n" +
 	"\x15SendTimeoutNowRequest\x12\x1a.raftypb.TimeoutNowRequest\x1a\x1b.raftypb.TimeoutNowResponse\"\x00\x12d\n" +
 	"\x1bSendMembershipChangeRequest\x12 .raftypb.MembershipChangeRequest\x1a!.raftypb.MembershipChangeResponse\"\x00\x12d\n" +
-	"\x1bSendBootstrapClusterRequest\x12 .raftypb.BootstrapClusterRequest\x1a!.raftypb.BootstrapClusterResponse\"\x00B!Z\x1fgithub.com/Lord-Y/rafty/raftypbb\x06proto3"
+	"\x1bSendBootstrapClusterRequest\x12 .raftypb.BootstrapClusterRequest\x1a!.raftypb.BootstrapClusterResponse\"\x00\x12a\n" +
+	"\x1aSendInstallSnapshotRequest\x12\x1f.raftypb.InstallSnapshotRequest\x1a .raftypb.InstallSnapshotResponse\"\x00B!Z\x1fgithub.com/Lord-Y/rafty/raftypbb\x06proto3"
 
 var (
 	file_raftypb_requests_proto_rawDescOnce sync.Once
@@ -1431,7 +1615,7 @@ func file_raftypb_requests_proto_rawDescGZIP() []byte {
 	return file_raftypb_requests_proto_rawDescData
 }
 
-var file_raftypb_requests_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_raftypb_requests_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_raftypb_requests_proto_goTypes = []any{
 	(*PreVoteRequest)(nil),                 // 0: raftypb.PreVoteRequest
 	(*PreVoteResponse)(nil),                // 1: raftypb.PreVoteResponse
@@ -1454,6 +1638,8 @@ var file_raftypb_requests_proto_goTypes = []any{
 	(*MembershipChangeResponse)(nil),       // 18: raftypb.MembershipChangeResponse
 	(*BootstrapClusterRequest)(nil),        // 19: raftypb.BootstrapClusterRequest
 	(*BootstrapClusterResponse)(nil),       // 20: raftypb.BootstrapClusterResponse
+	(*InstallSnapshotRequest)(nil),         // 21: raftypb.InstallSnapshotRequest
+	(*InstallSnapshotResponse)(nil),        // 22: raftypb.InstallSnapshotResponse
 }
 var file_raftypb_requests_proto_depIdxs = []int32{
 	4,  // 0: raftypb.AppendEntryRequest.entries:type_name -> raftypb.LogEntry
@@ -1467,18 +1653,20 @@ var file_raftypb_requests_proto_depIdxs = []int32{
 	15, // 8: raftypb.Rafty.SendTimeoutNowRequest:input_type -> raftypb.TimeoutNowRequest
 	17, // 9: raftypb.Rafty.SendMembershipChangeRequest:input_type -> raftypb.MembershipChangeRequest
 	19, // 10: raftypb.Rafty.SendBootstrapClusterRequest:input_type -> raftypb.BootstrapClusterRequest
-	1,  // 11: raftypb.Rafty.SendPreVoteRequest:output_type -> raftypb.PreVoteResponse
-	3,  // 12: raftypb.Rafty.SendVoteRequest:output_type -> raftypb.VoteResponse
-	10, // 13: raftypb.Rafty.ClientGetLeader:output_type -> raftypb.ClientGetLeaderResponse
-	12, // 14: raftypb.Rafty.GetLeader:output_type -> raftypb.GetLeaderResponse
-	6,  // 15: raftypb.Rafty.SendAppendEntriesRequest:output_type -> raftypb.AppendEntryResponse
-	8,  // 16: raftypb.Rafty.AskNodeID:output_type -> raftypb.AskNodeIDResponse
-	14, // 17: raftypb.Rafty.ForwardCommandToLeader:output_type -> raftypb.ForwardCommandToLeaderResponse
-	16, // 18: raftypb.Rafty.SendTimeoutNowRequest:output_type -> raftypb.TimeoutNowResponse
-	18, // 19: raftypb.Rafty.SendMembershipChangeRequest:output_type -> raftypb.MembershipChangeResponse
-	20, // 20: raftypb.Rafty.SendBootstrapClusterRequest:output_type -> raftypb.BootstrapClusterResponse
-	11, // [11:21] is the sub-list for method output_type
-	1,  // [1:11] is the sub-list for method input_type
+	21, // 11: raftypb.Rafty.SendInstallSnapshotRequest:input_type -> raftypb.InstallSnapshotRequest
+	1,  // 12: raftypb.Rafty.SendPreVoteRequest:output_type -> raftypb.PreVoteResponse
+	3,  // 13: raftypb.Rafty.SendVoteRequest:output_type -> raftypb.VoteResponse
+	10, // 14: raftypb.Rafty.ClientGetLeader:output_type -> raftypb.ClientGetLeaderResponse
+	12, // 15: raftypb.Rafty.GetLeader:output_type -> raftypb.GetLeaderResponse
+	6,  // 16: raftypb.Rafty.SendAppendEntriesRequest:output_type -> raftypb.AppendEntryResponse
+	8,  // 17: raftypb.Rafty.AskNodeID:output_type -> raftypb.AskNodeIDResponse
+	14, // 18: raftypb.Rafty.ForwardCommandToLeader:output_type -> raftypb.ForwardCommandToLeaderResponse
+	16, // 19: raftypb.Rafty.SendTimeoutNowRequest:output_type -> raftypb.TimeoutNowResponse
+	18, // 20: raftypb.Rafty.SendMembershipChangeRequest:output_type -> raftypb.MembershipChangeResponse
+	20, // 21: raftypb.Rafty.SendBootstrapClusterRequest:output_type -> raftypb.BootstrapClusterResponse
+	22, // 22: raftypb.Rafty.SendInstallSnapshotRequest:output_type -> raftypb.InstallSnapshotResponse
+	12, // [12:23] is the sub-list for method output_type
+	1,  // [1:12] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -1495,7 +1683,7 @@ func file_raftypb_requests_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_raftypb_requests_proto_rawDesc), len(file_raftypb_requests_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
