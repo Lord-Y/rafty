@@ -14,9 +14,9 @@ jobs:
     strategy:
       matrix:
         go:
-        - '1.24.4'
+        - '1.25.1'
     env:
-      GOLANGCI_LINT_VERSION: 2.1.6
+      GOLANGCI_LINT_VERSION: 2.4.0
     steps:
     - uses: actions/checkout@v2
 
