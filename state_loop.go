@@ -18,6 +18,7 @@ func (r *Rafty) commonLoop() {
 			r.drainGetLeaderResult()
 			r.drainSendAskNodeIDRequests()
 			r.drainBootstrapClusterRequests()
+			r.drainInstallSnapshotRequests()
 			return
 
 		// handle client get leader
@@ -67,6 +68,7 @@ func (r *Rafty) runAsReadReplica() {
 			r.drainPreVoteRequests()
 			r.drainVoteRequests()
 			r.drainAppendEntriesRequests()
+			r.drainInstallSnapshotRequests()
 			return
 
 		// common state timer
@@ -90,6 +92,12 @@ func (r *Rafty) runAsReadReplica() {
 			if ok {
 				r.rpcMembershipNotLeader(data)
 			}
+
+		// handle install snapshot
+		case data, ok := <-r.rpcInstallSnapshotRequestChan:
+			if ok {
+				r.handleInstallSnapshotRequest(data)
+			}
 		}
 	}
 }
@@ -110,6 +118,7 @@ func (r *Rafty) runAsFollower() {
 			r.drainPreVoteRequests()
 			r.drainVoteRequests()
 			r.drainAppendEntriesRequests()
+			r.drainInstallSnapshotRequests()
 			return
 
 		// common state timer
@@ -145,6 +154,12 @@ func (r *Rafty) runAsFollower() {
 			if ok {
 				r.rpcMembershipNotLeader(data)
 			}
+
+		// handle install snapshot
+		case data, ok := <-r.rpcInstallSnapshotRequestChan:
+			if ok {
+				r.handleInstallSnapshotRequest(data)
+			}
 		}
 	}
 }
@@ -165,6 +180,7 @@ func (r *Rafty) runAsCandidate() {
 			r.drainPreVoteRequests()
 			r.drainVoteRequests()
 			r.drainAppendEntriesRequests()
+			r.drainInstallSnapshotRequests()
 			return
 
 		// common state timer
@@ -207,6 +223,12 @@ func (r *Rafty) runAsCandidate() {
 			if ok {
 				r.rpcMembershipNotLeader(data)
 			}
+
+		// handle install snapshot
+		case data, ok := <-r.rpcInstallSnapshotRequestChan:
+			if ok {
+				r.handleInstallSnapshotRequest(data)
+			}
 		}
 	}
 }
@@ -228,6 +250,7 @@ func (r *Rafty) runAsLeader() {
 			r.drainVoteRequests()
 			r.drainAppendEntriesRequests()
 			r.drainMembershipChangeRequests()
+			r.drainInstallSnapshotRequests()
 			return
 
 		// common state timer
@@ -273,6 +296,12 @@ func (r *Rafty) runAsLeader() {
 		case data, ok := <-r.rpcMembershipChangeRequestChan:
 			if ok {
 				state.handleSendMembershipChangeRequest(data)
+			}
+
+		// handle install snapshot
+		case data, ok := <-r.rpcInstallSnapshotRequestChan:
+			if ok {
+				r.handleInstallSnapshotRequest(data)
 			}
 		}
 	}

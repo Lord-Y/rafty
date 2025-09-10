@@ -409,3 +409,164 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		go r.stop()
 	}
 }
+
+func (r *Rafty) handleInstallSnapshotRequest(data RPCRequest) {
+	r.wg.Add(1)
+	defer r.wg.Done()
+	request := data.Request.(*raftypb.InstallSnapshotRequest)
+	currentTerm := r.currentTerm.Load()
+	response := &raftypb.InstallSnapshotResponse{
+		Term: currentTerm,
+	}
+	rpcResponse := RPCResponse{
+		Response: response,
+	}
+
+	defer func() {
+		data.ResponseChan <- rpcResponse
+	}()
+
+	if currentTerm > request.CurrentTerm {
+		rpcResponse.Error = ErrTermTooOld
+		return
+	}
+
+	if request.CurrentTerm > currentTerm {
+		r.currentTerm.Store(request.CurrentTerm)
+		response.Term = request.CurrentTerm
+		r.switchState(Follower, stepDown, true, request.CurrentTerm)
+	}
+
+	r.setLeader(leaderMap{
+		id:      request.LeaderId,
+		address: request.LeaderAddress,
+	})
+	r.leaderLastContactDate.Store(time.Now())
+
+	peers, _ := decodePeers(request.Configuration)
+	configuration := Configuration{
+		ServerMembers: peers,
+	}
+	snapshot, err := r.snapshot.PrepareSnapshotWriter(request.LastIncludedIndex, request.LastIncludedTerm, request.LastAppliedConfigIndex, request.LastAppliedConfigTerm, configuration)
+	if err != nil {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+			Msgf("Fail to preprare snapshot config")
+		return
+	}
+
+	size, err := snapshot.Write(request.Data)
+	if err != nil {
+		_ = snapshot.Discard()
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+			Str("snapshotName", snapshot.Name()).
+			Msgf("Fail to write snapshot")
+		return
+	}
+
+	if size != int(request.Size) {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+			Str("snapshotName", snapshot.Name()).
+			Msgf("Snapshot size invalid")
+		return
+	}
+
+	if err := snapshot.Close(); err != nil {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+			Str("snapshotName", snapshot.Name()).
+			Msgf("Fail to close snapshot")
+	}
+
+	_, file, err := r.snapshot.PrepareSnapshotReader(snapshot.Name())
+	if err != nil {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+			Str("snapshotName", snapshot.Name()).
+			Msgf("Fail to read snapshot")
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	if err := r.fsm.Restore(file); err != nil {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+			Str("snapshotName", snapshot.Name()).
+			Msgf("Fail to restore snapshot")
+	}
+
+	response.Term = request.CurrentTerm
+	response.Success = true
+	r.lastLogIndex.Store(request.LastIncludedIndex)
+	r.lastLogTerm.Store(request.LastIncludedTerm)
+	r.lastApplied.Store(r.lastLogIndex.Load())
+	r.commitIndex.Store(r.lastLogIndex.Load())
+
+	if err := r.applyConfigEntry(&raftypb.LogEntry{
+		LogType: uint32(logConfiguration),
+		Command: request.Configuration,
+		Index:   request.LastAppliedConfigIndex,
+		Term:    request.LastAppliedConfigTerm,
+	}); err != nil {
+		r.Logger.Warn().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+			Str("snapshotName", snapshot.Name()).
+			Msgf("Fail to apply config entry")
+	}
+
+	r.Logger.Info().
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Str("term", fmt.Sprintf("%d", request.CurrentTerm)).
+		Str("leaderAddress", request.LeaderAddress).
+		Str("leaderId", request.LeaderId).
+		Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+		Str("snapshotName", snapshot.Name()).
+		Msgf("Restore snapshot successful")
+}

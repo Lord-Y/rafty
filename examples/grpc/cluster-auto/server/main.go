@@ -26,6 +26,7 @@ var autoSetMinimumClusterSize = flag.Bool("auto-set-minimum-cluster-size", false
 var maxUptime = flag.Uint("max-uptime", 3, "max uptime in minutes")
 var restartNode = flag.Bool("restart-node", false, "restart first node")
 var snapshotInterval = flag.Uint("snapshot-interval", 30, "Snapshot interval in seconds")
+var maxAppendEntries = flag.Uint64("max-appendentries", 60, "Max append entries")
 
 type clusterConfig struct {
 	ipAddress                 string
@@ -36,6 +37,7 @@ type clusterConfig struct {
 	cluster                   []*rafty.Rafty
 	TimeMultiplier            uint
 	SnapshotInterval          time.Duration
+	MaxAppendEntries          uint64
 }
 
 func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
@@ -79,6 +81,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 					TimeMultiplier:     2,
 					MinimumClusterSize: minimumClusterSize,
 					SnapshotInterval:   time.Duration(*snapshotInterval) * time.Second,
+					MaxAppendEntries:   *maxAppendEntries,
 				}
 				storeOptions := rafty.BoltOptions{
 					DataDir: options.DataDir,

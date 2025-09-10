@@ -35,7 +35,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			select {
 			case r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}:
 			case <-time.After(500 * time.Millisecond):
-				return nil, errTimeoutSendingRequest
+				return nil, ErrTimeoutSendingRequest
 			}
 
 			// answer back to the client
@@ -44,7 +44,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 				return response.Data, response.Error
 
 			case <-time.After(500 * time.Millisecond):
-				return nil, errTimeoutSendingRequest
+				return nil, ErrTimeoutSendingRequest
 			}
 		} else {
 			leader := r.getLeader()

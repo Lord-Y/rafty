@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ func TestStateLoop_runAsReadReplica(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.fillIDs()
 
@@ -36,6 +38,19 @@ func TestStateLoop_runAsReadReplica(t *testing.T) {
 		data := <-responseChan
 		assert.Equal(ErrNotLeader, data.Error)
 	})
+
+	t.Run("installSnapshot", func(t *testing.T) {
+		s.currentTerm.Store(2)
+		go s.runAsReadReplica()
+		responseChan := make(chan RPCResponse, 1)
+		s.rpcInstallSnapshotRequestChan <- RPCRequest{
+			RPCType:      InstallSnapshotRequest,
+			Request:      &raftypb.InstallSnapshotRequest{CurrentTerm: 1},
+			ResponseChan: responseChan,
+		}
+		data := <-responseChan
+		assert.Equal(ErrTermTooOld, data.Error)
+	})
 }
 
 func TestStateLoop_runAsFollower(t *testing.T) {
@@ -43,6 +58,7 @@ func TestStateLoop_runAsFollower(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.fillIDs()
 
@@ -63,6 +79,19 @@ func TestStateLoop_runAsFollower(t *testing.T) {
 		data := <-responseChan
 		assert.Equal(ErrNotLeader, data.Error)
 	})
+
+	t.Run("installSnapshot", func(t *testing.T) {
+		s.currentTerm.Store(2)
+		go s.runAsFollower()
+		responseChan := make(chan RPCResponse, 1)
+		s.rpcInstallSnapshotRequestChan <- RPCRequest{
+			RPCType:      InstallSnapshotRequest,
+			Request:      &raftypb.InstallSnapshotRequest{CurrentTerm: 1},
+			ResponseChan: responseChan,
+		}
+		data := <-responseChan
+		assert.Equal(ErrTermTooOld, data.Error)
+	})
 }
 
 func TestStateLoop_runAsCandidate(t *testing.T) {
@@ -70,6 +99,7 @@ func TestStateLoop_runAsCandidate(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.fillIDs()
 
@@ -90,6 +120,19 @@ func TestStateLoop_runAsCandidate(t *testing.T) {
 		data := <-responseChan
 		assert.Equal(ErrNotLeader, data.Error)
 	})
+
+	t.Run("installSnapshot", func(t *testing.T) {
+		s.currentTerm.Store(2)
+		go s.runAsCandidate()
+		responseChan := make(chan RPCResponse, 1)
+		s.rpcInstallSnapshotRequestChan <- RPCRequest{
+			RPCType:      InstallSnapshotRequest,
+			Request:      &raftypb.InstallSnapshotRequest{CurrentTerm: 1},
+			ResponseChan: responseChan,
+		}
+		data := <-responseChan
+		assert.Equal(ErrTermTooOld, data.Error)
+	})
 }
 
 func TestStateLoop_runAsLeader(t *testing.T) {
@@ -99,6 +142,7 @@ func TestStateLoop_runAsLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 
@@ -128,6 +172,7 @@ func TestStateLoop_runAsLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 
@@ -152,6 +197,30 @@ func TestStateLoop_runAsLeader(t *testing.T) {
 		data := <-responseChan
 		assert.Equal(nil, data.Error)
 	})
+
+	t.Run("installSnapshot", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+
+		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), 2*time.Second)
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.timer = time.NewTicker(s.randomElectionTimeout())
+		s.currentTerm.Store(2)
+		go s.runAsLeader()
+		responseChan := make(chan RPCResponse, 1)
+		s.rpcInstallSnapshotRequestChan <- RPCRequest{
+			RPCType:      InstallSnapshotRequest,
+			Request:      &raftypb.InstallSnapshotRequest{CurrentTerm: 1},
+			ResponseChan: responseChan,
+		}
+		data := <-responseChan
+		assert.Equal(ErrTermTooOld, data.Error)
+	})
 }
 
 func TestStateLoop_snapshotLoop(t *testing.T) {
@@ -161,6 +230,7 @@ func TestStateLoop_snapshotLoop(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 
@@ -179,6 +249,7 @@ func TestStateLoop_snapshotLoop(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 
@@ -208,6 +279,7 @@ func TestStateLoop_snapshotLoop(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 

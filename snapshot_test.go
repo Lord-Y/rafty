@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/jackc/fake"
@@ -66,7 +67,7 @@ func TestSnapshot(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("newSnapshot_max_0", func(t *testing.T) {
-		dataDir := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "newSnapshot_max_0")
+		dataDir := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "newSnapshot_max_0")
 		defer func() {
 			assert.Nil(os.RemoveAll(dataDir))
 		}()
@@ -75,7 +76,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("newSnapshot_max_1", func(t *testing.T) {
-		dataDir := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5), "newSnapshot_max_1")
+		dataDir := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "newSnapshot_max_1")
 		defer func() {
 			assert.Nil(os.RemoveAll(dataDir))
 		}()
@@ -84,7 +85,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("prepareSnapshotConfig_err_tmp_dir", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		assert.Nil(os.MkdirAll(x, 0750))
 		dataDir := filepath.Join(x, "prepareSnapshotConfig_err_tmp_dir")
 		file, err := os.Create(dataDir)
@@ -103,7 +104,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("prepareSnapshotConfig", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		dataDir := filepath.Join(x, "prepareSnapshotConfig")
 		defer func() {
 			assert.Nil(os.RemoveAll(x))
@@ -130,7 +131,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("prepareSnapshotConfig_removeOldSnapshot", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		dataDir := filepath.Join(x, "prepareSnapshotConfig_removeOldSnapshot")
 		defer func() {
 			assert.Nil(os.RemoveAll(x))
@@ -156,6 +157,7 @@ func TestSnapshot(t *testing.T) {
 			assert.Error(snapshot.Close())
 			assert.Greater(snapshot.Metadata().Size, int64(10))
 			assert.Error(snapshot.Metadata().file.Close())
+			time.Sleep(100 * time.Millisecond)
 
 			if dirIndex == 0 {
 				baseDir := filepath.Dir(snapshotConfig.dataDir)
@@ -163,7 +165,7 @@ func TestSnapshot(t *testing.T) {
 				for i := range 5 {
 					switch i {
 					case 0:
-						lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm = uint64(1), uint64(1), uint64(1), uint64(1)
+						continue
 					case 1:
 						lastIncludedIndex, lastIncludedTerm, lastAppliedConfigIndex, lastAppliedConfigTerm = uint64(1), uint64(2), uint64(1), uint64(1)
 					case 2:
@@ -182,7 +184,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("prepareSnapshotConfig_removeOldSnapshot_err_readdir", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		dataDir := filepath.Join(x, "prepareSnapshotConfig_removeOldSnapshot_err_readdir")
 		defer func() {
 			assert.Nil(os.RemoveAll(x))
@@ -207,7 +209,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("list", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		dataDir := filepath.Join(x, "list")
 		defer func() {
 			assert.Nil(os.RemoveAll(x))
@@ -234,7 +236,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("list_err_readdir", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		dataDir := filepath.Join(x, "list_err_readdir")
 		defer func() {
 			assert.Nil(os.RemoveAll(x))
@@ -261,17 +263,18 @@ func TestSnapshot(t *testing.T) {
 		snapshotConfig.parentDir = "x"
 		assert.Equal([]*SnapshotMetadata(nil), snapshotConfig.List())
 		snapshotConfig.parentDir = savedParentDir
+		time.Sleep(200 * time.Millisecond)
 
 		snapshotDataDir := filepath.Join(savedParentDir, makeSnapshotName(lastIncludedIndex, lastIncludedTerm))
-		snapshotMetadataFile := filepath.Join(savedParentDir, makeSnapshotName(lastIncludedIndex, lastIncludedTerm), snapshotMetadataFile)
+		snapshotMetadataFileName := filepath.Join(savedParentDir, makeSnapshotName(lastIncludedIndex, lastIncludedTerm), snapshotMetadataFile)
 		assert.Nil(os.MkdirAll(snapshotDataDir, 0750))
 		assert.Nil(snapshotConfig.List())
-		assert.Nil(os.WriteFile(snapshotMetadataFile, []byte("a=b"), 0644))
+		assert.Nil(os.WriteFile(snapshotMetadataFileName, []byte("a=b"), 0644))
 		assert.Nil(snapshotConfig.List())
 	})
 
 	t.Run("discard", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		dataDir := filepath.Join(x, "discard")
 		defer func() {
 			assert.Nil(os.RemoveAll(x))
@@ -295,7 +298,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("reader", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		dataDir := filepath.Join(x, "reader")
 		defer func() {
 			assert.Nil(os.RemoveAll(x))
@@ -325,7 +328,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("reader_error", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		dataDir := filepath.Join(x, "reader_error")
 		defer func() {
 			assert.Nil(os.RemoveAll(x))
@@ -338,7 +341,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("readMetadata_error_read_metadata", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		assert.Nil(os.MkdirAll(x, 0750))
 		dataDir := filepath.Join(x, "readMetadata_error_read_metadata")
 		file, err := os.Create(dataDir)
@@ -354,7 +357,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("readMetadata_error_unmarshal", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		assert.Nil(os.MkdirAll(x, 0750))
 		dataDir := filepath.Join(x, "readMetadata_error_unmarshal")
 		file, err := os.Create(dataDir)
@@ -373,7 +376,7 @@ func TestSnapshot(t *testing.T) {
 	})
 
 	t.Run("readMetadata_success", func(t *testing.T) {
-		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(5))
+		x := filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20))
 		assert.Nil(os.MkdirAll(x, 0750))
 		dataDir := filepath.Join(x, "readMetadata_success")
 		file, err := os.Create(dataDir)

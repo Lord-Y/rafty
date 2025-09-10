@@ -3,13 +3,16 @@ package rafty
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/google/uuid"
+	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
@@ -269,5 +272,189 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 			}
 		}()
 		state.singleServerAppendEntries(request)
+	})
+}
+
+func TestLogReplication_sendInstallSnapshot(t *testing.T) {
+	t.Run("sendSnapshotInProgress", func(t *testing.T) {
+		assert := assert.New(t)
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+
+		s.isRunning.Store(true)
+		s.State = Leader
+		followers, _ := s.getPeers()
+
+		entries := []*raftypb.LogEntry{{Term: 1}}
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+
+		id := 0
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String(), s.configuration.ServerMembers[id].ID)
+
+		followerRepl := &followerReplication{
+			Peer:         followers[id],
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+		}
+		followerRepl.sendSnapshotInProgress.Store(true)
+		followerRepl.sendInstallSnapshot(client)
+		s.wg.Wait()
+	})
+
+	t.Run("noSnapshotFound", func(t *testing.T) {
+		assert := assert.New(t)
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+
+		s.isRunning.Store(true)
+		s.State = Leader
+		followers, _ := s.getPeers()
+
+		entries := []*raftypb.LogEntry{{Term: 1}}
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+
+		id := 0
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String(), s.configuration.ServerMembers[id].ID)
+
+		followerRepl := &followerReplication{
+			Peer:         followers[id],
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+		}
+		followerRepl.sendInstallSnapshot(client)
+		s.wg.Wait()
+	})
+
+	t.Run("errInstallSnapshot", func(t *testing.T) {
+		assert := assert.New(t)
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.options.MaxAppendEntries = 64
+		followers, _ := s.getPeers()
+
+		max := 100
+		for index := range max {
+			var entries []*raftypb.LogEntry
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		}
+		_, err := s.takeSnapshot()
+		assert.Nil(err)
+
+		id := 0
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String(), s.configuration.ServerMembers[id].ID)
+
+		followerRepl := &followerReplication{
+			Peer:         followers[id],
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+		}
+		followerRepl.sendInstallSnapshot(client)
+		s.wg.Wait()
+	})
+
+	t.Run("response_success_true", func(t *testing.T) {
+		assert := assert.New(t)
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.options.MaxAppendEntries = 64
+		followers, _ := s.getPeers()
+
+		max := 100
+		for index := range max {
+			var entries []*raftypb.LogEntry
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		}
+		_, err := s.takeSnapshot()
+		assert.Nil(err)
+
+		id := 0
+		mockClient := new(MockRaftyClientTestify)
+		mockClient.On("SendInstallSnapshotRequest", mock.Anything, mock.Anything, mock.Anything).
+			Return(&raftypb.InstallSnapshotResponse{Success: true}, nil)
+
+		followerRepl := &followerReplication{
+			Peer:         followers[id],
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+		}
+		followerRepl.sendInstallSnapshot(mockClient)
+		s.wg.Wait()
+
+		mockClient.AssertExpectations(t)
+	})
+
+	t.Run("response_success_false", func(t *testing.T) {
+		assert := assert.New(t)
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+
+		s.isRunning.Store(true)
+		s.State = Leader
+		s.options.MaxAppendEntries = 64
+		followers, _ := s.getPeers()
+
+		max := 100
+		for index := range max {
+			var entries []*raftypb.LogEntry
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		}
+		_, err := s.takeSnapshot()
+		assert.Nil(err)
+
+		id := 0
+		mockClient := new(MockRaftyClientTestify)
+		mockClient.On("SendInstallSnapshotRequest", mock.Anything, mock.Anything, mock.Anything).
+			Return(&raftypb.InstallSnapshotResponse{Success: false, Term: 1}, nil)
+
+		followerRepl := &followerReplication{
+			Peer:         followers[id],
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+		}
+		followerRepl.sendInstallSnapshot(mockClient)
+		s.wg.Wait()
+
+		mockClient.AssertExpectations(t)
 	})
 }

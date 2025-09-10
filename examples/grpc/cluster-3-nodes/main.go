@@ -28,6 +28,7 @@ var disableNormalMode = flag.Bool("disable-normal-mode", false, "by default the 
 var timeMultiplier = flag.Uint("time-multiplier", 0, "TimeMultiplier is a scaling factor that will be used during election timeout")
 var submitCommands = flag.Bool("submit-commands", false, "if true submit commands to leader")
 var maxCommands = flag.Uint("max-commands", 10, "Max command to submit")
+var maxAppendEntries = flag.Uint64("max-appendentries", 60, "Max append entries")
 var prevoteDisabled = flag.Bool("prevote-disabled", false, "if true pre vote will be disabled")
 var readReplica = flag.Bool("read-replica", false, "only when last node for membership")
 var shutdownOnRemove = flag.Bool("shutdown-on-remove", false, "only when last node for membership")
@@ -84,6 +85,7 @@ func main() {
 		TimeMultiplier:   *timeMultiplier,
 		PrevoteDisabled:  *prevoteDisabled,
 		SnapshotInterval: time.Duration(*snapshotInterval) * time.Second,
+		MaxAppendEntries: *maxAppendEntries,
 	}
 	if *nodeId == 3 {
 		if *readReplica {

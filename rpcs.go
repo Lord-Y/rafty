@@ -40,6 +40,9 @@ const (
 
 	// BootstrapClusterRequest is used to bootstrap the cluster
 	BootstrapClusterRequest
+
+	// InstallSnapshotRequest is used to install snapshot in the cluster
+	InstallSnapshotRequest
 )
 
 // RPCRequest is used by chans in order to manage rpc requests
@@ -198,7 +201,7 @@ func (r *Rafty) sendRPC(request RPCRequest, client raftypb.RaftyClient, peer Pee
 		request.ResponseChan <- RPCResponse{Response: makeRPCMembershipChangeResponse(resp, req.Action), Error: err, TargetPeer: peer}
 
 	default:
-		request.ResponseChan <- RPCResponse{Error: errUnkownRPCType, TargetPeer: peer}
+		request.ResponseChan <- RPCResponse{Error: ErrUnkownRPCType, TargetPeer: peer}
 	}
 }
 

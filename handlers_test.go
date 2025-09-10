@@ -1,11 +1,15 @@
 package rafty
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
+	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,6 +18,7 @@ func TestHandleSendPreVoteRequest(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.isRunning.Store(true)
 
@@ -100,6 +105,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.currentTerm.Store(1)
@@ -130,6 +136,9 @@ func TestHandleSendVoteRequest(t *testing.T) {
 
 	t.Run("lower_panic", func(t *testing.T) {
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.currentTerm.Store(1)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -163,6 +172,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.votedFor = ""
@@ -198,6 +208,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.votedFor = "1"
@@ -233,6 +244,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.votedFor = "1"
@@ -271,6 +283,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.votedFor = "1"
@@ -314,6 +327,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.votedFor = candidateId
@@ -360,6 +374,9 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		// with same current term but more logs
 		// let's fill other server lastLogIndex etc
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.votedFor = candidateId
 		s.votedForTerm.Store(2)
@@ -404,6 +421,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.votedFor = candidateId
@@ -446,6 +464,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.votedFor = candidateId
@@ -485,6 +504,9 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		// I'm candidate and the other server too
 		// with same current term but 0 logs
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.votedFor = candidateId
 		s.votedForTerm.Store(1)
@@ -522,6 +544,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.votedFor = s.configuration.ServerMembers[1].ID
@@ -556,6 +579,9 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		// I'm candidate and I receive send vote request
 		// from other nodes
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.votedFor = s.configuration.ServerMembers[1].ID
 		s.votedForTerm.Store(1)
@@ -595,6 +621,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
@@ -628,6 +655,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
@@ -662,6 +690,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
@@ -693,6 +722,9 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 
 	t.Run("he_is_a_leader_only_panic", func(t *testing.T) {
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
 		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
@@ -728,6 +760,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
@@ -761,6 +794,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
@@ -802,6 +836,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
@@ -848,6 +883,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(2)
 		s.isRunning.Store(true)
@@ -893,6 +929,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
@@ -947,6 +984,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
@@ -1021,6 +1059,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
@@ -1091,6 +1130,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.currentTerm.Store(1)
 		s.isRunning.Store(true)
@@ -1126,6 +1166,109 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		data := <-responseChan
 		response := data.Response.(*raftypb.AppendEntryResponse)
 		assert.Equal(false, response.Success)
+		s.wg.Wait()
+	})
+}
+
+func TestHandleInstallSnapshotRequest(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("ErrTermTooOld", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.isRunning.Store(true)
+		s.currentTerm.Store(2)
+		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
+
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: InstallSnapshotRequest,
+			Request: &raftypb.InstallSnapshotRequest{
+				CurrentTerm: 1,
+			},
+			ResponseChan: responseChan,
+		}
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.handleInstallSnapshotRequest(request)
+		}()
+		data := <-responseChan
+		assert.ErrorIs(data.Error, ErrTermTooOld)
+		s.wg.Wait()
+	})
+
+	t.Run("install_restore_success", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.isRunning.Store(true)
+		s.options.MaxAppendEntries = 64
+		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
+
+		max := 100
+		for index := range max {
+			var entries []*raftypb.LogEntry
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		}
+		_, err := s.takeSnapshot()
+		assert.Nil(err)
+
+		snapshots := s.snapshot.List()
+		metadata := snapshots[0]
+		_, file, err := s.snapshot.PrepareSnapshotReader(metadata.SnapshotName)
+		assert.Nil(err)
+
+		var buffer bytes.Buffer
+		_, err = io.Copy(&buffer, file)
+		assert.Nil(err)
+		assert.Nil(file.Close())
+
+		leaderTerm := uint64(1)
+		responseChan := make(chan RPCResponse, 1)
+		request := RPCRequest{
+			RPCType: InstallSnapshotRequest,
+			Request: &raftypb.InstallSnapshotRequest{
+				LeaderAddress:          s.configuration.ServerMembers[0].Address,
+				LeaderId:               s.configuration.ServerMembers[0].ID,
+				LastIncludedIndex:      metadata.LastIncludedIndex,
+				LastIncludedTerm:       metadata.LastIncludedTerm,
+				LastAppliedConfigIndex: metadata.LastAppliedConfigIndex,
+				LastAppliedConfigTerm:  metadata.LastAppliedConfigTerm,
+				Configuration:          encodePeers(metadata.Configuration.ServerMembers),
+				Data:                   buffer.Bytes(),
+				Size:                   uint64(metadata.Size),
+				CurrentTerm:            leaderTerm,
+			},
+			ResponseChan: responseChan,
+		}
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.handleInstallSnapshotRequest(request)
+		}()
+		data := <-responseChan
+		response := data.Response.(*raftypb.InstallSnapshotResponse)
+
+		assert.ErrorIs(data.Error, nil)
+		assert.Equal(response.Term, leaderTerm)
+		assert.Equal(response.Success, true)
+
 		s.wg.Wait()
 	})
 }
