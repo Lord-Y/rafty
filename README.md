@@ -41,6 +41,10 @@ Here is a list of the supported features of `rafty`:
   - [x] leaveOnTerminate
 - [x] Single server cluster
 - [x] Bootstrap cluster
+- [x] Snapshot
+  - [x] Take snapshot (with FSM interface)
+  - [x] Restore snapshot (with FSM interface)
+  - [x] InstallSnapshot RPC call
 
 ## References
 
