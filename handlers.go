@@ -255,7 +255,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	r.leaderLastContactDate.Store(time.Now())
 	r.timer.Reset(r.heartbeatTimeout())
 
-	if (request.PrevLogIndex != lastLogIndex || request.PrevLogTerm != int64(lastLogTerm)) && !request.Catchup {
+	if (request.PrevLogIndex != lastLogIndex || request.PrevLogTerm != lastLogTerm) && !request.Catchup {
 		response.LogNotFound = true
 		data.ResponseChan <- rpcResponse
 
@@ -294,7 +294,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("leaderNewTotalLogs", fmt.Sprintf("%d", len(request.Entries))).
 				Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
 				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
-				Str("index", fmt.Sprintf("%d", index)).
+				Str("loopIndex", fmt.Sprintf("%d", index)).
 				Str("entryIndex", fmt.Sprintf("%d", entry.Index)).
 				Msgf("debug data received append entries")
 
@@ -328,13 +328,14 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		}
 
 		if lenEntries := len(newEntries); lenEntries > 0 {
-			var err error
-			r.updateEntriesIndex(newEntries)
 			if err := r.logStore.StoreLogs(makeLogEntries(newEntries)); err != nil {
 				panic(err)
 			}
+
+			r.lastLogIndex.Store(newEntries[lenEntries-1].Index)
+			r.lastLogTerm.Store(newEntries[lenEntries-1].Term)
 			for index := range newEntries {
-				if err = r.applyConfigEntry(newEntries[index]); err != nil {
+				if err := r.applyConfigEntry(newEntries[index]); err != nil {
 					r.Logger.Warn().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).
