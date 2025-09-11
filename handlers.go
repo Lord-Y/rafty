@@ -61,7 +61,7 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
-			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("term", fmt.Sprintf("%d", request.CurrentTerm)).
 			Str("peerAddress", request.CandidateAddress).
 			Str("peerId", request.CandidateId).
 			Str("peerTerm", fmt.Sprintf("%d", request.CurrentTerm)).
@@ -368,7 +368,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
 				Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
 				Str("lastLogTerm", fmt.Sprintf("%d", r.lastLogTerm.Load())).
-				Str("matchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
 				Str("lastApplied", fmt.Sprintf("%d", r.lastApplied.Load())).
 				Str("lastAppliedConfigIndex", fmt.Sprintf("%d", r.lastAppliedConfigIndex.Load())).
 				Str("lastAppliedConfigTerm", fmt.Sprintf("%d", r.lastAppliedConfigTerm.Load())).
@@ -394,8 +393,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		Str("state", r.getState().String()).
 		Str("term", fmt.Sprintf("%d", request.Term)).
 		Str("heartbeat", fmt.Sprintf("%t", request.Heartbeat)).
-		Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
-		Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
+		Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
+		Str("lastLogTerm", fmt.Sprintf("%d", r.lastLogTerm.Load())).
 		Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
 		Str("leaderAddress", request.LeaderAddress).
 		Str("leaderId", request.LeaderId).
