@@ -375,7 +375,7 @@ type AppendEntryRequest struct {
 	LeaderAddress     string                 `protobuf:"bytes,2,opt,name=leader_address,json=leaderAddress,proto3" json:"leader_address,omitempty"`
 	Term              uint64                 `protobuf:"varint,3,opt,name=term,proto3" json:"term,omitempty"`
 	PrevLogIndex      uint64                 `protobuf:"varint,4,opt,name=prev_log_index,json=prevLogIndex,proto3" json:"prev_log_index,omitempty"`
-	PrevLogTerm       int64                  `protobuf:"varint,5,opt,name=prev_log_term,json=prevLogTerm,proto3" json:"prev_log_term,omitempty"`
+	PrevLogTerm       uint64                 `protobuf:"varint,5,opt,name=prev_log_term,json=prevLogTerm,proto3" json:"prev_log_term,omitempty"`
 	Entries           []*LogEntry            `protobuf:"bytes,6,rep,name=entries,proto3" json:"entries,omitempty"`
 	LeaderCommitIndex uint64                 `protobuf:"varint,7,opt,name=leader_commit_index,json=leaderCommitIndex,proto3" json:"leader_commit_index,omitempty"`
 	Heartbeat         bool                   `protobuf:"varint,8,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
@@ -442,7 +442,7 @@ func (x *AppendEntryRequest) GetPrevLogIndex() uint64 {
 	return 0
 }
 
-func (x *AppendEntryRequest) GetPrevLogTerm() int64 {
+func (x *AppendEntryRequest) GetPrevLogTerm() uint64 {
 	if x != nil {
 		return x.PrevLogTerm
 	}
@@ -1518,7 +1518,7 @@ const file_raftypb_requests_proto_rawDesc = "" +
 	"\x0eleader_address\x18\x02 \x01(\tR\rleaderAddress\x12\x12\n" +
 	"\x04term\x18\x03 \x01(\x04R\x04term\x12$\n" +
 	"\x0eprev_log_index\x18\x04 \x01(\x04R\fprevLogIndex\x12\"\n" +
-	"\rprev_log_term\x18\x05 \x01(\x03R\vprevLogTerm\x12+\n" +
+	"\rprev_log_term\x18\x05 \x01(\x04R\vprevLogTerm\x12+\n" +
 	"\aentries\x18\x06 \x03(\v2\x11.raftypb.LogEntryR\aentries\x12.\n" +
 	"\x13leader_commit_index\x18\a \x01(\x04R\x11leaderCommitIndex\x12\x1c\n" +
 	"\theartbeat\x18\b \x01(\bR\theartbeat\x12\x18\n" +

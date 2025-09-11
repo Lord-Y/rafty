@@ -546,15 +546,6 @@ func (r *Rafty) membershipChangeResponse(resp RPCResponse) {
 		return
 	}
 
-	r.Logger.Debug().
-		Str("address", r.Address.String()).
-		Str("id", r.id).
-		Str("state", r.getState().String()).
-		Str("leaderAddress", targetPeer.Address).
-		Str("leaderId", targetPeer.ID).
-		Str("action", MembershipChange(response.ActionPerformed).String()).
-		Msgf("Membership change request response %t", response.Success)
-
 	if response.Success {
 		r.askForMembership.Store(false)
 		r.Logger.Debug().

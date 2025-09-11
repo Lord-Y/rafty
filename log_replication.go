@@ -241,7 +241,7 @@ func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, requ
 			LeaderId:          r.rafty.id,
 			Term:              request.term,
 			PrevLogIndex:      request.prevLogIndex,
-			PrevLogTerm:       int64(request.prevLogTerm),
+			PrevLogTerm:       request.prevLogTerm,
 			Entries:           request.entries,
 			LeaderCommitIndex: request.commitIndex,
 			Heartbeat:         request.heartbeat,
@@ -378,19 +378,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 							}
 						}
 					}
-					r.rafty.Logger.Trace().
-						Str("address", r.rafty.Address.String()).
-						Str("id", r.rafty.id).
-						Str("state", r.rafty.getState().String()).
-						Str("term", fmt.Sprintf("%d", request.term)).
-						Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-						Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
-						Str("peerAddress", r.address.String()).
-						Str("peerId", r.ID).
-						Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
-						Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
-						Str("heartbeat", fmt.Sprintf("%t", request.heartbeat)).
-						Msgf("Successfully append entries to the majority of servers %d >= %d", request.majority.Load()+1, request.quorum)
 				}
 
 			default:
@@ -447,13 +434,6 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 			Msg("Fail to prepare catchup append entries request")
 		return
 	}
-
-	r.rafty.Logger.Info().
-		Str("peerAddress", r.address.String()).
-		Str("peerId", r.ID).
-		Str("maxAppendEntries", fmt.Sprintf("%d", r.rafty.options.MaxAppendEntries)).
-		Str("snapshot", fmt.Sprintf("%t", result.SendSnapshot)).
-		Msg("SNAP")
 
 	if result.SendSnapshot {
 		r.sendInstallSnapshot(client)

@@ -1000,7 +1000,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		encodedPeers := encodePeers(peers)
 		assert.NotNil(encodedPeers)
 		responseChan := make(chan RPCResponse, 1)
-		leaderCommitIndex := uint64(5)
+		leaderCommitIndex := uint64(4)
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
@@ -1071,7 +1071,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 		responseChan := make(chan RPCResponse, 1)
-		leaderCommitIndex := uint64(5)
+		leaderCommitIndex := uint64(4)
 		request := RPCRequest{
 			RPCType: AppendEntryRequest,
 			Request: &raftypb.AppendEntryRequest{
