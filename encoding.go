@@ -8,8 +8,8 @@ import (
 	"io"
 )
 
-// encodeCommand permits to transform command receive from clients to binary language machine
-func encodeCommand(cmd Command, w io.Writer) error {
+// EncodeCommand permits to transform command receive from clients to binary language machine
+func EncodeCommand(cmd Command, w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, uint32(cmd.Kind)); err != nil {
 		return err
 	}
@@ -28,8 +28,8 @@ func encodeCommand(cmd Command, w io.Writer) error {
 	return nil
 }
 
-// decodeCommand permits to transform back command from binary language machine to clients
-func decodeCommand(data []byte) (Command, error) {
+// DecodeCommand permits to transform back command from binary language machine to clients
+func DecodeCommand(data []byte) (Command, error) {
 	var cmd Command
 	buffer := bytes.NewBuffer(data)
 
@@ -180,8 +180,8 @@ func UnmarshalBinaryWithChecksum(data []byte) (*LogEntry, error) {
 	return UnmarshalBinary(body)
 }
 
-// encodePeers permits to encode peers and return bytes
-func encodePeers(data []Peer) (result []byte) {
+// EncodePeers permits to encode peers and return bytes
+func EncodePeers(data []Peer) (result []byte) {
 	// checking error is irrelevant here as it will always be nil
 	// in this case
 	result, _ = json.Marshal(data)
@@ -189,19 +189,21 @@ func encodePeers(data []Peer) (result []byte) {
 }
 
 // decodePeers permits to decode peers and return bytes
-func decodePeers(data []byte) (result []Peer, err error) {
+func DecodePeers(data []byte) (result []Peer, err error) {
 	if err = json.Unmarshal(data, &result); err != nil {
 		return
 	}
 	return
 }
 
-func encodeUint64ToBytes(value uint64) []byte {
+// EncodeUint64ToBytes permits to encode uint64 to bytes
+func EncodeUint64ToBytes(value uint64) []byte {
 	buffer := make([]byte, 8)
 	binary.BigEndian.PutUint64(buffer, value)
 	return buffer
 }
 
-func decodeUint64ToBytes(value []byte) uint64 {
+// DecodeUint64ToBytes permits to decode bytes to uint64
+func DecodeUint64ToBytes(value []byte) uint64 {
 	return binary.BigEndian.Uint64(value)
 }

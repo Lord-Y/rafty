@@ -96,7 +96,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
 
 		buffer := new(bytes.Buffer)
-		err := encodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
+		err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
 		assert.Nil(err)
 
 		_, err = s.submitCommand(buffer.Bytes())
@@ -124,7 +124,7 @@ func TestClient_submitCommand(t *testing.T) {
 		}()
 
 		buffer := new(bytes.Buffer)
-		err := encodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
+		err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
 		assert.Nil(err)
 
 		_, err = s.submitCommand(buffer.Bytes())

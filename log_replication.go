@@ -652,7 +652,7 @@ func (r *followerReplication) sendInstallSnapshot(client raftypb.RaftyClient) {
 			LastIncludedTerm:       metadata.LastIncludedTerm,
 			LastAppliedConfigIndex: metadata.LastAppliedConfigIndex,
 			LastAppliedConfigTerm:  metadata.LastAppliedConfigTerm,
-			Configuration:          encodePeers(metadata.Configuration.ServerMembers),
+			Configuration:          EncodePeers(metadata.Configuration.ServerMembers),
 			Data:                   buffer.Bytes(),
 			Size:                   uint64(metadata.Size),
 			CurrentTerm:            currentTerm,

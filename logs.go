@@ -318,7 +318,7 @@ func (r *Rafty) applyConfigEntry(entry *raftypb.LogEntry) error {
 	switch entry.LogType {
 	case uint32(logConfiguration):
 		if entry.Index > r.lastAppliedConfigIndex.Load() || entry.Term > r.lastAppliedConfigTerm.Load() {
-			peers, err := decodePeers(entry.Command)
+			peers, err := DecodePeers(entry.Command)
 			if err != nil {
 				return err
 			}

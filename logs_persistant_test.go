@@ -161,7 +161,7 @@ func TestLogsPersistant(t *testing.T) {
 			})
 		}
 
-		enc := encodePeers([]Peer{{Address: "127.0.0.1:60000", ID: "60"}, {Address: "127.0.0.1:61000", ID: "61"}, {Address: "127.0.0.1:62000", ID: "62"}})
+		enc := EncodePeers([]Peer{{Address: "127.0.0.1:60000", ID: "60"}, {Address: "127.0.0.1:61000", ID: "61"}, {Address: "127.0.0.1:62000", ID: "62"}})
 		configIndex := uint64(50)
 		logs = append(logs, &LogEntry{
 			LogType: uint32(logConfiguration),
@@ -266,7 +266,7 @@ func TestLogsPersistant(t *testing.T) {
 		keyUint, valueUint := "keyUint", uint64(64)
 		valUint := store.GetUint64([]byte(keyUint))
 		assert.Equal(uint64(0), valUint)
-		assert.Nil(store.SetUint64([]byte(keyUint), encodeUint64ToBytes(valueUint)))
+		assert.Nil(store.SetUint64([]byte(keyUint), EncodeUint64ToBytes(valueUint)))
 		assert.Equal(valueUint, store.GetUint64([]byte(keyUint)))
 
 		assert.Nil(store.Close())
