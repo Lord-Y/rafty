@@ -246,8 +246,10 @@ func TestClient_bootstrapCluster(t *testing.T) {
 		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
 		s.stopCtx()
 
-		go s.commonLoop()
-		assert.ErrorIs(s.BootstrapCluster(2*time.Second), ErrShutdown)
+		go func() {
+			<-s.rpcBootstrapClusterRequestChan
+			time.Sleep(2 * time.Second)
+		}()
 		assert.ErrorIs(s.BootstrapCluster(2*time.Second), ErrShutdown)
 		s.wg.Wait()
 	})
