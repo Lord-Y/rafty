@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -429,7 +430,11 @@ func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup, fake bool) 
 				defer wg.Done()
 				if fake {
 					node.Logger.Info().Msgf("Submitting fake command to node %d", i)
-					if _, err := node.SubmitCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)}); err != nil {
+					buffer := new(bytes.Buffer)
+					if err := EncodeCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)}, buffer); err != nil {
+						node.Logger.Fatal().Err(err).Msgf("Fail to encode command %d", i)
+					}
+					if _, err := node.SubmitCommand(0, buffer.Bytes()); err != nil {
 						node.Logger.Error().Err(err).
 							Str("node", fmt.Sprintf("%d", i)).
 							Msgf("Failed to submit fake commmand to node")
@@ -438,7 +443,11 @@ func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup, fake bool) 
 					return
 				}
 				node.Logger.Info().Msgf("Submitting command to node %d", i)
-				if _, err := node.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)}); err != nil {
+				buffer := new(bytes.Buffer)
+				if err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)}, buffer); err != nil {
+					node.Logger.Fatal().Err(err).Msgf("Fail to encode command %d", i)
+				}
+				if _, err := node.SubmitCommand(0, buffer.Bytes()); err != nil {
 					node.Logger.Error().Err(err).
 						Str("node", fmt.Sprintf("%d", i)).
 						Msgf("Failed to submit commmand to node")
