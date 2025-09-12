@@ -208,7 +208,7 @@ func TestClient_bootstrapCluster(t *testing.T) {
 			s.stopCtx()
 		}()
 
-		assert.Error(s.BootstrapCluster(time.Millisecond))
+		assert.ErrorIs(s.BootstrapCluster(time.Millisecond), ErrTimeoutSendingRequest)
 		s.wg.Wait()
 	})
 
@@ -247,7 +247,8 @@ func TestClient_bootstrapCluster(t *testing.T) {
 		s.stopCtx()
 
 		go s.commonLoop()
-		assert.Error(s.BootstrapCluster(time.Second))
+		assert.ErrorIs(s.BootstrapCluster(2*time.Second), ErrShutdown)
+		assert.ErrorIs(s.BootstrapCluster(2*time.Second), ErrShutdown)
 		s.wg.Wait()
 	})
 
@@ -268,7 +269,7 @@ func TestClient_bootstrapCluster(t *testing.T) {
 			time.Sleep(2 * time.Second)
 		}()
 
-		assert.Error(s.BootstrapCluster(time.Second))
+		assert.ErrorIs(s.BootstrapCluster(time.Second), ErrTimeoutSendingRequest)
 		s.wg.Wait()
 	})
 }
@@ -295,7 +296,7 @@ func TestClient_demoteMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
 		s.wg.Wait()
 	})
 
@@ -356,7 +357,7 @@ func TestClient_demoteMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrShutdown)
 		s.wg.Wait()
 	})
 
@@ -379,7 +380,7 @@ func TestClient_demoteMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
 		s.wg.Wait()
 	})
 }
@@ -406,7 +407,7 @@ func TestClient_removeMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
 		s.wg.Wait()
 	})
 
@@ -467,7 +468,7 @@ func TestClient_removeMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrShutdown)
 		s.wg.Wait()
 	})
 
@@ -490,7 +491,7 @@ func TestClient_removeMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
 		s.wg.Wait()
 	})
 }
@@ -517,7 +518,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
 		s.wg.Wait()
 	})
 
@@ -578,7 +579,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrShutdown)
 		s.wg.Wait()
 	})
 
@@ -601,7 +602,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 
 		node1 := s.configuration.ServerMembers[0]
 		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
 		s.wg.Wait()
 	})
 }
