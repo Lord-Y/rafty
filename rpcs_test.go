@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ func TestRpcs_Fake(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 
 	request := RPCRequest{
@@ -43,6 +45,7 @@ func TestRpcs_askNodeIDResult(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.State = Follower
 
@@ -85,6 +88,7 @@ func TestRpcs_getLeaderResult(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.State = Follower
 
@@ -129,6 +133,7 @@ func TestRpcs_membershipChangeResponse(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.State = Follower
 
@@ -157,6 +162,7 @@ func TestRpcs_bootstrapCluster(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.State = Follower
 	s.options.BootstrapCluster = true
