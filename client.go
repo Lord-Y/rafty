@@ -109,3 +109,61 @@ func (r *Rafty) BootstrapCluster(timeout time.Duration) error {
 		return ErrTimeoutSendingRequest
 	}
 }
+
+// DemoteMember is used by the current node to demote the provided member the cluster. An error will be returned if any
+func (r *Rafty) DemoteMember(timeout time.Duration, address, id string, readReplica bool) (*raftypb.MembershipChangeResponse, error) {
+	if timeout == 0 {
+		timeout = time.Second
+	}
+
+	return r.manageMembers(timeout, Demote, address, id, readReplica)
+}
+
+// RemoveMember is used by the current node to remove the provided member the cluster. An error will be returned if any
+func (r *Rafty) RemoveMember(timeout time.Duration, address, id string, readReplica bool) (*raftypb.MembershipChangeResponse, error) {
+	if timeout == 0 {
+		timeout = time.Second
+	}
+
+	return r.manageMembers(timeout, Remove, address, id, readReplica)
+}
+
+// ForceRemoveMember is used by the current node to force remove the provided member the cluster. An error will be returned if any
+func (r *Rafty) ForceRemoveMember(timeout time.Duration, address, id string, readReplica bool) (*raftypb.MembershipChangeResponse, error) {
+	if timeout == 0 {
+		timeout = time.Second
+	}
+
+	return r.manageMembers(timeout, ForceRemove, address, id, readReplica)
+}
+
+// manageMembers is a private func that handle all membership changes
+func (r *Rafty) manageMembers(timeout time.Duration, action MembershipChange, address, id string, readReplica bool) (*raftypb.MembershipChangeResponse, error) {
+	responseChan := make(chan RPCResponse, 1)
+
+	select {
+	case r.rpcMembershipChangeRequestChan <- RPCRequest{
+		RPCType: MembershipChangeRequest,
+		Request: &raftypb.MembershipChangeRequest{
+			Id:          id,
+			Address:     address,
+			ReadReplica: readReplica,
+			Action:      uint32(action),
+		},
+		ResponseChan: responseChan,
+	}:
+	case <-time.After(timeout):
+		return nil, ErrTimeoutSendingRequest
+	}
+
+	select {
+	case response := <-responseChan:
+		return response.Response.(*raftypb.MembershipChangeResponse), response.Error
+
+	case <-r.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(timeout):
+		return nil, ErrTimeoutSendingRequest
+	}
+}

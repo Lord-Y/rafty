@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -215,6 +216,339 @@ func TestClient_bootstrapCluster(t *testing.T) {
 		}()
 
 		assert.Error(s.BootstrapCluster(time.Second))
+		s.wg.Wait()
+	})
+}
+
+func TestClient_demoteMember(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			time.Sleep(time.Second)
+			s.stopCtx()
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
+		s.wg.Wait()
+	})
+
+	t.Run("err_nil", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		forgedResponse := RPCResponse{
+			Response: &raftypb.MembershipChangeResponse{Success: true},
+		}
+		s.wg.Go(func() {
+			for {
+				select {
+				case data := <-s.rpcMembershipChangeRequestChan:
+					data.ResponseChan <- forgedResponse
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		response, err := s.DemoteMember(0, node1.Address, node1.ID, false)
+		assert.NotNil(response)
+		assert.Nil(err)
+		s.wg.Wait()
+	})
+
+	t.Run("quit_context_done", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		s.wg.Go(func() {
+			for {
+				select {
+				case <-s.rpcMembershipChangeRequestChan:
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
+		s.wg.Wait()
+	})
+
+	t.Run("err_timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcMembershipChangeRequestChan
+			time.Sleep(2 * time.Second)
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
+		s.wg.Wait()
+	})
+}
+
+func TestClient_removeMember(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			time.Sleep(time.Second)
+			s.stopCtx()
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
+		s.wg.Wait()
+	})
+
+	t.Run("err_nil", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		forgedResponse := RPCResponse{
+			Response: &raftypb.MembershipChangeResponse{Success: true},
+		}
+		s.wg.Go(func() {
+			for {
+				select {
+				case data := <-s.rpcMembershipChangeRequestChan:
+					data.ResponseChan <- forgedResponse
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		response, err := s.RemoveMember(0, node1.Address, node1.ID, false)
+		assert.NotNil(response)
+		assert.Nil(err)
+		s.wg.Wait()
+	})
+
+	t.Run("quit_context_done", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		s.wg.Go(func() {
+			for {
+				select {
+				case <-s.rpcMembershipChangeRequestChan:
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
+		s.wg.Wait()
+	})
+
+	t.Run("err_timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcMembershipChangeRequestChan
+			time.Sleep(2 * time.Second)
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
+		s.wg.Wait()
+	})
+}
+
+func TestClient_forceRemoveMember(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			time.Sleep(time.Second)
+			s.stopCtx()
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
+		s.wg.Wait()
+	})
+
+	t.Run("err_nil", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		forgedResponse := RPCResponse{
+			Response: &raftypb.MembershipChangeResponse{Success: true},
+		}
+		s.wg.Go(func() {
+			for {
+				select {
+				case data := <-s.rpcMembershipChangeRequestChan:
+					data.ResponseChan <- forgedResponse
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		response, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
+		assert.NotNil(response)
+		assert.Nil(err)
+		s.wg.Wait()
+	})
+
+	t.Run("quit_context_done", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		s.wg.Go(func() {
+			for {
+				select {
+				case <-s.rpcMembershipChangeRequestChan:
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
+		s.wg.Wait()
+	})
+
+	t.Run("err_timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcMembershipChangeRequestChan
+			time.Sleep(2 * time.Second)
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
+		assert.Error(err)
 		s.wg.Wait()
 	})
 }
