@@ -552,3 +552,19 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		s.wg.Wait()
 	})
 }
+
+func TestClient_status(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
+	}()
+	s.fillIDs()
+	s.State = Leader
+	s.isRunning.Store(true)
+
+	status := s.Status()
+	assert.Equal(Leader, status.State)
+}
