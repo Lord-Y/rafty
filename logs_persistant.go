@@ -111,7 +111,7 @@ func (b *BoltStore) StoreLogs(logs []*LogEntry) error {
 	bucket := tx.Bucket([]byte(bucketLogsName))
 
 	for _, log := range logs {
-		key := encodeUint64ToBytes(log.Index)
+		key := EncodeUint64ToBytes(log.Index)
 		value := new(bytes.Buffer)
 		if err := MarshalBinary(log, value); err != nil {
 			return err
@@ -134,7 +134,7 @@ func (b *BoltStore) GetLogByIndex(index uint64) (*LogEntry, error) {
 	var log LogEntry
 	err := b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(bucketLogsName))
-		value := bucket.Get(encodeUint64ToBytes(index))
+		value := bucket.Get(EncodeUint64ToBytes(index))
 		if value == nil {
 			return ErrLogNotFound
 		}
@@ -163,8 +163,8 @@ func (b *BoltStore) GetLogByIndex(index uint64) (*LogEntry, error) {
 func (b *BoltStore) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) (response GetLogsByRangeResponse) {
 	response.Err = b.db.View(func(tx *bolt.Tx) error {
 		cursor := tx.Bucket([]byte(bucketLogsName)).Cursor()
-		for k, v := cursor.Seek(encodeUint64ToBytes(minIndex)); k != nil; k, v = cursor.Next() {
-			if decodeUint64ToBytes(k) > maxIndex {
+		for k, v := cursor.Seek(EncodeUint64ToBytes(minIndex)); k != nil; k, v = cursor.Next() {
+			if DecodeUint64ToBytes(k) > maxIndex {
 				return nil
 			}
 			entry, err := UnmarshalBinary(v)
@@ -227,8 +227,8 @@ func (b *BoltStore) DiscardLogs(minIndex, maxIndex uint64) error {
 		bucket := tx.Bucket([]byte(bucketLogsName))
 		cursor := bucket.Cursor()
 
-		for k, _ := cursor.Seek(encodeUint64ToBytes(minIndex)); k != nil; k, _ = cursor.Next() {
-			if decodeUint64ToBytes(k) > maxIndex {
+		for k, _ := cursor.Seek(EncodeUint64ToBytes(minIndex)); k != nil; k, _ = cursor.Next() {
+			if DecodeUint64ToBytes(k) > maxIndex {
 				return nil
 			}
 			if err := bucket.Delete(k); err != nil {
@@ -297,7 +297,7 @@ func (b *BoltStore) GetUint64(key []byte) uint64 {
 	if err != nil {
 		return 0
 	}
-	return decodeUint64ToBytes(value)
+	return DecodeUint64ToBytes(value)
 }
 
 // FistIndex will return the first index from the raft log
@@ -313,7 +313,7 @@ func (b *BoltStore) FirstIndex() (uint64, error) {
 	if len(key) == 0 {
 		return 0, ErrKeyNotFound
 	}
-	return decodeUint64ToBytes(key), nil
+	return DecodeUint64ToBytes(key), nil
 }
 
 // LastIndex will return the last index from the raft log
@@ -329,5 +329,5 @@ func (b *BoltStore) LastIndex() (uint64, error) {
 	if len(key) == 0 {
 		return 0, ErrKeyNotFound
 	}
-	return decodeUint64ToBytes(key), nil
+	return DecodeUint64ToBytes(key), nil
 }

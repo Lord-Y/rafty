@@ -235,7 +235,7 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		return nil, ErrClusterNotBootstrapped
 	}
 
-	cmd, err := decodeCommand(in.Command)
+	cmd, err := DecodeCommand(in.Command)
 	if err != nil {
 		return nil, err
 	}

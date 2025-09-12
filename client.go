@@ -11,7 +11,7 @@ import (
 // SubmitCommand allow clients to submit command to the leader
 func (r *Rafty) SubmitCommand(command Command) ([]byte, error) {
 	buffer := new(bytes.Buffer)
-	if err := encodeCommand(command, buffer); err != nil {
+	if err := EncodeCommand(command, buffer); err != nil {
 		return nil, err
 	}
 	return r.submitCommand(buffer.Bytes())
@@ -23,7 +23,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 	if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
 		return nil, ErrClusterNotBootstrapped
 	}
-	cmd, err := decodeCommand(command)
+	cmd, err := DecodeCommand(command)
 	if err != nil {
 		return nil, err
 	}

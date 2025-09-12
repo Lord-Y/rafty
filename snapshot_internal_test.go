@@ -91,7 +91,7 @@ func TestSnapshot_internal(t *testing.T) {
 		peers, _ := s.getAllPeers()
 		newbie := Peer{Address: "127.0.0.1:60000", ID: "xyz"}
 		peers = append(peers, newbie)
-		encodedPeers := encodePeers(peers)
+		encodedPeers := EncodePeers(peers)
 		assert.NotNil(encodedPeers)
 		entries := []*raftypb.LogEntry{
 			{

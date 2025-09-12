@@ -584,7 +584,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
@@ -624,7 +624,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
@@ -643,7 +643,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -670,7 +670,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
@@ -694,7 +694,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
@@ -713,7 +713,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
@@ -739,7 +739,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -770,7 +770,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
@@ -798,7 +798,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
@@ -822,7 +822,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		i := 0
 		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
-		assert.Nil(encodeCommand(command, buffer))
+		assert.Nil(EncodeCommand(command, buffer))
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)

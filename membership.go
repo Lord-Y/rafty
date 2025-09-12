@@ -138,7 +138,7 @@ func (r *leader) addNode(member Peer, req *raftypb.MembershipChangeRequest, foll
 
 	action := MembershipChange(req.Action)
 	nextConfig, _ := r.nextConfiguration(action, peers, member)
-	encodedPeers := encodePeers(nextConfig)
+	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
 			LogType:   uint32(logConfiguration),
@@ -261,7 +261,7 @@ func (r *leader) promoteNode(action MembershipChange, member Peer, follower *fol
 	})
 
 	nextConfig, _ := r.nextConfiguration(action, peers, member)
-	encodedPeers := encodePeers(nextConfig)
+	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
 			LogType:   uint32(logConfiguration),
@@ -322,7 +322,7 @@ func (r *leader) demoteNode(action MembershipChange, member Peer) (success bool,
 	if nextConfig, err = r.nextConfiguration(action, peers, member); err != nil {
 		return
 	}
-	encodedPeers := encodePeers(nextConfig)
+	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
 			LogType:   uint32(logConfiguration),
@@ -403,7 +403,7 @@ func (r *leader) removeNode(action MembershipChange, member Peer) (success bool,
 	if nextConfig, err = r.nextConfiguration(action, peers, member); err != nil {
 		return
 	}
-	encodedPeers := encodePeers(nextConfig)
+	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
 			LogType:   uint32(logConfiguration),

@@ -50,39 +50,39 @@ func TestEncoding_EncodeDecodeCommand(t *testing.T) {
 	buffer := new(bytes.Buffer)
 
 	t.Run("encode", func(t *testing.T) {
-		assert.Error(encodeCommand(cmd, w))
+		assert.Error(EncodeCommand(cmd, w))
 
 		// Testing error on Key length write
 		w = &failWriter{failOn: 2}
-		assert.Error(encodeCommand(cmd, w))
+		assert.Error(EncodeCommand(cmd, w))
 
 		// Testing error on Key write
 		w = &failWriter{failOn: 3}
-		assert.Error(encodeCommand(cmd, w))
+		assert.Error(EncodeCommand(cmd, w))
 
 		// Testing error on Value length write
 		w = &failWriter{failOn: 4}
-		assert.Error(encodeCommand(cmd, w))
+		assert.Error(EncodeCommand(cmd, w))
 
 		// Testing error on Value write
 		w = &failWriter{failOn: 5}
-		assert.Error(encodeCommand(cmd, w))
+		assert.Error(EncodeCommand(cmd, w))
 
 		// No errors expected here
-		assert.Nil(encodeCommand(cmd, buffer))
+		assert.Nil(EncodeCommand(cmd, buffer))
 		assert.NotNil(buffer.Bytes())
 	})
 
 	t.Run("decode", func(t *testing.T) {
 		// Error reading Kind
-		_, err := decodeCommand([]byte{})
+		_, err := DecodeCommand([]byte{})
 		assert.Error(err)
 
 		// Error reading Key length
 		buf := new(bytes.Buffer)
 		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // Kind
 		// No KeyLen
-		_, err = decodeCommand(buf.Bytes())
+		_, err = DecodeCommand(buf.Bytes())
 		assert.Error(err)
 
 		// Error reading Key
@@ -90,7 +90,7 @@ func TestEncoding_EncodeDecodeCommand(t *testing.T) {
 		_ = binary.Write(buf, binary.LittleEndian, uint32(1)) // Kind
 		_ = binary.Write(buf, binary.LittleEndian, uint64(3)) // KeyLen
 		// No Key bytes
-		_, err = decodeCommand(buf.Bytes())
+		_, err = DecodeCommand(buf.Bytes())
 		assert.Error(err)
 
 		// Error reading Value length
@@ -99,7 +99,7 @@ func TestEncoding_EncodeDecodeCommand(t *testing.T) {
 		_ = binary.Write(buf, binary.LittleEndian, uint64(3)) // KeyLen
 		buf.Write([]byte("abc"))                              // Key
 		// No ValueLen
-		_, err = decodeCommand(buf.Bytes())
+		_, err = DecodeCommand(buf.Bytes())
 		assert.Error(err)
 
 		// Error reading Value
@@ -109,11 +109,11 @@ func TestEncoding_EncodeDecodeCommand(t *testing.T) {
 		buf.Write([]byte("abc"))                              // Key
 		_ = binary.Write(buf, binary.LittleEndian, uint64(2)) // ValueLen
 		// No Value bytes
-		_, err = decodeCommand(buf.Bytes())
+		_, err = DecodeCommand(buf.Bytes())
 		assert.Error(err)
 
 		// No errors expected here
-		dec, err := decodeCommand(buffer.Bytes())
+		dec, err := DecodeCommand(buffer.Bytes())
 		assert.Nil(err)
 		assert.Equal(cmd, dec)
 	})
@@ -314,14 +314,14 @@ func TestEncoding_EncodeDecodePeers(t *testing.T) {
 	}()
 	peers, _ := s.getPeers()
 	peers = append(peers, Peer{Address: "127.0.0.1:60000", ID: "xyz"})
-	encodedPeers := encodePeers(peers)
+	encodedPeers := EncodePeers(peers)
 	assert.NotNil(encodedPeers)
 
-	decodedPeers, err := decodePeers(encodedPeers)
+	decodedPeers, err := DecodePeers(encodedPeers)
 	assert.Nil(err)
 	assert.NotNil(decodedPeers)
 
-	_, err = decodePeers([]byte(`a=b`))
+	_, err = DecodePeers([]byte(`a=b`))
 	assert.Error(err)
 }
 
@@ -329,7 +329,7 @@ func TestEncoding_EncodeDecodeUint64(t *testing.T) {
 	assert := assert.New(t)
 
 	value := uint64(1)
-	enc := encodeUint64ToBytes(value)
+	enc := EncodeUint64ToBytes(value)
 	assert.NotNil(enc)
-	assert.Equal(value, decodeUint64ToBytes(enc))
+	assert.Equal(value, DecodeUint64ToBytes(enc))
 }

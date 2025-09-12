@@ -997,7 +997,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 		peers, _ := s.getPeers()
 		peers = append(peers, Peer{Address: "127.0.0.1:60000", ID: "xyz"})
-		encodedPeers := encodePeers(peers)
+		encodedPeers := EncodePeers(peers)
 		assert.NotNil(encodedPeers)
 		responseChan := make(chan RPCResponse, 1)
 		leaderCommitIndex := uint64(4)
@@ -1249,7 +1249,7 @@ func TestHandleInstallSnapshotRequest(t *testing.T) {
 				LastIncludedTerm:       metadata.LastIncludedTerm,
 				LastAppliedConfigIndex: metadata.LastAppliedConfigIndex,
 				LastAppliedConfigTerm:  metadata.LastAppliedConfigTerm,
-				Configuration:          encodePeers(metadata.Configuration.ServerMembers),
+				Configuration:          EncodePeers(metadata.Configuration.ServerMembers),
 				Data:                   buffer.Bytes(),
 				Size:                   uint64(metadata.Size),
 				CurrentTerm:            leaderTerm,

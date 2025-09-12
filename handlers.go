@@ -443,7 +443,7 @@ func (r *Rafty) handleInstallSnapshotRequest(data RPCRequest) {
 	})
 	r.leaderLastContactDate.Store(time.Now())
 
-	peers, _ := decodePeers(request.Configuration)
+	peers, _ := DecodePeers(request.Configuration)
 	configuration := Configuration{
 		ServerMembers: peers,
 	}

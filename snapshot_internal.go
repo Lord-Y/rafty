@@ -31,7 +31,7 @@ func (r *Rafty) takeSnapshot() (string, error) {
 
 	var config Configuration
 	if !errors.Is(err, ErrLogNotFound) {
-		config.ServerMembers, _ = decodePeers(lastAppliedConfig.Command)
+		config.ServerMembers, _ = DecodePeers(lastAppliedConfig.Command)
 	} else {
 		config.ServerMembers, _ = r.getAllPeers()
 	}

@@ -746,7 +746,7 @@ func TestMembership_catchupNewMember(t *testing.T) {
 	peers = append(peers, member)
 	action := Add
 	nextConfig, _ := state.nextConfiguration(action, peers, member)
-	encodedPeers := encodePeers(nextConfig)
+	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
 			LogType:   uint32(logConfiguration),
