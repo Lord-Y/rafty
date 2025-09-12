@@ -1,7 +1,6 @@
 package rafty
 
 import (
-	"bytes"
 	"context"
 	"time"
 
@@ -42,19 +41,12 @@ type Status struct {
 }
 
 // SubmitCommand allow clients to submit command to the leader
-func (r *Rafty) SubmitCommand(command Command) ([]byte, error) {
-	buffer := new(bytes.Buffer)
-	if err := EncodeCommand(command, buffer); err != nil {
-		return nil, err
-	}
-	return r.submitCommand(buffer.Bytes())
-}
-
-// submitCommand is a private func that allow clients to submit command
-// to the leader. It's used by SubmitCommand
-func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
+func (r *Rafty) SubmitCommand(timeout time.Duration, command []byte) ([]byte, error) {
 	if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
 		return nil, ErrClusterNotBootstrapped
+	}
+	if timeout == 0 {
+		timeout = time.Second
 	}
 	cmd, err := DecodeCommand(command)
 	if err != nil {
@@ -67,7 +59,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			responseChan := make(chan appendEntriesResponse, 1)
 			select {
 			case r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}:
-			case <-time.After(500 * time.Millisecond):
+			case <-time.After(timeout):
 				return nil, ErrTimeoutSendingRequest
 			}
 
@@ -76,7 +68,10 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 			case response := <-responseChan:
 				return response.Data, response.Error
 
-			case <-time.After(500 * time.Millisecond):
+			case <-r.quitCtx.Done():
+				return nil, ErrShutdown
+
+			case <-time.After(timeout):
 				return nil, ErrTimeoutSendingRequest
 			}
 		} else {
@@ -87,7 +82,7 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 
 			client := r.connectionManager.getClient(leader.address, leader.id)
 			if client != nil {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 2*timeout)
 				defer cancel()
 				response, err := client.ForwardCommandToLeader(
 					ctx,

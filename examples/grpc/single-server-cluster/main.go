@@ -67,7 +67,11 @@ func main() {
 			time.AfterFunc(30*time.Second, func() {
 				for i := range *maxCommands {
 					word := fake.WordsN(5)
-					if _, err := s.SubmitCommand(rafty.Command{Kind: rafty.CommandSet, Key: fmt.Sprintf("key_%s_%d", word, i), Value: fmt.Sprintf("value_%s", word)}); err != nil && s.IsRunning() {
+					buffer := new(bytes.Buffer)
+					if err := rafty.EncodeCommand(rafty.Command{Kind: rafty.CommandSet, Key: fmt.Sprintf("key_%s_%d", word, i), Value: fmt.Sprintf("value_%s", word)}, buffer); err != nil {
+						s.Logger.Fatal().Err(err).Msgf("Fail to encode command %d", i)
+					}
+					if _, err := s.SubmitCommand(0, buffer.Bytes()); err != nil && s.IsRunning() {
 						s.Logger.Error().Err(err).Msgf("Fail to submit command %d", i)
 						time.Sleep(time.Second)
 					}

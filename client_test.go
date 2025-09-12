@@ -29,69 +29,120 @@ func TestClient_submitCommand(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.options.BootstrapCluster = true
 
-		_, err := s.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
+		_, err := s.SubmitCommand(0, buffer.Bytes())
 		assert.Error(err)
-		assert.Nil(s.logStore.Close())
 	})
 
 	t.Run("no_leader", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
 
-		_, err := s.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
+		_, err := s.SubmitCommand(0, buffer.Bytes())
 		assert.Error(err)
-		assert.Nil(s.logStore.Close())
+	})
+
+	t.Run("leader_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		go func() {
+			<-s.triggerAppendEntriesChan
+			time.Sleep(2 * time.Second)
+		}()
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
+		_, err := s.SubmitCommand(0, buffer.Bytes())
+		assert.Error(err)
 	})
 
 	t.Run("decode_command_error", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.State = Follower
 
-		_, err := s.submitCommand([]byte("a=b"))
+		_, err := s.SubmitCommand(0, []byte("a=b"))
 		assert.Error(err)
-		assert.Nil(s.logStore.Close())
 	})
 
 	t.Run("command_timeout", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.isRunning.Store(true)
 		s.State = Follower
 		s.setLeader(leaderMap{address: s.configuration.ServerMembers[0].address.String(), id: s.configuration.ServerMembers[0].ID})
 
-		_, err := s.SubmitCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
+		_, err := s.SubmitCommand(0, buffer.Bytes())
 		assert.Error(err)
-		assert.Nil(s.logStore.Close())
 	})
 
 	t.Run("command_not_found", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.isRunning.Store(true)
 		s.State = Follower
 
-		_, err := s.SubmitCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)})
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
+		_, err := s.SubmitCommand(0, buffer.Bytes())
 		assert.Error(err)
-		assert.Nil(s.logStore.Close())
 	})
 
 	t.Run("timeout_first", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -101,15 +152,18 @@ func TestClient_submitCommand(t *testing.T) {
 		err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
 		assert.Nil(err)
 
-		_, err = s.submitCommand(buffer.Bytes())
+		_, err = s.SubmitCommand(0, buffer.Bytes())
 		assert.Error(err)
-		assert.Nil(s.logStore.Close())
 	})
 
 	t.Run("timeout_second", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -129,9 +183,8 @@ func TestClient_submitCommand(t *testing.T) {
 		err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
 		assert.Nil(err)
 
-		_, err = s.submitCommand(buffer.Bytes())
+		_, err = s.SubmitCommand(0, buffer.Bytes())
 		assert.Error(err)
-		assert.Nil(s.logStore.Close())
 	})
 }
 
