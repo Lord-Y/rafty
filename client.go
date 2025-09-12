@@ -77,3 +77,35 @@ func (r *Rafty) submitCommand(command []byte) ([]byte, error) {
 	}
 	return nil, ErrCommandNotFound
 }
+
+// BootstrapCluster is used by the current node
+// to bootstrap the cluster with all initial nodes.
+// This should be only call once and on one node.
+// If already bootstrapped, and error will be returned
+func (r *Rafty) BootstrapCluster(timeout time.Duration) error {
+	responseChan := make(chan RPCResponse, 1)
+	if timeout == 0 {
+		timeout = time.Second
+	}
+
+	select {
+	case r.rpcBootstrapClusterRequestChan <- RPCRequest{
+		RPCType:      BootstrapClusterRequest,
+		Request:      &raftypb.BootstrapClusterRequest{},
+		ResponseChan: responseChan,
+	}:
+	case <-time.After(timeout):
+		return ErrTimeoutSendingRequest
+	}
+
+	select {
+	case response := <-responseChan:
+		return response.Error
+
+	case <-r.quitCtx.Done():
+		return ErrShutdown
+
+	case <-time.After(timeout):
+		return ErrTimeoutSendingRequest
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -130,5 +131,90 @@ func TestClient_submitCommand(t *testing.T) {
 		_, err = s.submitCommand(buffer.Bytes())
 		assert.Error(err)
 		assert.Nil(s.logStore.Close())
+	})
+}
+
+func TestClient_bootstrapCluster(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			time.Sleep(time.Second)
+			s.stopCtx()
+		}()
+
+		assert.Error(s.BootstrapCluster(time.Millisecond))
+		s.wg.Wait()
+	})
+
+	t.Run("err_nil", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go s.commonLoop()
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.stopCtx()
+		}()
+
+		assert.Nil(s.BootstrapCluster(0))
+		s.wg.Wait()
+	})
+
+	t.Run("quit_context_done", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		go s.commonLoop()
+		assert.Error(s.BootstrapCluster(time.Second))
+		s.wg.Wait()
+	})
+
+	t.Run("err_timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcBootstrapClusterRequestChan
+			time.Sleep(2 * time.Second)
+		}()
+
+		assert.Error(s.BootstrapCluster(time.Second))
+		s.wg.Wait()
 	})
 }
