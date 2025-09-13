@@ -243,7 +243,12 @@ func (r *leader) stopReplication(follower *followerReplication) {
 	defer r.rafty.wg.Done()
 
 	if follower != nil && !follower.replicationStopped.Load() {
-		follower.replicationStopChan <- struct{}{}
+		follower.replicationStopped.Store(true)
+		select {
+		case follower.replicationStopChan <- struct{}{}:
+		default:
+			// Already stopping or stopped
+		}
 	}
 }
 

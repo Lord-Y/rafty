@@ -174,6 +174,28 @@ func (r *followerReplication) startStopFollowerReplication() {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
+	defer func() {
+		r.replicationStopped.Store(true)
+		// Drain newEntryChan before closing
+		for {
+			select {
+			case <-r.newEntryChan:
+				// keep draining
+			default:
+				close(r.replicationStopChan)
+				close(r.newEntryChan)
+				r.rafty.Logger.Trace().
+					Str("address", r.rafty.Address.String()).
+					Str("id", r.rafty.id).
+					Str("state", r.rafty.getState().String()).
+					Str("peerAddress", r.address.String()).
+					Str("peerId", r.ID).
+					Msgf("Replication stopped")
+				return
+			}
+		}
+	}()
+
 	for r.rafty.getState() == Leader {
 		select {
 		case <-r.rafty.quitCtx.Done():
@@ -204,28 +226,6 @@ func (r *followerReplication) startStopFollowerReplication() {
 			}
 		//nolint staticcheck
 		default:
-		}
-	}
-
-	r.replicationStopped.Store(true)
-	r.rafty.Logger.Trace().
-		Str("address", r.rafty.Address.String()).
-		Str("id", r.rafty.id).
-		Str("state", r.rafty.getState().String()).
-		Str("peerAddress", r.address.String()).
-		Str("peerId", r.ID).
-		Msgf("Replication stopped")
-
-	time.Sleep(100 * time.Millisecond)
-	// draining remaining calls
-	for {
-		select {
-		case <-r.newEntryChan:
-		default:
-			close(r.replicationStopChan)
-			close(r.newEntryChan)
-			r.newEntryChan = nil
-			return
 		}
 	}
 }

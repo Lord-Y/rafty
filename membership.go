@@ -446,7 +446,6 @@ func (r *leader) removeNode(action MembershipChange, member Peer) (success bool,
 	r.totalFollowers.Store(r.totalFollowers.Load() - 1)
 	for _, follower := range r.followerReplication {
 		if follower != nil && follower.ID == member.ID {
-			follower.replicationStopChan <- struct{}{}
 			r.stopReplication(follower)
 			delete(r.followerReplication, follower.ID)
 			break
