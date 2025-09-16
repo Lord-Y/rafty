@@ -29,8 +29,8 @@ Here is a list of the supported features of `rafty`:
 - [] Logs
   - [x] Log replication
   - [x] Submit write commands
-  - [x] Forward commands to leader
-  - [] Submit read commands
+  - [x] Submit read commands
+  - [x] Forward read/write commands to leader
   - [] Log compaction
 - [x] Membership changes
   - [x] Add member

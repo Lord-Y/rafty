@@ -322,7 +322,7 @@ func (r *Rafty) snapshotLoop() {
 			snapshotName, err := r.takeSnapshot()
 			if err != nil {
 				if errors.Is(err, ErrNoSnapshotToTake) {
-					r.Logger.Info().
+					r.Logger.Debug().
 						Str("address", r.Address.String()).
 						Str("id", r.id).
 						Str("state", r.getState().String()).

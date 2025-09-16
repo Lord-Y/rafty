@@ -268,9 +268,7 @@ func (cc *clusterConfig) startCluster(wg *sync.WaitGroup) {
 			time.Sleep(cc.delayLastNodeTimeDuration)
 		}
 		cc.t.Run(fmt.Sprintf("cluster_%s_%d", cc.testName, i), func(t *testing.T) {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				if err := node.Start(); err != nil {
 					node.Logger.Error().Err(err).
 						Str("node", fmt.Sprintf("%d", i)).
@@ -278,7 +276,7 @@ func (cc *clusterConfig) startCluster(wg *sync.WaitGroup) {
 					cc.assert.Errorf(err, "Fail to start cluster node %d with error", i)
 					return
 				}
-			}()
+			})
 		})
 	}
 }
@@ -291,9 +289,7 @@ func (cc *clusterConfig) startAdditionalNodes(wg *sync.WaitGroup) {
 	cc.makeAdditionalNode(true, false, true)
 	for i, node := range cc.newNodes {
 		cc.t.Run(fmt.Sprintf("cluster_%s_newnode_%d", cc.testName, i), func(t *testing.T) {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				if err := node.Start(); err != nil {
 					node.Logger.Error().Err(err).
 						Str("node", fmt.Sprintf("%d", i)).
@@ -301,7 +297,7 @@ func (cc *clusterConfig) startAdditionalNodes(wg *sync.WaitGroup) {
 					cc.assert.Errorf(err, "Fail to start cluster node %d with error", i)
 					return
 				}
-			}()
+			})
 		})
 	}
 }
@@ -309,27 +305,23 @@ func (cc *clusterConfig) startAdditionalNodes(wg *sync.WaitGroup) {
 func (cc *clusterConfig) stopCluster(wg *sync.WaitGroup) {
 	cc.t.Helper()
 	for _, node := range cc.cluster {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			node.Stop()
 			// this sleep make sure all processings are done
 			// and nothing remain before nillify the node
 			time.Sleep(time.Second)
 			node = nil
-		}()
+		})
 	}
 
 	for _, node := range cc.newNodes {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			node.Stop()
 			// this sleep make sure all processings are done
 			// and nothing remain before nillify the node
 			time.Sleep(time.Second)
 			node = nil
-		}()
+		})
 	}
 }
 
@@ -362,15 +354,13 @@ func (cc *clusterConfig) stopAdditionalNode(wg *sync.WaitGroup, id string) {
 	cc.t.Helper()
 	for _, node := range cc.newNodes {
 		if node.id == id {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				node.Stop()
 				// this sleep make sure all processings are done
 				// and nothing remain before nillify the node
 				time.Sleep(time.Second)
 				node = nil
-			}()
+			})
 		}
 	}
 }
@@ -422,38 +412,43 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 	})
 }
 
-func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup, fake bool) {
+func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup) {
 	for i, node := range cc.cluster {
 		cc.t.Run(fmt.Sprintf("%s_submitCommandToNode_%d", cc.testName, i), func(t *testing.T) {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if fake {
-					node.Logger.Info().Msgf("Submitting fake command to node %d", i)
-					buffer := new(bytes.Buffer)
-					if err := EncodeCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)}, buffer); err != nil {
-						node.Logger.Fatal().Err(err).Msgf("Fail to encode command %d", i)
-					}
-					if _, err := node.SubmitCommand(0, buffer.Bytes()); err != nil {
-						node.Logger.Error().Err(err).
-							Str("node", fmt.Sprintf("%d", i)).
-							Msgf("Failed to submit fake commmand to node")
-						cc.assert.Error(err)
-					}
-					return
-				}
+			wg.Go(func() {
 				node.Logger.Info().Msgf("Submitting command to node %d", i)
-				buffer := new(bytes.Buffer)
-				if err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s%d", node.id, i), Value: fmt.Sprintf("value%d", i)}, buffer); err != nil {
+				bufferWrite := new(bytes.Buffer)
+				key := fmt.Sprintf("key%s%d", node.id, i)
+				if err := EncodeCommand(Command{Kind: CommandSet, Key: key, Value: fmt.Sprintf("value%d", i)}, bufferWrite); err != nil {
 					node.Logger.Fatal().Err(err).Msgf("Fail to encode command %d", i)
 				}
-				if _, err := node.SubmitCommand(0, buffer.Bytes()); err != nil {
+				if _, err := node.SubmitCommand(0, LogReplication, bufferWrite.Bytes()); err != nil {
 					node.Logger.Error().Err(err).
 						Str("node", fmt.Sprintf("%d", i)).
 						Msgf("Failed to submit commmand to node")
 					cc.assert.Error(err)
 				}
-			}()
+				time.Sleep(100 * time.Millisecond)
+				bufferRead := new(bytes.Buffer)
+				if err := EncodeCommand(Command{Kind: CommandGet, Key: key}, bufferRead); err != nil {
+					node.Logger.Fatal().Err(err).Msgf("Fail to encode command %d", i)
+				}
+				if _, err := node.SubmitCommand(0, LogCommandReadLeader, bufferRead.Bytes()); err != nil {
+					node.Logger.Error().Err(err).
+						Str("node", fmt.Sprintf("%d", i)).
+						Str("logType", "LogCommandReadLeader").
+						Msgf("Failed to submit commmand to node")
+					cc.assert.Error(err)
+				}
+
+				if _, err := node.SubmitCommand(0, LogCommandReadStale, bufferRead.Bytes()); err != nil {
+					node.Logger.Error().Err(err).
+						Str("node", fmt.Sprintf("%d", i)).
+						Str("logType", "LogCommandReadStale").
+						Msgf("Failed to submit commmand to node")
+					cc.assert.Error(err)
+				}
+			})
 		})
 	}
 }
@@ -530,7 +525,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 	// provoke errors on purpuse on non bootstrapped cluster
-	cc.submitCommandOnAllNodes(&wg, false)
+	cc.submitCommandOnAllNodes(&wg)
 	if cc.bootstrapCluster {
 		cc.bootstrap(&wg)
 		// provoke errors on purpuse on already bootstrapped cluster
@@ -539,7 +534,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 
 	go func() {
 		if leader := cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
-			go cc.submitCommandOnAllNodes(&wg, false)
+			go cc.submitCommandOnAllNodes(&wg)
 		}
 	}()
 
@@ -560,14 +555,14 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 		}
 
 		if leader := cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
-			go cc.submitCommandOnAllNodes(&wg, false)
-			go cc.submitCommandOnAllNodes(&wg, true)
+			go cc.submitCommandOnAllNodes(&wg)
+			go cc.submitCommandOnAllNodes(&wg)
 		}
 
 	case <-timeoutGetLeader:
 		go func() {
 			if leader := cc.waitForLeader(&wg, time.Second, 3); leader != (leaderMap{}) {
-				cc.submitCommandOnAllNodes(&wg, false)
+				cc.submitCommandOnAllNodes(&wg)
 			}
 		}()
 
@@ -609,8 +604,7 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	var leader leaderMap
 	go func() {
 		if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
-			go cc.submitCommandOnAllNodes(&wg, false)
-			go cc.submitCommandOnAllNodes(&wg, true)
+			go cc.submitCommandOnAllNodes(&wg)
 		}
 	}()
 	cc.startAdditionalNodes(&wg)

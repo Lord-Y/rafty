@@ -11,8 +11,8 @@ type mockSnapshot struct {
 }
 
 type mockSnapshotter struct {
-	prepareErr error
 	snap       *mockSnapshot
+	prepareErr error
 }
 
 func (m *mockSnapshot) Name() string { return "mock" }
@@ -61,4 +61,8 @@ func (m *mockFSM) Snapshot(w io.Writer) error {
 
 func (m *mockFSM) Restore(io.Reader) error {
 	return m.snapshotErr
+}
+
+func (s *mockFSM) ApplyCommand(cmd []byte) ([]byte, error) {
+	return nil, nil
 }

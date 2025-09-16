@@ -662,6 +662,26 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		assert.Equal(ErrClusterNotBootstrapped, err)
 	})
 
+	t.Run("log_command_read", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(command, buffer))
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes(), LogType: uint32(LogCommandReadStale)}
+
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Nil(err)
+	})
+
 	t.Run("context_done_first", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
@@ -846,26 +866,6 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 
 		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Error(err)
-	})
-
-	t.Run("fake_command", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		rpcm := rpcManager{rafty: s}
-
-		i := 0
-		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
-		buffer := new(bytes.Buffer)
-		assert.Nil(EncodeCommand(command, buffer))
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
-
-		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
-		assert.Nil(err)
 	})
 }
 

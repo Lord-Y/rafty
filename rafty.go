@@ -457,6 +457,12 @@ type Rafty struct {
 	isBootstrapped atomic.Bool
 }
 
+// applyLogs is a helper struct to apply logs in the state machine
+type applyLogs struct {
+	// entries are the logs to apply
+	entries []*raftypb.LogEntry
+}
+
 // NewRafty instantiate rafty with default configuration
 // with server address and its id
 func NewRafty(address net.TCPAddr, id string, options Options, store Store, fsm StateMachine, snapshot SnapshotStore) (*Rafty, error) {

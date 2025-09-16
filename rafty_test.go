@@ -199,7 +199,7 @@ func TestRafty_restore(t *testing.T) {
 		s.options.BootstrapCluster = true
 
 		entry := &raftypb.LogEntry{
-			LogType: uint32(logConfiguration),
+			LogType: uint32(LogConfiguration),
 			Index:   1,
 			Term:    1,
 			Command: encodedPeers,

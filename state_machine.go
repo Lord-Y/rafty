@@ -10,4 +10,9 @@ type StateMachine interface {
 
 	// Restore allow the client to restore a snapshot
 	Restore(snapshotReader io.Reader) error
+
+	// ApplyCommand allow the client to apply a command to the state machine.
+	// Only bytes are returned as the command can be forwarded to the leader
+	// if called on a follower.
+	ApplyCommand(cmd []byte) ([]byte, error)
 }

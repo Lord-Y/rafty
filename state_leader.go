@@ -151,7 +151,7 @@ func (r *leader) setupFollowersReplicationStates() {
 	currentTerm := r.rafty.currentTerm.Load()
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logNoop),
+			LogType:   uint32(LogNoop),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      currentTerm,
 			Command:   nil,
@@ -274,7 +274,7 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 		data := datai.(triggerAppendEntries)
 		entries := []*raftypb.LogEntry{
 			{
-				LogType:   uint32(logCommand),
+				LogType:   uint32(LogReplication),
 				Timestamp: uint32(time.Now().Unix()),
 				Term:      currentTerm,
 				Command:   data.command,
@@ -304,7 +304,7 @@ func (r *leader) handleAppendEntriesFromClients(kind string, datai any) {
 		drequest := data.Request.(*raftypb.ForwardCommandToLeaderRequest)
 		entries := []*raftypb.LogEntry{
 			{
-				LogType:   uint32(logCommand),
+				LogType:   uint32(LogReplication),
 				Timestamp: uint32(time.Now().Unix()),
 				Term:      currentTerm,
 				Command:   drequest.Command,
@@ -533,7 +533,7 @@ func (r *leader) setupSingleServerReplicationState() {
 
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logNoop),
+			LogType:   uint32(LogNoop),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      r.rafty.currentTerm.Load(),
 			Command:   nil,

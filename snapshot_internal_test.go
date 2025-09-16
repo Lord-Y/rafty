@@ -95,7 +95,7 @@ func TestSnapshot_internal(t *testing.T) {
 		assert.NotNil(encodedPeers)
 		entries := []*raftypb.LogEntry{
 			{
-				LogType: uint32(logConfiguration),
+				LogType: uint32(LogConfiguration),
 				Term:    1,
 				Command: encodedPeers,
 			},

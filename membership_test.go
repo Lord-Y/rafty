@@ -749,7 +749,7 @@ func TestMembership_catchupNewMember(t *testing.T) {
 	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logConfiguration),
+			LogType:   uint32(LogConfiguration),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      currentTerm,
 			Command:   encodedPeers,

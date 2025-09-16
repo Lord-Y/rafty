@@ -29,4 +29,6 @@ var (
 	ErrStoreClosed                           = errors.New("store closed")
 	ErrDataDirRequired                       = errors.New("data dir cannot be empty")
 	ErrNoSnapshotToTake                      = errors.New("no snapshot to take")
+	ErrLogCommandNotAllowed                  = errors.New("log command not allowed")
+	ErrClient                                = errors.New("fail to get grpc client")
 )

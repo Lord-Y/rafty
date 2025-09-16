@@ -235,44 +235,47 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		return nil, ErrClusterNotBootstrapped
 	}
 
-	cmd, err := DecodeCommand(in.Command)
-	if err != nil {
-		return nil, err
+	if in.LogType == uint32(LogCommandReadStale) || in.LogType == uint32(LogCommandReadLeader) {
+		response, err := r.rafty.fsm.ApplyCommand(in.Command)
+		return &raftypb.ForwardCommandToLeaderResponse{
+			LeaderId:      r.rafty.id,
+			LeaderAddress: r.rafty.Address.String(),
+			Data:          response,
+			Error:         fmt.Sprintf("%v", err),
+		}, err
 	}
-	if cmd.Kind == CommandSet {
-		responseChan := make(chan RPCResponse, 1)
-		select {
-		case r.rafty.rpcForwardCommandToLeaderRequestChan <- RPCRequest{
-			RPCType:      ForwardCommandToLeader,
-			Request:      in,
-			ResponseChan: responseChan,
-		}:
 
-		case <-ctx.Done():
-			return nil, ctx.Err()
+	responseChan := make(chan RPCResponse, 1)
+	select {
+	case r.rafty.rpcForwardCommandToLeaderRequestChan <- RPCRequest{
+		RPCType:      ForwardCommandToLeader,
+		Request:      in,
+		ResponseChan: responseChan,
+	}:
 
-		case <-r.rafty.quitCtx.Done():
-			return nil, ErrShutdown
+	case <-ctx.Done():
+		return nil, ctx.Err()
 
-		case <-time.After(500 * time.Millisecond):
-			return nil, ErrTimeoutSendingRequest
-		}
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
 
-		select {
-		case response := <-responseChan:
-			return response.Response.(*raftypb.ForwardCommandToLeaderResponse), response.Error
-
-		case <-ctx.Done():
-			return nil, ctx.Err()
-
-		case <-r.rafty.quitCtx.Done():
-			return nil, ErrShutdown
-
-		case <-time.After(time.Second):
-			return nil, ErrTimeoutSendingRequest
-		}
+	case <-time.After(500 * time.Millisecond):
+		return nil, ErrTimeoutSendingRequest
 	}
-	return nil, nil
+
+	select {
+	case response := <-responseChan:
+		return response.Response.(*raftypb.ForwardCommandToLeaderResponse), response.Error
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+
+	case <-r.rafty.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-time.After(time.Second):
+		return nil, ErrTimeoutSendingRequest
+	}
 }
 
 // SendTimeoutNowRequest allow the current node received

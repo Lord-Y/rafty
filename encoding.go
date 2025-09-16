@@ -8,61 +8,6 @@ import (
 	"io"
 )
 
-// EncodeCommand permits to transform command receive from clients to binary language machine
-func EncodeCommand(cmd Command, w io.Writer) error {
-	if err := binary.Write(w, binary.LittleEndian, uint32(cmd.Kind)); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint64(len(cmd.Key))); err != nil {
-		return err
-	}
-	if _, err := w.Write([]byte(cmd.Key)); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint64(len(cmd.Value))); err != nil {
-		return err
-	}
-	if _, err := w.Write([]byte(cmd.Value)); err != nil {
-		return err
-	}
-	return nil
-}
-
-// DecodeCommand permits to transform back command from binary language machine to clients
-func DecodeCommand(data []byte) (Command, error) {
-	var cmd Command
-	buffer := bytes.NewBuffer(data)
-
-	var kind uint32
-	if err := binary.Read(buffer, binary.LittleEndian, &kind); err != nil {
-		return cmd, err
-	}
-	cmd.Kind = CommandKind(kind)
-
-	var keyLen uint64
-	if err := binary.Read(buffer, binary.LittleEndian, &keyLen); err != nil {
-		return cmd, err
-	}
-
-	key := make([]byte, keyLen)
-	if _, err := buffer.Read(key); err != nil {
-		return cmd, err
-	}
-	cmd.Key = string(key)
-
-	var valueLen uint64
-	if err := binary.Read(buffer, binary.LittleEndian, &valueLen); err != nil {
-		return cmd, err
-	}
-	value := make([]byte, valueLen)
-	if _, err := buffer.Read(value); err != nil {
-		return cmd, err
-	}
-	cmd.Value = string(value)
-
-	return cmd, nil
-}
-
 // marshalBinary permit to encode data in binary format
 func MarshalBinary(entry *LogEntry, w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, entry.FileFormat); err != nil {
