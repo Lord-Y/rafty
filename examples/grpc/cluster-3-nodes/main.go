@@ -109,10 +109,10 @@ func main() {
 				for i := range *maxCommands {
 					word := fake.WordsN(5)
 					buffer := new(bytes.Buffer)
-					if err := rafty.EncodeCommand(rafty.Command{Kind: rafty.CommandSet, Key: fmt.Sprintf("key_%s_%d", word, i), Value: fmt.Sprintf("value_%s", word)}, buffer); err != nil {
+					if err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key_%s_%d", word, i), Value: fmt.Sprintf("value_%s", word)}, buffer); err != nil {
 						s.Logger.Fatal().Err(err).Msgf("Fail to encode command %d", i)
 					}
-					if _, err := s.SubmitCommand(0, buffer.Bytes()); err != nil && s.IsRunning() {
+					if _, err := s.SubmitCommand(0, rafty.LogReplication, buffer.Bytes()); err != nil && s.IsRunning() {
 						s.Logger.Error().Err(err).Msgf("Fail to submit command %d", i)
 						time.Sleep(time.Second)
 					}
@@ -172,6 +172,88 @@ func main() {
 type SnapshotState struct {
 	// LogStore is the store holding the data
 	logStore rafty.Store
+}
+
+// CommandKind represent the command that will be applied to the state machine
+// It can be only be Get, Set, Delete
+type CommandKind uint32
+
+const (
+	// commandGet command allow us to fetch data from the cluster
+	CommandGet CommandKind = iota
+
+	// CommandSet command allow us to write data from the cluster
+	CommandSet
+
+	// CommandDelete command allow us to delete data from the cluster
+	CommandDelete
+)
+
+// Command is the struct to use to interact with cluster data
+type Command struct {
+	// Kind represent the set of commands: get, set, del
+	Kind CommandKind
+
+	// Key is the name of the key
+	Key string
+
+	// Value is the value associated to the key
+	Value string
+}
+
+// EncodeCommand permits to transform command receive from clients to binary language machine
+func EncodeCommand(cmd Command, w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, uint32(cmd.Kind)); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(cmd.Key))); err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte(cmd.Key)); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint64(len(cmd.Value))); err != nil {
+		return err
+	}
+	if _, err := w.Write([]byte(cmd.Value)); err != nil {
+		return err
+	}
+	return nil
+}
+
+// DecodeCommand permits to transform back command from binary language machine to clients
+func DecodeCommand(data []byte) (Command, error) {
+	var cmd Command
+	buffer := bytes.NewBuffer(data)
+
+	var kind uint32
+	if err := binary.Read(buffer, binary.LittleEndian, &kind); err != nil {
+		return cmd, err
+	}
+	cmd.Kind = CommandKind(kind)
+
+	var keyLen uint64
+	if err := binary.Read(buffer, binary.LittleEndian, &keyLen); err != nil {
+		return cmd, err
+	}
+
+	key := make([]byte, keyLen)
+	if _, err := buffer.Read(key); err != nil {
+		return cmd, err
+	}
+	cmd.Key = string(key)
+
+	var valueLen uint64
+	if err := binary.Read(buffer, binary.LittleEndian, &valueLen); err != nil {
+		return cmd, err
+	}
+	value := make([]byte, valueLen)
+	if _, err := buffer.Read(value); err != nil {
+		return cmd, err
+	}
+	cmd.Value = string(value)
+
+	return cmd, nil
 }
 
 // NewSnapshotState return a SnapshotState that allow us to
@@ -252,4 +334,28 @@ func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
 	}
 
 	return s.logStore.StoreLogs(logs)
+}
+
+// ApplyCommand allow us to apply a command to the state machine.
+func (s *SnapshotState) ApplyCommand(cmd []byte) ([]byte, error) {
+	if cmd == nil {
+		return nil, nil
+	}
+
+	decodedCmd, _ := DecodeCommand(cmd)
+	switch decodedCmd.Kind {
+	case CommandSet:
+		return nil, s.logStore.Set([]byte(decodedCmd.Key), []byte(decodedCmd.Value))
+
+	case CommandGet:
+		value, err := s.logStore.Get([]byte(decodedCmd.Key))
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+
+	case CommandDelete:
+		return nil, fmt.Errorf("not implemented yet")
+	}
+	return nil, nil
 }

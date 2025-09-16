@@ -141,7 +141,7 @@ func (r *leader) addNode(member Peer, req *raftypb.MembershipChangeRequest, foll
 	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logConfiguration),
+			LogType:   uint32(LogConfiguration),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      currentTerm,
 			Command:   encodedPeers,
@@ -264,7 +264,7 @@ func (r *leader) promoteNode(action MembershipChange, member Peer, follower *fol
 	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logConfiguration),
+			LogType:   uint32(LogConfiguration),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      currentTerm,
 			Command:   encodedPeers,
@@ -325,7 +325,7 @@ func (r *leader) demoteNode(action MembershipChange, member Peer) (success bool,
 	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logConfiguration),
+			LogType:   uint32(LogConfiguration),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      currentTerm,
 			Command:   encodedPeers,
@@ -406,7 +406,7 @@ func (r *leader) removeNode(action MembershipChange, member Peer) (success bool,
 	encodedPeers := EncodePeers(nextConfig)
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logConfiguration),
+			LogType:   uint32(LogConfiguration),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      currentTerm,
 			Command:   encodedPeers,

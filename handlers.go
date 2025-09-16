@@ -353,6 +353,19 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 
 			if request.LeaderCommitIndex > r.commitIndex.Load() {
 				r.commitIndex.Store(min(request.LeaderCommitIndex, r.lastLogIndex.Load()))
+				if _, err := r.applyLogs(applyLogs{
+					entries: newEntries,
+				}); err != nil {
+					r.Logger.Error().Err(err).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("leaderAddress", request.LeaderAddress).
+						Str("leaderId", request.LeaderId).
+						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
+						Msgf("Fail to apply log entries")
+				}
 			}
 			r.lastApplied.Store(r.lastLogIndex.Load())
 
@@ -542,7 +555,7 @@ func (r *Rafty) handleInstallSnapshotRequest(data RPCRequest) {
 	r.commitIndex.Store(r.lastLogIndex.Load())
 
 	if err := r.applyConfigEntry(&raftypb.LogEntry{
-		LogType: uint32(logConfiguration),
+		LogType: uint32(LogConfiguration),
 		Command: request.Configuration,
 		Index:   request.LastAppliedConfigIndex,
 		Term:    request.LastAppliedConfigTerm,

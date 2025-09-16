@@ -14,14 +14,22 @@ const (
 	// logNoop is a log type used only by the leader
 	// to keep the log index and term in sync with followers
 	// when stepping up as leader
-	logNoop logKind = iota
-
-	// logCommand is a log type used by clients
-	logCommand
+	LogNoop logKind = iota
 
 	// logConfiguration is a log type used between nodes
 	// when configuration need to change
-	logConfiguration
+	LogConfiguration
+
+	// logReplication is a log type used by clients to append log entries
+	// on all nodes
+	LogReplication
+
+	// logCommanRead is a log type use by clients to fetch data from the leader
+	LogCommandReadLeader
+
+	// logCommandReadStale is a log type use by clients to fetch data from any nodes.
+	// if the current node is not a leader you may fetch outdated data
+	LogCommandReadStale
 )
 
 // logs hold all requirements to manipulate logs
@@ -316,7 +324,7 @@ func (r *Rafty) applyConfigEntry(entry *raftypb.LogEntry) error {
 	defer r.wg.Done()
 
 	switch entry.LogType {
-	case uint32(logConfiguration):
+	case uint32(LogConfiguration):
 		if entry.Index > r.lastAppliedConfigIndex.Load() || entry.Term > r.lastAppliedConfigTerm.Load() {
 			peers, err := DecodePeers(entry.Command)
 			if err != nil {

@@ -104,7 +104,8 @@ message GetLeaderResponse {
 }
 
 message ForwardCommandToLeaderRequest {
-  bytes command = 1;
+  bytes command   = 1;
+  uint32 log_type = 2;
 }
 
 message ForwardCommandToLeaderResponse {

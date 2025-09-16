@@ -657,7 +657,7 @@ func (r *Rafty) bootstrapCluster(data RPCRequest) {
 	encodedPeers := EncodePeers(peers)
 	entries := []*raftypb.LogEntry{
 		{
-			LogType:   uint32(logConfiguration),
+			LogType:   uint32(LogConfiguration),
 			Timestamp: uint32(time.Now().Unix()),
 			Term:      r.currentTerm.Load(),
 			Command:   encodedPeers,

@@ -343,16 +343,25 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 								Str("requestUUID", request.uuid).
 								Msgf("Follower nextIndex / matchIndex has been updated")
 
-							// TODO: later on, we need prevent duplicate sent of data
-							//
-							// reply to clients if necessary
+							var (
+								response []byte
+								err      error
+							)
+							if request.entries[0].LogType != uint32(LogReplication) {
+								response = nil
+							} else {
+								response, err = r.rafty.fsm.ApplyCommand(request.entries[0].Command)
+							}
 							if request.replyToClient {
 								select {
 								case <-r.rafty.quitCtx.Done():
 									return
 								case <-time.After(500 * time.Millisecond):
 									return
-								case request.replyToClientChan <- appendEntriesResponse{}:
+								case request.replyToClientChan <- appendEntriesResponse{
+									Data:  response,
+									Error: err,
+								}:
 								}
 							}
 
@@ -360,6 +369,8 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 								response := &raftypb.ForwardCommandToLeaderResponse{
 									LeaderId:      r.rafty.id,
 									LeaderAddress: r.rafty.Address.String(),
+									Data:          response,
+									Error:         fmt.Sprintf("%v", err),
 								}
 								rpcResponse := RPCResponse{
 									Response: response,
@@ -579,13 +590,25 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 		Str("requestUUID", request.uuid).
 		Msgf("Leader volatile state has been updated")
 
+	var (
+		response []byte
+		err      error
+	)
+	if request.entries[0].LogType != uint32(LogReplication) {
+		response = nil
+	} else {
+		response, err = r.rafty.fsm.ApplyCommand(request.entries[0].Command)
+	}
 	if request.replyToClient {
 		select {
 		case <-r.rafty.quitCtx.Done():
 			return
 		case <-time.After(500 * time.Millisecond):
 			return
-		case request.replyToClientChan <- appendEntriesResponse{}:
+		case request.replyToClientChan <- appendEntriesResponse{
+			Data:  response,
+			Error: err,
+		}:
 		}
 	}
 }

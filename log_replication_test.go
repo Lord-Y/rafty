@@ -113,7 +113,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 
 		entries := []*raftypb.LogEntry{
 			{
-				LogType:   uint32(logNoop),
+				LogType:   uint32(LogNoop),
 				Timestamp: uint32(time.Now().Unix()),
 				Term:      currentTerm,
 				Command:   nil,
@@ -157,7 +157,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 
 		entries := []*raftypb.LogEntry{
 			{
-				LogType:   uint32(logNoop),
+				LogType:   uint32(LogNoop),
 				Timestamp: uint32(time.Now().Unix()),
 				Term:      currentTerm,
 				Command:   nil,
@@ -207,7 +207,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 
 		entries := []*raftypb.LogEntry{
 			{
-				LogType:   uint32(logNoop),
+				LogType:   uint32(LogNoop),
 				Timestamp: uint32(time.Now().Unix()),
 				Term:      currentTerm,
 				Command:   nil,
@@ -244,7 +244,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 
 		entries := []*raftypb.LogEntry{
 			{
-				LogType:   uint32(logNoop),
+				LogType:   uint32(LogNoop),
 				Timestamp: uint32(time.Now().Unix()),
 				Term:      currentTerm,
 				Command:   nil,

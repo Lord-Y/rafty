@@ -41,69 +41,155 @@ type Status struct {
 }
 
 // SubmitCommand allow clients to submit command to the leader
-func (r *Rafty) SubmitCommand(timeout time.Duration, command []byte) ([]byte, error) {
+func (r *Rafty) SubmitCommand(timeout time.Duration, logKind logKind, command []byte) ([]byte, error) {
 	if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
 		return nil, ErrClusterNotBootstrapped
 	}
 	if timeout == 0 {
 		timeout = time.Second
 	}
-	cmd, err := DecodeCommand(command)
-	if err != nil {
-		return nil, err
+	switch logKind {
+	case LogReplication:
+		return r.submitCommandWrite(timeout, command)
+	case LogCommandReadLeader:
+		return r.submitCommandReadLeader(timeout, command)
+	case LogCommandReadStale:
+		return r.submitCommandReadStale(timeout, command)
 	}
-	switch cmd.Kind {
-	case CommandGet:
-	case CommandSet:
-		if r.getState() == Leader {
-			responseChan := make(chan appendEntriesResponse, 1)
-			select {
-			case r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}:
-			case <-time.After(timeout):
-				return nil, ErrTimeoutSendingRequest
-			}
+	return nil, ErrLogCommandNotAllowed
+}
 
-			// answer back to the client
-			select {
-			case response := <-responseChan:
-				return response.Data, response.Error
+// submitCommandWrite is used to submit a command that will be written to the log and replicated to the followers
+func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byte, error) {
+	if r.getState() == Leader {
+		responseChan := make(chan appendEntriesResponse, 1)
+		select {
+		case r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}:
+		case <-time.After(timeout):
+			return nil, ErrTimeoutSendingRequest
+		}
 
-			case <-r.quitCtx.Done():
-				return nil, ErrShutdown
+		// answer back to the client
+		select {
+		case response := <-responseChan:
+			return response.Data, response.Error
 
-			case <-time.After(timeout):
-				return nil, ErrTimeoutSendingRequest
-			}
-		} else {
-			leader := r.getLeader()
-			if leader == (leaderMap{}) {
-				return nil, ErrNoLeader
-			}
+		case <-r.quitCtx.Done():
+			return nil, ErrShutdown
 
-			client := r.connectionManager.getClient(leader.address, leader.id)
-			if client != nil {
-				ctx, cancel := context.WithTimeout(context.Background(), 2*timeout)
-				defer cancel()
-				response, err := client.ForwardCommandToLeader(
-					ctx,
-					&raftypb.ForwardCommandToLeaderRequest{
-						Command: command,
-					},
-				)
-				if err != nil {
-					r.Logger.Error().Err(err).
-						Str("address", r.Address.String()).
-						Str("id", r.id).
-						Str("leaderAddress", leader.address).
-						Str("leaderId", leader.id).
-						Msgf("Fail to forward command to leader")
-					return nil, err
-				}
-				return response.Data, err
-			}
+		case <-time.After(timeout):
+			return nil, ErrTimeoutSendingRequest
 		}
 	}
-	return nil, ErrCommandNotFound
+
+	leader := r.getLeader()
+	if leader == (leaderMap{}) {
+		return nil, ErrNoLeader
+	}
+
+	if client := r.connectionManager.getClient(leader.address, leader.id); client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*timeout)
+		defer cancel()
+		response, err := client.ForwardCommandToLeader(
+			ctx,
+			&raftypb.ForwardCommandToLeaderRequest{
+				Command: command,
+			},
+		)
+		if err != nil {
+			r.Logger.Error().Err(err).
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("leaderAddress", leader.address).
+				Str("leaderId", leader.id).
+				Msgf("Fail to forward command to leader")
+			return nil, err
+		}
+		return response.Data, err
+	}
+	return nil, ErrClient
+}
+
+// submitCommandReadLeader is used to submit a command that will be read from the state machine on the leader.
+// This command will not be written to the log and replicated to the followers
+func (r *Rafty) submitCommandReadLeader(timeout time.Duration, command []byte) ([]byte, error) {
+	if r.getState() == Leader {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		done := make(chan struct{}, 1)
+		var (
+			response []byte
+			err      error
+		)
+		go func() {
+			response, err = r.fsm.ApplyCommand(command)
+			done <- struct{}{}
+		}()
+
+		// answer back to the client
+		select {
+		case <-done:
+			return response, err
+
+		case <-r.quitCtx.Done():
+			return nil, ErrShutdown
+
+		case <-ctx.Done():
+			return nil, ErrTimeoutSendingRequest
+		}
+	}
+
+	return nil, ErrNoLeader
+}
+
+// submitCommandReadStale is used to submit a command that will be read from the state machine on any node.
+// This command will not be written to the log and replicated to the followers
+func (r *Rafty) submitCommandReadStale(timeout time.Duration, command []byte) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	done := make(chan struct{}, 1)
+	var (
+		response []byte
+		err      error
+	)
+	go func() {
+		response, err = r.fsm.ApplyCommand(command)
+		done <- struct{}{}
+	}()
+
+	// answer back to the client
+	select {
+	case <-done:
+		return response, err
+
+	case <-r.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-ctx.Done():
+		return nil, ErrTimeoutSendingRequest
+	}
+}
+
+// applyLogs apply the provided logs to the state machine
+func (r *Rafty) applyLogs(logs applyLogs) ([]byte, error) {
+	var (
+		response []byte
+		err      error
+	)
+	for _, entry := range logs.entries {
+		if entry.Index <= r.lastApplied.Load() {
+			continue
+		}
+
+		if entry.LogType != uint32(LogReplication) {
+			continue
+		}
+		response, err = r.fsm.ApplyCommand(entry.Command)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return response, nil
 }
 
 // BootstrapCluster is used by the current node

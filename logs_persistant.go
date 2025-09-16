@@ -203,7 +203,7 @@ func (b *BoltStore) GetLastConfiguration() (*LogEntry, error) {
 			if err != nil {
 				return err
 			}
-			if logKind(entry.LogType) == logConfiguration {
+			if logKind(entry.LogType) == LogConfiguration {
 				log = LogEntry{
 					FileFormat: entry.FileFormat,
 					Tombstone:  entry.Tombstone,

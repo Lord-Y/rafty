@@ -298,7 +298,7 @@ func TestStorageDisk(t *testing.T) {
 		s.timer = time.NewTicker(s.randomElectionTimeout())
 		peers, _ := s.getAllPeers()
 		encoded := EncodePeers(peers)
-		entryConfig := &raftypb.LogEntry{LogType: uint32(logConfiguration), Timestamp: now, Term: s.currentTerm.Load(), Command: encoded}
+		entryConfig := &raftypb.LogEntry{LogType: uint32(LogConfiguration), Timestamp: now, Term: s.currentTerm.Load(), Command: encoded}
 		_ = s.logs.appendEntries([]*raftypb.LogEntry{entryConfig}, false)
 		err = s.applyConfigEntry(entryConfig)
 		assert.Nil(err)

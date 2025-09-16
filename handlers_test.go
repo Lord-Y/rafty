@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -1034,7 +1035,90 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 					{
 						Term:      2,
 						Index:     4,
-						LogType:   uint32(logConfiguration),
+						LogType:   uint32(LogConfiguration),
+						Timestamp: uint32(time.Now().Unix()),
+						Command:   encodedPeers,
+					},
+				},
+			},
+			ResponseChan: responseChan,
+		}
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.handleSendAppendEntriesRequest(request)
+		}()
+		data := <-responseChan
+		response := data.Response.(*raftypb.AppendEntryResponse)
+		assert.Equal(s.currentTerm.Load(), response.Term)
+		assert.Equal(true, response.Success)
+		assert.Equal(s.commitIndex.Load(), leaderCommitIndex)
+		s.wg.Wait()
+	})
+
+	t.Run("he_is_a_leader_with_matching_logs_conflict_fsm_apply_error", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.currentTerm.Store(1)
+		s.isRunning.Store(true)
+		// the following fsm override is to simulate an error during apply
+		fsm := NewSnapshotState(s.logStore)
+		fsm.applyErrTest = errors.New("test error")
+		s.fsm = fsm
+		s.switchState(Follower, stepUp, false, s.currentTerm.Load())
+		id := 0
+		idx := fmt.Sprintf("%d", id)
+		entries := []*raftypb.LogEntry{{Term: 1}, {Term: 1}, {Term: 2}}
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		s.timer = time.NewTicker(s.heartbeatTimeout())
+		peers, _ := s.getPeers()
+		peers = append(peers, Peer{Address: "127.0.0.1:60000", ID: "xyz"})
+		encodedPeers := EncodePeers(peers)
+		assert.NotNil(encodedPeers)
+		responseChan := make(chan RPCResponse, 1)
+		leaderCommitIndex := uint64(4)
+		request := RPCRequest{
+			RPCType: AppendEntryRequest,
+			Request: &raftypb.AppendEntryRequest{
+				LeaderId:          idx,
+				LeaderAddress:     s.configuration.ServerMembers[id].address.String(),
+				Term:              2,
+				PrevLogIndex:      3,
+				PrevLogTerm:       2,
+				LeaderCommitIndex: leaderCommitIndex,
+				Catchup:           true,
+				Entries: []*raftypb.LogEntry{
+					{
+						Term:      1,
+						LogType:   uint32(LogReplication),
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      1,
+						Index:     1,
+						LogType:   uint32(LogReplication),
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     2,
+						LogType:   uint32(LogReplication),
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     3,
+						LogType:   uint32(LogReplication),
+						Timestamp: uint32(time.Now().Unix()),
+					},
+					{
+						Term:      2,
+						Index:     4,
+						LogType:   uint32(LogConfiguration),
 						Timestamp: uint32(time.Now().Unix()),
 						Command:   encodedPeers,
 					},
@@ -1105,7 +1189,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 					{
 						Term:      2,
 						Index:     4,
-						LogType:   uint32(logConfiguration),
+						LogType:   uint32(LogConfiguration),
 						Timestamp: uint32(time.Now().Unix()),
 						Command:   []byte(`a=b`),
 					},

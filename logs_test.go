@@ -125,7 +125,7 @@ func TestLogs(t *testing.T) {
 		s.options.BootstrapCluster = true
 
 		entry := &raftypb.LogEntry{
-			LogType: uint32(logConfiguration),
+			LogType: uint32(LogConfiguration),
 			Index:   1,
 			Term:    1,
 			Command: encodedPeers,
@@ -143,7 +143,7 @@ func TestLogs(t *testing.T) {
 		assert.Equal(false, s.shutdownOnRemove.Load())
 
 		entry = &raftypb.LogEntry{
-			LogType: uint32(logConfiguration),
+			LogType: uint32(LogConfiguration),
 			Index:   2,
 			Term:    1,
 			Command: encodedPeers,
@@ -155,7 +155,7 @@ func TestLogs(t *testing.T) {
 		assert.Equal(true, s.shutdownOnRemove.Load())
 
 		fakePeer := &raftypb.LogEntry{
-			LogType: uint32(logConfiguration),
+			LogType: uint32(LogConfiguration),
 			Index:   3,
 			Term:    1,
 			Command: []byte("a=b"),
@@ -165,7 +165,7 @@ func TestLogs(t *testing.T) {
 		assert.NotNil(err)
 
 		entry = &raftypb.LogEntry{
-			LogType: uint32(logNoop),
+			LogType: uint32(LogNoop),
 			Term:    1,
 		}
 

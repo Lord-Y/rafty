@@ -38,8 +38,8 @@ func TestClient_submitCommand(t *testing.T) {
 
 		buffer := new(bytes.Buffer)
 		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
-		_, err := s.SubmitCommand(0, buffer.Bytes())
-		assert.Error(err)
+		_, err := s.SubmitCommand(0, LogReplication, buffer.Bytes())
+		assert.ErrorIs(err, ErrClusterNotBootstrapped)
 	})
 
 	t.Run("no_leader", func(t *testing.T) {
@@ -55,11 +55,125 @@ func TestClient_submitCommand(t *testing.T) {
 
 		buffer := new(bytes.Buffer)
 		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
-		_, err := s.SubmitCommand(0, buffer.Bytes())
+		_, err := s.SubmitCommand(0, LogReplication, buffer.Bytes())
+		assert.ErrorIs(err, ErrNoLeader)
+	})
+
+	t.Run("read", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.SubmitCommand(0, LogCommandReadLeader, buffer.Bytes())
+		assert.Error(err)
+
+		_, err = s.SubmitCommand(0, LogCommandReadStale, buffer.Bytes())
 		assert.Error(err)
 	})
 
-	t.Run("leader_timeout", func(t *testing.T) {
+	t.Run("command_not_found", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.isRunning.Store(true)
+		s.State = Follower
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
+		_, err := s.SubmitCommand(0, 100, buffer.Bytes())
+		assert.ErrorIs(err, ErrLogCommandNotAllowed)
+	})
+
+	t.Run("write_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
+	})
+
+	t.Run("write_response", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			data := <-s.triggerAppendEntriesChan
+			data.responseChan <- appendEntriesResponse{Data: []byte("ok"), Error: nil}
+		}()
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
+		assert.Nil(err)
+	})
+
+	t.Run("write_error_shutdown", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			<-s.triggerAppendEntriesChan
+		}()
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrShutdown)
+	})
+
+	t.Run("write_error_timeout", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
@@ -78,12 +192,13 @@ func TestClient_submitCommand(t *testing.T) {
 		}()
 
 		buffer := new(bytes.Buffer)
-		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
-		_, err := s.SubmitCommand(0, buffer.Bytes())
-		assert.Error(err)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
 	})
 
-	t.Run("decode_command_error", func(t *testing.T) {
+	t.Run("write_forward_command_error", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
@@ -92,32 +207,18 @@ func TestClient_submitCommand(t *testing.T) {
 			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
 		s.State = Follower
-
-		_, err := s.SubmitCommand(0, []byte("a=b"))
-		assert.Error(err)
-	})
-
-	t.Run("command_timeout", func(t *testing.T) {
-		assert := assert.New(t)
-
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
-		}()
-		s.fillIDs()
-		s.isRunning.Store(true)
-		s.State = Follower
-		s.setLeader(leaderMap{address: s.configuration.ServerMembers[0].address.String(), id: s.configuration.ServerMembers[0].ID})
+		s.setLeader(leaderMap{address: s.configuration.ServerMembers[0].Address, id: s.configuration.ServerMembers[0].ID})
 
 		buffer := new(bytes.Buffer)
-		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
-		_, err := s.SubmitCommand(0, buffer.Bytes())
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
 		assert.Error(err)
 	})
 
-	t.Run("command_not_found", func(t *testing.T) {
+	t.Run("read_leader_error_shutdown", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
@@ -125,65 +226,188 @@ func TestClient_submitCommand(t *testing.T) {
 			assert.Nil(s.logStore.Close())
 			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
-		s.fillIDs()
 		s.isRunning.Store(true)
-		s.State = Follower
-
-		buffer := new(bytes.Buffer)
-		assert.Nil(EncodeCommand(Command{Kind: 99, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer))
-		_, err := s.SubmitCommand(0, buffer.Bytes())
-		assert.Error(err)
-	})
-
-	t.Run("timeout_first", func(t *testing.T) {
-		assert := assert.New(t)
-
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
-		}()
-		s.fillIDs()
-		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
 		s.State = Leader
 		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
-
-		buffer := new(bytes.Buffer)
-		err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
-		assert.Nil(err)
-
-		_, err = s.SubmitCommand(0, buffer.Bytes())
-		assert.Error(err)
-	})
-
-	t.Run("timeout_second", func(t *testing.T) {
-		assert := assert.New(t)
-
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
-		}()
-		s.fillIDs()
-		s.isRunning.Store(true)
-		s.State = Leader
-		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
-
 		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
-		defer s.stopCtx()
-
-		go s.runAsLeader()
+		s.stopCtx()
 
 		go func() {
 			time.Sleep(100 * time.Millisecond)
-			s.stopCtx()
+			<-s.triggerAppendEntriesChan
 		}()
 
 		buffer := new(bytes.Buffer)
-		err := EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id), Value: fmt.Sprintf("value%s", s.id)}, buffer)
-		assert.Nil(err)
+		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
 
-		_, err = s.SubmitCommand(0, buffer.Bytes())
+		_, err := s.submitCommandReadLeader(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrShutdown)
+	})
+
+	t.Run("read_leader_error_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		// the following fsm override is to simulate an error during apply
+		fsm := NewSnapshotState(s.logStore)
+		fsm.sleepErr = 2 * time.Second
+		s.fsm = fsm
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandReadLeader(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
+	})
+
+	t.Run("read_no_leader_error", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		// the following fsm override is to simulate an error during apply
+		fsm := NewSnapshotState(s.logStore)
+		fsm.sleepErr = 2 * time.Second
+		s.fsm = fsm
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Follower
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandReadLeader(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrNoLeader)
+	})
+
+	t.Run("read_stale_shutdown_error", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		// the following fsm override is to simulate an error during apply
+		fsm := NewSnapshotState(s.logStore)
+		fsm.sleepErr = 2 * time.Second
+		s.fsm = fsm
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandReadStale(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrShutdown)
+	})
+
+	t.Run("read_stale_error_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		// the following fsm override is to simulate an error during apply
+		fsm := NewSnapshotState(s.logStore)
+		fsm.sleepErr = 2 * time.Second
+		s.fsm = fsm
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandReadStale(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrTimeoutSendingRequest)
+	})
+}
+
+func TestClient_applyLogs(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("entry_index_equal", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		logs := applyLogs{
+			entries: []*raftypb.LogEntry{{}},
+		}
+
+		_, err := s.applyLogs(logs)
+		assert.Nil(err)
+	})
+
+	t.Run("entry_wrong_log_type", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.lastApplied.Store(2)
+		logs := applyLogs{
+			entries: []*raftypb.LogEntry{
+				{
+					Index:   3,
+					LogType: uint32(LogCommandReadLeader),
+				},
+			},
+		}
+
+		_, err := s.applyLogs(logs)
+		assert.Nil(err)
+	})
+
+	t.Run("error_apply_command", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.lastApplied.Store(2)
+		logs := applyLogs{
+			entries: []*raftypb.LogEntry{
+				{
+					Index:   3,
+					LogType: uint32(LogReplication),
+				},
+			},
+		}
+
+		// the following fsm override is to simulate an error during apply
+		fsm := NewSnapshotState(s.logStore)
+		fsm.applyErrTest = fmt.Errorf("test induced error")
+		s.fsm = fsm
+
+		_, err := s.applyLogs(logs)
 		assert.Error(err)
 	})
 }

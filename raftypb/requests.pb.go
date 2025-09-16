@@ -900,6 +900,7 @@ func (x *GetLeaderResponse) GetAskForMembership() bool {
 type ForwardCommandToLeaderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Command       []byte                 `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
+	LogType       uint32                 `protobuf:"varint,2,opt,name=log_type,json=logType,proto3" json:"log_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -939,6 +940,13 @@ func (x *ForwardCommandToLeaderRequest) GetCommand() []byte {
 		return x.Command
 	}
 	return nil
+}
+
+func (x *ForwardCommandToLeaderRequest) GetLogType() uint32 {
+	if x != nil {
+		return x.LogType
+	}
+	return 0
 }
 
 type ForwardCommandToLeaderResponse struct {
@@ -1550,9 +1558,10 @@ const file_raftypb_requests_proto_rawDesc = "" +
 	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x12%\n" +
 	"\x0eleader_address\x18\x02 \x01(\tR\rleaderAddress\x12\x17\n" +
 	"\apeer_id\x18\x03 \x01(\tR\x06peerId\x12,\n" +
-	"\x12ask_for_membership\x18\x04 \x01(\bR\x10askForMembership\"9\n" +
+	"\x12ask_for_membership\x18\x04 \x01(\bR\x10askForMembership\"T\n" +
 	"\x1dForwardCommandToLeaderRequest\x12\x18\n" +
-	"\acommand\x18\x01 \x01(\fR\acommand\"\x8e\x01\n" +
+	"\acommand\x18\x01 \x01(\fR\acommand\x12\x19\n" +
+	"\blog_type\x18\x02 \x01(\rR\alogType\"\x8e\x01\n" +
 	"\x1eForwardCommandToLeaderResponse\x12\x1b\n" +
 	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x12%\n" +
 	"\x0eleader_address\x18\x02 \x01(\tR\rleaderAddress\x12\x12\n" +
