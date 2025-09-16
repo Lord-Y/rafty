@@ -344,7 +344,7 @@ func (r *Rafty) sendAskNodeIDRequest() {
 
 	for _, peer := range peers {
 		go func() {
-			client := r.connectionManager.getClient(peer.address.String(), peer.ID)
+			client := r.connectionManager.getClient(peer.address.String())
 			if client != nil && r.getState() != Down {
 				r.sendRPC(request, client, peer)
 			}
@@ -422,7 +422,7 @@ func (r *Rafty) sendGetLeaderRequest() {
 
 	for _, peer := range peers {
 		go func() {
-			client := r.connectionManager.getClient(peer.address.String(), peer.ID)
+			client := r.connectionManager.getClient(peer.address.String())
 			if client != nil && r.getState() != Down {
 				r.sendRPC(request, client, peer)
 			}
@@ -504,7 +504,7 @@ func (r *Rafty) sendMembershipChangeRequest(action MembershipChange) {
 			address: getNetAddress(leader.address),
 			ID:      leader.id,
 		}
-		client := r.connectionManager.getClient(peer.Address, leader.id)
+		client := r.connectionManager.getClient(peer.Address)
 		if client != nil {
 			// membership is a kind of a long running progress
 			// so we need to send the request in background
@@ -587,7 +587,7 @@ func (r *Rafty) sendMembershipChangeLeaveOnTerminate() {
 			ID:      leader.id,
 		}
 
-		client := r.connectionManager.getClient(peer.Address, leader.id)
+		client := r.connectionManager.getClient(peer.Address)
 		if client != nil {
 			// membership is a kind of a long running progress
 			// so we need to send the request in background

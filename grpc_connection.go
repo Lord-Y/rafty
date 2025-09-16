@@ -40,7 +40,7 @@ type connectionManager struct {
 }
 
 // getClient return rafty connection client
-func (r *connectionManager) getClient(address, id string) raftypb.RaftyClient {
+func (r *connectionManager) getClient(address string) raftypb.RaftyClient {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

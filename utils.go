@@ -296,7 +296,7 @@ func isPartOfTheCluster(list []Peer, member Peer) bool {
 func (r *Rafty) waitForLeader() bool {
 	peers, _ := r.getPeers()
 	for _, peer := range peers {
-		client := r.connectionManager.getClient(peer.address.String(), peer.ID)
+		client := r.connectionManager.getClient(peer.address.String())
 		if client != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
