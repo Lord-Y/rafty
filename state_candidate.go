@@ -116,7 +116,7 @@ func (r *candidate) preVoteRequest() {
 
 	for _, peer := range peers {
 		go func() {
-			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
+			client := r.rafty.connectionManager.getClient(peer.address.String())
 			if client != nil && r.rafty.getState() == Candidate && !peer.ReadReplica && !peer.Decommissioning {
 				r.rafty.sendRPC(request, client, peer)
 			}
@@ -210,7 +210,7 @@ func (r *candidate) startElection() {
 
 	for _, peer := range peers {
 		go func() {
-			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
+			client := r.rafty.connectionManager.getClient(peer.address.String())
 			if client != nil && r.rafty.getState() == Candidate && !peer.ReadReplica && !peer.Decommissioning {
 				r.rafty.sendRPC(request, client, peer)
 			}

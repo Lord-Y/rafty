@@ -87,7 +87,7 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 		return nil, ErrNoLeader
 	}
 
-	if client := r.connectionManager.getClient(leader.address, leader.id); client != nil {
+	if client := r.connectionManager.getClient(leader.address); client != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*timeout)
 		defer cancel()
 		response, err := client.ForwardCommandToLeader(

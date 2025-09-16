@@ -214,7 +214,7 @@ func (r *followerReplication) catchupNewMember(member Peer, request *onAppendEnt
 			return ErrMembershipChangeNodeTooSlow
 
 		default:
-			client := r.rafty.connectionManager.getClient(member.Address, member.ID)
+			client := r.rafty.connectionManager.getClient(member.Address)
 			if client != nil && r.rafty.getState() == Leader {
 				r.rafty.Logger.Debug().
 					Str("address", r.rafty.Address.String()).

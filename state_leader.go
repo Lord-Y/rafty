@@ -450,7 +450,7 @@ func (r *leader) timeoutNowRequest() {
 
 		peer, found := r.selectNodeForLeadershipTransfer()
 		if found {
-			client := r.rafty.connectionManager.getClient(peer.address.String(), peer.ID)
+			client := r.rafty.connectionManager.getClient(peer.address.String())
 			if client != nil {
 				r.leadershipTransferTimer.Reset(r.leadershipTransferDuration)
 				r.rafty.sendRPC(request, client, peer)

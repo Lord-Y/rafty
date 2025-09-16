@@ -30,7 +30,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 	assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 
 	id := 0
-	client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String(), s.configuration.ServerMembers[id].ID)
+	client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
 	currentTerm := s.currentTerm.Add(1)
 
 	t.Run("total_zero", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 
 		id := 0
-		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String(), s.configuration.ServerMembers[id].ID)
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
 
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
@@ -322,7 +322,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 
 		id := 0
-		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String(), s.configuration.ServerMembers[id].ID)
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
 
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
@@ -361,7 +361,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		assert.Nil(err)
 
 		id := 0
-		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String(), s.configuration.ServerMembers[id].ID)
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
 
 		followerRepl := &followerReplication{
 			Peer:         followers[id],

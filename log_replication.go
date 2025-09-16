@@ -255,7 +255,7 @@ func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, requ
 func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
-	client := r.rafty.connectionManager.getClient(r.address.String(), r.ID)
+	client := r.rafty.connectionManager.getClient(r.address.String())
 	if client != nil && r.rafty.getState() == Leader {
 		response, err := r.sendAppendEntries(client, request)
 		if err != nil && r.rafty.getState() == Leader {
