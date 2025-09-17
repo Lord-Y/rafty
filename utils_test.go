@@ -20,6 +20,7 @@ func TestUtils_getState(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.State = Down
 
@@ -32,6 +33,7 @@ func TestUtils_votedFor(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	peerId := "0"
 	term := uint64(1)
@@ -47,6 +49,7 @@ func TestUtils_getLeader(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	assert.Equal(leaderMap{}, s.getLeader())
 	s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
@@ -61,6 +64,7 @@ func TestUtils_getPeers(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	peers, total := s.getPeers()
 	assert.NotNil(peers)
@@ -73,6 +77,7 @@ func TestUtils_getAllPeers(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	peers, total := s.getAllPeers()
 	assert.NotNil(peers)
@@ -85,6 +90,7 @@ func TestUtils_isRunning(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	assert.Equal(false, s.IsRunning())
 }
@@ -182,6 +188,7 @@ func TestUtils_switchStateAndLogState(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	tests := []struct {
 		state                  State
@@ -264,6 +271,7 @@ func TestUtils_saveLeaderInformations(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	tests := []struct {
 		state               State
@@ -408,6 +416,7 @@ func TestUtilsQuorum(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	assert.Equal(2, s.quorum())
 }
@@ -470,6 +479,7 @@ func TestUtils_isPartOfTheCluster(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	member := Peer{
 		Address: s.options.InitialPeers[2].Address,
@@ -490,6 +500,7 @@ func TestUtils_waitForLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.configuration.ServerMembers = nil
 		assert.Equal(false, s.waitForLeader())
@@ -502,6 +513,7 @@ func TestUtils_updateServerMembers(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	peers, total := s.getAllPeers()
 	assert.NotNil(peers)

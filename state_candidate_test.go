@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
@@ -28,6 +30,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -40,6 +43,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
@@ -53,6 +57,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
@@ -65,6 +70,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.options.PrevoteDisabled = true
@@ -78,6 +84,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -91,6 +98,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
@@ -107,6 +115,9 @@ func TestStateCandidate(t *testing.T) {
 	t.Run("handlePreVoteResponse_response_current_term_greater_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		assert.Nil(s.logStore.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
 
@@ -127,6 +138,9 @@ func TestStateCandidate(t *testing.T) {
 	t.Run("handlePreVoteResponse_start_election_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		assert.Nil(s.logStore.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
 		state := candidate{rafty: s}
@@ -143,6 +157,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -156,6 +171,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
@@ -175,6 +191,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
@@ -193,6 +210,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
@@ -212,6 +230,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
@@ -232,6 +251,9 @@ func TestStateCandidate(t *testing.T) {
 	t.Run("handleVoteResponse_step_down_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		assert.Nil(s.logStore.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.State = Candidate
 		state := candidate{rafty: s}
@@ -257,6 +279,7 @@ func TestStateCandidate(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.options.IsSingleServerCluster = true
@@ -269,6 +292,9 @@ func TestStateCandidate(t *testing.T) {
 	t.Run("isSingleServerCluster_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		assert.Nil(s.logStore.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.isRunning.Store(true)
 		s.options.IsSingleServerCluster = true
 		s.State = Candidate

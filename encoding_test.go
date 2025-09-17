@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -311,6 +312,7 @@ func TestEncoding_EncodeDecodePeers(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	peers, _ := s.getPeers()
 	peers = append(peers, Peer{Address: "127.0.0.1:60000", ID: "xyz"})

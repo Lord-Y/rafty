@@ -167,7 +167,7 @@ func TestRafty_newRafty(t *testing.T) {
 	t.Run("start_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
-			_ = os.RemoveAll(s.options.DataDir)
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.id = ""
 		assert.Nil(s.logStore.Close())
@@ -188,6 +188,7 @@ func TestRafty_restore(t *testing.T) {
 		s.fillIDs()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 
 		s.currentTerm.Store(1)
@@ -221,6 +222,7 @@ func TestRafty_restore(t *testing.T) {
 		s.fillIDs()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 
 		assert.Nil(s.logStore.storeMetadata([]byte("a=b")))
@@ -232,6 +234,9 @@ func TestRafty_restore(t *testing.T) {
 
 	t.Run("metadata_newrafty_restore_error", func(t *testing.T) {
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.isBootstrapped.Store(false)
 		assert.Nil(s.logStore.storeMetadata([]byte("a=b")))
@@ -258,6 +263,7 @@ func TestRafty_stop(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -314,6 +320,7 @@ func TestRafty_checkNodeIDs(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 
 	t.Run("empty", func(t *testing.T) {
@@ -332,6 +339,7 @@ func TestRafty_built_metadata(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.currentTerm.Store(1)
 	s.lastApplied.Store(1)

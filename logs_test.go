@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"os"
 	"testing"
 
 	"github.com/Lord-Y/rafty/raftypb"
@@ -13,6 +14,7 @@ func TestLogs(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.fillIDs()
 
@@ -182,6 +184,7 @@ func TestLogs_update_entries_index(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 
 	entry := &raftypb.LogEntry{Term: 1}
