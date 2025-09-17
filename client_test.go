@@ -848,3 +848,42 @@ func TestClient_status(t *testing.T) {
 	status := s.Status()
 	assert.Equal(Leader, status.State)
 }
+
+func TestClient_IsLeader(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
+	}()
+	s.fillIDs()
+	s.State = Leader
+	s.isRunning.Store(true)
+
+	assert.Equal(s.IsLeader(), true)
+	s.State = Follower
+	assert.Equal(s.IsLeader(), false)
+}
+
+func TestClient_Leader(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
+	}()
+	s.fillIDs()
+	s.State = Leader
+	s.isRunning.Store(true)
+
+	found, address, id := s.Leader()
+	assert.Equal(found, true)
+	assert.Equal(address, s.Address.String())
+	assert.Equal(id, s.id)
+
+	s.State = Follower
+	found, _, _ = s.Leader()
+	assert.Equal(found, false)
+}
