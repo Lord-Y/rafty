@@ -265,3 +265,28 @@ func (r *Rafty) Status() Status {
 		Configuration:          Configuration{ServerMembers: configuration},
 	}
 }
+
+// IsBootstrapped return true if the cluster has been bootstrapped.
+// It only applied when options.BootstrapCluster is set to true
+func (r *Rafty) IsBootstrapped() bool {
+	return r.isBootstrapped.Load()
+}
+
+// IsLeader return true if the current node is the leader
+func (r *Rafty) IsLeader() bool {
+	return r.getState() == Leader
+}
+
+// IsLeader return true if the current node is the leader
+func (r *Rafty) Leader() (bool, string, string) {
+	leader := r.getLeader()
+	var lid, lad string
+	switch {
+	case r.getState() == Leader:
+		lid, lad = r.id, r.Address.String()
+		return true, lad, lid
+	default:
+		lid, lad = leader.id, leader.address
+		return lid != "" && lad != "", lad, lid
+	}
+}
