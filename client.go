@@ -7,39 +7,6 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
-// Status represent the current status of the node
-type Status struct {
-	// State is the current state of the node
-	State State
-
-	// Leader is the current leader of the cluster, if any
-	Leader leaderMap
-
-	// currentTerm is the current term of the node
-	CurrentTerm uint64
-
-	// CommittedIndex is the last committed index of the node
-	CommitIndex uint64
-
-	// LastApplied is the last applied index of the node
-	LastApplied uint64
-
-	// LastLogIndex is the last log index of the node
-	LastLogIndex uint64
-
-	// LastLogTerm is the last log term of the node
-	LastLogTerm uint64
-
-	// LastAppliedConfigIndex is the index of the last applied configuration
-	LastAppliedConfigIndex uint64
-
-	// LastAppliedConfigTerm is the term of the last applied configuration
-	LastAppliedConfigTerm uint64
-
-	// Configuration is the current configuration of the cluster
-	Configuration Configuration
-}
-
 // SubmitCommand allow clients to submit command to the leader
 func (r *Rafty) SubmitCommand(timeout time.Duration, logKind logKind, command []byte) ([]byte, error) {
 	if r.options.BootstrapCluster && !r.isBootstrapped.Load() {

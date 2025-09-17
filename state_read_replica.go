@@ -2,12 +2,6 @@ package rafty
 
 import "time"
 
-// readReplica hold all requirements by a node in read replica state
-type readReplica struct {
-	// rafty holds rafty config
-	rafty *Rafty
-}
-
 // init initialize all requirements needed by
 // the current node type
 func (r *readReplica) init() {}

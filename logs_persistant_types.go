@@ -1,5 +1,37 @@
 package rafty
 
+import (
+	bolt "go.etcd.io/bbolt"
+)
+
+const (
+	// dbFileName is the name of the database file
+	dbFileName string = "rafty.db"
+	// bucketLogsName will be used to store rafty logs
+	bucketLogsName string = "rafty_logs"
+	// bucketMetadataName will be used to store rafty metadata
+	bucketMetadataName string = "rafty_metadata"
+	// bucketKVName will be used as a simple key/value store
+	bucketKVName string = "rafty_kv"
+)
+
+type BoltOptions struct {
+	// DataDir is the default data directory that will be used to store all data on the disk. It's required
+	DataDir string
+
+	// Options hold all bolt options
+	Options *bolt.Options
+}
+
+type BoltStore struct {
+	// dataDir is the default data directory that will be used to store all data on the disk
+	// Defaults to os.TempDir()/rafty/db/ ex: /tmp/rafty/db/
+	dataDir string
+
+	// db allows us to manipulate the k/v database
+	db *bolt.DB
+}
+
 // Store is an interface that allow us to store and retrieve
 // logs from memory
 type Store interface {
