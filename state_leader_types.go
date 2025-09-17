@@ -58,10 +58,7 @@ type leader struct {
 	// a new log entry
 	singleServerNewEntryChan chan *onAppendEntriesRequest
 
-	// singleServerReplicationStopChan is used by the leader
-	// in order stop ongoing append entries replication
-	singleServerReplicationStopChan chan struct{}
-
-	// singleServerReplicationStopped is only a helper to indicate if a singleServerReplicationStopChan is closed
+	// singleServerReplicationStopped is used by the leader
+	// to stop ongoing append entries replication
 	singleServerReplicationStopped atomic.Bool
 }

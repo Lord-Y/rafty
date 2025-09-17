@@ -268,24 +268,21 @@ func TestRafty_stop(t *testing.T) {
 			ID:      s.configuration.ServerMembers[0].ID,
 			Address: s.configuration.ServerMembers[0].Address,
 		}
-		follower1Chan := make(chan struct{}, 1)
 		follower1 := &followerReplication{
 			Peer: Peer{
 				ID:      s.configuration.ServerMembers[0].ID,
 				Address: s.configuration.ServerMembers[0].Address,
 			},
-			rafty:               s,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-			replicationStopChan: follower1Chan,
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		follower2 := &followerReplication{
 			Peer: Peer{
 				ID:      s.configuration.ServerMembers[1].ID,
 				Address: s.configuration.ServerMembers[1].Address,
 			},
-			rafty:               s,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-			replicationStopChan: make(chan struct{}, 1),
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		state.followerReplication = make(map[string]*followerReplication)
 		state.followerReplication[s.configuration.ServerMembers[0].ID] = follower1
@@ -303,7 +300,7 @@ func TestRafty_stop(t *testing.T) {
 		}()
 		go func() {
 			time.Sleep(2 * time.Second)
-			<-follower1Chan
+			follower1.replicationStopped.Store(true)
 		}()
 
 		_, err := state.removeNode(LeaveOnTerminate, member)

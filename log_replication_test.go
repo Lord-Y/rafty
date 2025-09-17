@@ -20,6 +20,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.isRunning.Store(true)
 	s.State = Leader
@@ -102,6 +103,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 		s := singleServerClusterSetup("")
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -148,6 +150,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 		s := singleServerClusterSetup("")
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -199,6 +202,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 		s := singleServerClusterSetup("")
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader

@@ -401,23 +401,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		r.switchState(Follower, stepDown, false, request.Term)
 	}
 
-	r.Logger.Trace().
-		Str("address", r.Address.String()).
-		Str("id", r.id).
-		Str("state", r.getState().String()).
-		Str("term", fmt.Sprintf("%d", request.Term)).
-		Str("heartbeat", fmt.Sprintf("%t", request.Heartbeat)).
-		Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
-		Str("lastLogTerm", fmt.Sprintf("%d", r.lastLogTerm.Load())).
-		Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
-		Str("leaderAddress", request.LeaderAddress).
-		Str("leaderId", request.LeaderId).
-		Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
-		Str("leaderPrevLogIndex", fmt.Sprintf("%d", request.PrevLogIndex)).
-		Str("leaderPrevLogTerm", fmt.Sprintf("%d", request.PrevLogTerm)).
-		Str("leaderCommitIndex", fmt.Sprintf("%d", request.LeaderCommitIndex)).
-		Msgf("Received append entries from leader")
-
 	if r.shutdownOnRemove.Load() {
 		go r.stop()
 	}

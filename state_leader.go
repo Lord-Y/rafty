@@ -54,7 +54,7 @@ func (r *leader) onTimeout() {
 func (r *leader) release() {
 	if r.rafty.options.IsSingleServerCluster {
 		if !r.singleServerReplicationStopped.Load() {
-			r.singleServerReplicationStopChan <- struct{}{}
+			r.singleServerReplicationStopped.Store(true)
 		}
 		r.leaseTimer.Stop()
 		r.rafty.setLeader(leaderMap{})
@@ -79,10 +79,9 @@ func (r *leader) setupFollowersReplicationStates() {
 
 	for _, follower := range followers {
 		followerRepl := &followerReplication{
-			Peer:                follower,
-			rafty:               r.rafty,
-			newEntryChan:        make(chan *onAppendEntriesRequest),
-			replicationStopChan: make(chan struct{}, 1),
+			Peer:         follower,
+			rafty:        r.rafty,
+			newEntryChan: make(chan *onAppendEntriesRequest),
 		}
 		r.addReplication(followerRepl, true)
 	}
@@ -183,11 +182,7 @@ func (r *leader) stopReplication(follower *followerReplication) {
 
 	if follower != nil && !follower.replicationStopped.Load() {
 		follower.replicationStopped.Store(true)
-		select {
-		case follower.replicationStopChan <- struct{}{}:
-		default:
-			// Already stopping or stopped
-		}
+		delete(r.followerReplication, follower.ID)
 	}
 }
 
@@ -467,7 +462,6 @@ func (r *leader) leadershipTransferLoop() {
 // It will create all requirements to append entries to its logs
 func (r *leader) setupSingleServerReplicationState() {
 	r.singleServerNewEntryChan = make(chan *onAppendEntriesRequest)
-	r.singleServerReplicationStopChan = make(chan struct{}, 1)
 	go r.startStopSingleServerReplication()
 
 	entries := []*raftypb.LogEntry{

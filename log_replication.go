@@ -13,8 +13,7 @@ import (
 
 // startStopFollowerReplication is instantiate for every
 // follower by the leader in order to replicate append entries.
-// It will automatically stop to send append entries when quitCtx or
-// replicationStopChan chans are hit.
+// It will automatically stop sending append entries when quitCtx is hit.
 func (r *followerReplication) startStopFollowerReplication() {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
@@ -27,7 +26,6 @@ func (r *followerReplication) startStopFollowerReplication() {
 			case <-r.newEntryChan:
 				// keep draining
 			default:
-				close(r.replicationStopChan)
 				close(r.newEntryChan)
 				r.rafty.Logger.Trace().
 					Str("address", r.rafty.Address.String()).
@@ -41,12 +39,9 @@ func (r *followerReplication) startStopFollowerReplication() {
 		}
 	}()
 
-	for r.rafty.getState() == Leader {
+	for r.rafty.getState() == Leader && !r.replicationStopped.Load() {
 		select {
 		case <-r.rafty.quitCtx.Done():
-			return
-
-		case <-r.replicationStopChan:
 			return
 
 		// append entries
@@ -56,9 +51,6 @@ func (r *followerReplication) startStopFollowerReplication() {
 				if r.failures.Load() > 0 {
 					select {
 					case <-r.rafty.quitCtx.Done():
-						return
-
-					case <-r.replicationStopChan:
 						return
 
 					case <-time.After(backoff(replicationRetryTimeout, r.failures.Load(), replicationMaxRetry)):
@@ -367,14 +359,33 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 
 // startStopSingleServerReplication is instanciate for single server cluster
 // by the leader in order to replicate append entries.
-// It will automatically stop when singleServerReplicationStopChan chan is hit.
+// It will automatically stop sending append entries when quitCtx is hit.
 func (r *leader) startStopSingleServerReplication() {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
-	for r.rafty.getState() == Leader {
+	defer func() {
+		r.singleServerReplicationStopped.Store(true)
+		// Drain singleServerNewEntryChan before closing
+		for {
+			select {
+			case <-r.singleServerNewEntryChan:
+				// keep draining
+			default:
+				close(r.singleServerNewEntryChan)
+				r.rafty.Logger.Trace().
+					Str("address", r.rafty.Address.String()).
+					Str("id", r.rafty.id).
+					Str("state", r.rafty.getState().String()).
+					Msgf("Replication stopped")
+				return
+			}
+		}
+	}()
+
+	for r.rafty.getState() == Leader && !r.singleServerReplicationStopped.Load() {
 		select {
-		case <-r.singleServerReplicationStopChan:
+		case <-r.rafty.quitCtx.Done():
 			return
 
 		// append entries
@@ -384,26 +395,6 @@ func (r *leader) startStopSingleServerReplication() {
 			}
 		//nolint staticcheck
 		default:
-		}
-	}
-
-	r.singleServerReplicationStopped.Store(true)
-	r.rafty.Logger.Trace().
-		Str("address", r.rafty.Address.String()).
-		Str("id", r.rafty.id).
-		Str("state", r.rafty.getState().String()).
-		Msgf("Replication stopped")
-
-	time.Sleep(100 * time.Millisecond)
-	// draining remaining calls
-	for {
-		select {
-		case <-r.singleServerNewEntryChan:
-		default:
-			close(r.singleServerReplicationStopChan)
-			close(r.singleServerNewEntryChan)
-			r.singleServerNewEntryChan = nil
-			return
 		}
 	}
 }
