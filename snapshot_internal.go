@@ -5,9 +5,6 @@ import (
 	"fmt"
 )
 
-// snapshotTestHook is used for injecting errors during unit testing
-var snapshotTestHook func() error
-
 // takeSnapshot will take a new snapshot
 // if all requirements are reached
 func (r *Rafty) takeSnapshot() (string, error) {
