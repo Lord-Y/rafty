@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ func TestStateFollower(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.isRunning.Store(true)
 	s.State = Follower

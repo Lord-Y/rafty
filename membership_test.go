@@ -3,6 +3,7 @@ package rafty
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -41,6 +42,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -91,6 +93,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -149,6 +152,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -207,6 +211,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -270,6 +275,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -332,6 +338,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -382,6 +389,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -458,6 +466,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -477,6 +486,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -491,6 +501,9 @@ func TestMembership_changeRequest(t *testing.T) {
 	t.Run("addNode_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		assert.Nil(s.logStore.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.State = Leader
 		s.isRunning.Store(true)
@@ -515,6 +528,9 @@ func TestMembership_changeRequest(t *testing.T) {
 	t.Run("promoteNode_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		assert.Nil(s.logStore.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.State = Leader
 		s.isRunning.Store(true)
@@ -540,6 +556,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -559,6 +576,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -581,6 +599,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -619,6 +638,9 @@ func TestMembership_changeRequest(t *testing.T) {
 	t.Run("demote_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		assert.Nil(s.logStore.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.State = Leader
 		s.isRunning.Store(true)
@@ -638,6 +660,9 @@ func TestMembership_changeRequest(t *testing.T) {
 	t.Run("removeNode_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		assert.Nil(s.logStore.Close())
+		defer func() {
+			assert.Nil(os.RemoveAll(s.options.DataDir))
+		}()
 		s.fillIDs()
 		s.State = Leader
 		s.isRunning.Store(true)
@@ -658,6 +683,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -678,6 +704,7 @@ func TestMembership_changeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -725,6 +752,7 @@ func TestMembership_catchupNewMember(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
 	}()
 	s.fillIDs()
 	s.State = Leader
