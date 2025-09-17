@@ -62,10 +62,9 @@ func (r *leader) handleSendMembershipChangeRequest(data RPCRequest) {
 	}
 
 	follower := &followerReplication{
-		Peer:                member,
-		rafty:               r.rafty,
-		newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-		replicationStopChan: make(chan struct{}, 1),
+		Peer:         member,
+		rafty:        r.rafty,
+		newEntryChan: make(chan *onAppendEntriesRequest, 1),
 	}
 
 	action := MembershipChange(request.Action)
@@ -416,7 +415,6 @@ func (r *leader) removeNode(action MembershipChange, member Peer) (success bool,
 	for _, follower := range r.followerReplication {
 		if follower != nil && follower.ID == member.ID {
 			r.stopReplication(follower)
-			delete(r.followerReplication, follower.ID)
 			break
 		}
 	}

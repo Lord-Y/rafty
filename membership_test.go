@@ -498,10 +498,9 @@ func TestMembership_changeRequest(t *testing.T) {
 		state.rafty.currentTerm.Store(1)
 
 		follower := &followerReplication{
-			Peer:                member,
-			rafty:               s,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-			replicationStopChan: make(chan struct{}, 1),
+			Peer:         member,
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		defer func() {
 			if r := recover(); r != nil {
@@ -523,10 +522,9 @@ func TestMembership_changeRequest(t *testing.T) {
 		state.rafty.currentTerm.Store(1)
 
 		follower := &followerReplication{
-			Peer:                member,
-			rafty:               s,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-			replicationStopChan: make(chan struct{}, 1),
+			Peer:         member,
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		defer func() {
 			if r := recover(); r != nil {
@@ -599,18 +597,16 @@ func TestMembership_changeRequest(t *testing.T) {
 				ID:      s.configuration.ServerMembers[0].ID,
 				Address: s.configuration.ServerMembers[0].Address,
 			},
-			rafty:               s,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-			replicationStopChan: make(chan struct{}, 1),
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		follower2 := &followerReplication{
 			Peer: Peer{
 				ID:      s.configuration.ServerMembers[1].ID,
 				Address: s.configuration.ServerMembers[1].Address,
 			},
-			rafty:               s,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-			replicationStopChan: make(chan struct{}, 1),
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		state.followerReplication = make(map[string]*followerReplication)
 		state.followerReplication[s.configuration.ServerMembers[0].ID] = follower1
@@ -698,9 +694,8 @@ func TestMembership_changeRequest(t *testing.T) {
 				Address: s.configuration.ServerMembers[0].Address,
 				address: getNetAddress(s.configuration.ServerMembers[0].Address),
 			},
-			rafty:               s,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-			replicationStopChan: make(chan struct{}, 1),
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		follower2 := &followerReplication{
 			Peer: Peer{
@@ -708,9 +703,8 @@ func TestMembership_changeRequest(t *testing.T) {
 				Address: s.configuration.ServerMembers[1].Address,
 				address: getNetAddress(s.configuration.ServerMembers[1].Address),
 			},
-			rafty:               s,
-			newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-			replicationStopChan: make(chan struct{}, 1),
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		state.followerReplication = make(map[string]*followerReplication)
 		state.followerReplication[s.configuration.ServerMembers[0].ID] = follower1
@@ -779,10 +773,9 @@ func TestMembership_catchupNewMember(t *testing.T) {
 	}
 
 	follower := &followerReplication{
-		Peer:                member,
-		rafty:               s,
-		newEntryChan:        make(chan *onAppendEntriesRequest, 1),
-		replicationStopChan: make(chan struct{}, 1),
+		Peer:         member,
+		rafty:        s,
+		newEntryChan: make(chan *onAppendEntriesRequest, 1),
 	}
 
 	t.Run("shutdown", func(t *testing.T) {

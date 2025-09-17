@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -25,6 +27,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -38,6 +41,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -72,6 +76,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -105,6 +110,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -123,6 +129,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(s.options.DataDir))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -132,7 +139,6 @@ func TestStateLeader(t *testing.T) {
 		state.leaseTimer = time.NewTicker(state.leaseDuration * 3)
 		state.leadershipTransferDuration = state.rafty.heartbeatTimeout()
 		state.leadershipTransferTimer = time.NewTicker(state.leadershipTransferDuration)
-		state.singleServerReplicationStopChan = make(chan struct{}, 1)
 		s.options.IsSingleServerCluster = true
 
 		state.release()

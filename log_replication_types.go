@@ -46,13 +46,10 @@ type followerReplication struct {
 	// a new log entry
 	newEntryChan chan *onAppendEntriesRequest
 
-	// replicationStopChan is used by the leader
-	// in order stop ongoing append entries replication
+	// replicationStopped is used by the leader
+	// to stop ongoing append entries replication
 	// or because the leader is stepping down as follower
 	// or the leader is shutting down
-	replicationStopChan chan struct{}
-
-	// replicationStopped is only a helper to indicate if a replicationStopChan is closed
 	replicationStopped atomic.Bool
 
 	// nextIndex is the next log entry to send to that follower
