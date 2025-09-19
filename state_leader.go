@@ -12,6 +12,7 @@ import (
 // init initialize all requirements needed by
 // the current node type
 func (r *leader) init() {
+	r.rafty.metrics.setNodeStateGauge(Leader)
 	r.rafty.setLeader(leaderMap{id: r.rafty.id, address: r.rafty.Address.String()})
 	r.rafty.leaderLastContactDate.Store(time.Now())
 	r.rafty.nextIndex.Store(r.rafty.lastLogIndex.Load() + 1)
