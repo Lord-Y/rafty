@@ -612,13 +612,19 @@ func shouldBeRemoved(dir string) bool {
 	return strings.Contains(filepath.Dir(dir), "rafty_test")
 }
 
-// func getRootdir(dir string) bool {
-// 	pattern := "rafty_test"
-// 	if  strings.Contains(dir, pattern) {
-// 		split := strings.Split(dir, "/")
-// 		strings.Index()
-// 	}
-// }
+func getRootDir(dir string) string {
+	pattern := "rafty_test"
+	if strings.Contains(dir, pattern) {
+		split := strings.Split(strings.TrimSuffix(dir, "/"), "/")
+		if index := slices.Index(split, pattern); index != -1 {
+			max := index + 2
+			if len(split) > max {
+				return strings.Join(split[0:max], "/")
+			}
+		}
+	}
+	return dir
+}
 
 func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	if cc.runTestInParallel {

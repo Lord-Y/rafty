@@ -14,7 +14,7 @@ func TestLogs(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	s.fillIDs()
 
@@ -184,7 +184,7 @@ func TestLogs_update_entries_index(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 
 	entry := &raftypb.LogEntry{Term: 1}

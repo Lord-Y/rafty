@@ -31,7 +31,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.options.BootstrapCluster = true
@@ -48,7 +48,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -65,7 +65,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -88,7 +88,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.isRunning.Store(true)
@@ -106,7 +106,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -126,7 +126,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -152,7 +152,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -179,7 +179,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -204,7 +204,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -224,7 +224,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -251,7 +251,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		// the following fsm override is to simulate an error during apply
 		fsm := NewSnapshotState(s.logStore)
@@ -275,7 +275,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		// the following fsm override is to simulate an error during apply
 		fsm := NewSnapshotState(s.logStore)
@@ -298,7 +298,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		// the following fsm override is to simulate an error during apply
 		fsm := NewSnapshotState(s.logStore)
@@ -324,7 +324,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		// the following fsm override is to simulate an error during apply
 		fsm := NewSnapshotState(s.logStore)
@@ -350,7 +350,7 @@ func TestClient_applyLogs(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -366,7 +366,7 @@ func TestClient_applyLogs(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -388,7 +388,7 @@ func TestClient_applyLogs(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -419,7 +419,7 @@ func TestClient_bootstrapCluster(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -440,7 +440,7 @@ func TestClient_bootstrapCluster(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -462,7 +462,7 @@ func TestClient_bootstrapCluster(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -482,7 +482,7 @@ func TestClient_bootstrapCluster(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -507,7 +507,7 @@ func TestClient_demoteMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -530,7 +530,7 @@ func TestClient_demoteMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -563,7 +563,7 @@ func TestClient_demoteMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -591,7 +591,7 @@ func TestClient_demoteMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -618,7 +618,7 @@ func TestClient_removeMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -641,7 +641,7 @@ func TestClient_removeMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -674,7 +674,7 @@ func TestClient_removeMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -702,7 +702,7 @@ func TestClient_removeMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -729,7 +729,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -752,7 +752,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -785,7 +785,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -813,7 +813,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Follower
@@ -839,7 +839,7 @@ func TestClient_status(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	s.fillIDs()
 	s.State = Leader
@@ -855,7 +855,7 @@ func TestClient_IsLeader(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	s.fillIDs()
 	s.State = Leader
@@ -872,7 +872,7 @@ func TestClient_Leader(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	s.fillIDs()
 	s.State = Leader
@@ -894,7 +894,7 @@ func TestClient_isRunning(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	assert.Equal(false, s.IsRunning())
 }

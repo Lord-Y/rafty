@@ -18,7 +18,7 @@ func TestRaftypb_AskNodeID(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.AskNodeIDRequest{}
@@ -49,7 +49,7 @@ func TestRaftypb_GetLeader(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.GetLeaderRequest{}
@@ -83,7 +83,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
@@ -96,7 +96,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -118,7 +118,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -136,7 +136,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -150,7 +150,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -171,7 +171,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -197,7 +197,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -220,7 +220,7 @@ func TestRaftypb_SendPreVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -244,7 +244,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
@@ -257,7 +257,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -279,7 +279,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -297,7 +297,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -311,7 +311,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -331,7 +331,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -357,7 +357,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -380,7 +380,7 @@ func TestRaftypb_SendVoteRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -404,7 +404,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
@@ -417,7 +417,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -439,7 +439,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -457,7 +457,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -471,7 +471,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -491,7 +491,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -517,7 +517,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -540,7 +540,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -561,7 +561,7 @@ func TestRaftypb_ClientGetLeader(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	rpcm := rpcManager{rafty: s}
 	request := &raftypb.ClientGetLeaderRequest{}
@@ -605,7 +605,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
@@ -624,7 +624,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -645,7 +645,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -666,7 +666,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -686,7 +686,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -714,7 +714,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -739,7 +739,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -759,7 +759,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -786,7 +786,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -818,7 +818,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -847,7 +847,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -874,7 +874,7 @@ func TestRaftypb_SendTimeoutNowRequest(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 
 	t.Run("up", func(t *testing.T) {
@@ -896,7 +896,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
@@ -909,7 +909,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -924,7 +924,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -946,7 +946,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -964,7 +964,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -978,7 +978,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -999,7 +999,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1025,7 +1025,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1048,7 +1048,7 @@ func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1072,7 +1072,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
@@ -1085,7 +1085,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1107,7 +1107,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1125,7 +1125,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1139,7 +1139,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1160,7 +1160,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1186,7 +1186,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1209,7 +1209,7 @@ func TestRaftypb_SendBootstrapClusterRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1233,7 +1233,7 @@ func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.State = Down
 		rpcm := rpcManager{rafty: s}
@@ -1246,7 +1246,7 @@ func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1268,7 +1268,7 @@ func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1286,7 +1286,7 @@ func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1300,7 +1300,7 @@ func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1321,7 +1321,7 @@ func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1347,7 +1347,7 @@ func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -1370,7 +1370,7 @@ func TestRaftypb_SendInstallSnapshotRequest(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower

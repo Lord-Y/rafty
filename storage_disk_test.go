@@ -95,7 +95,7 @@ func TestStorageDisk(t *testing.T) {
 
 		_, _, err = s.newStorage()
 		assert.Nil(err)
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("restore_error", func(t *testing.T) {
@@ -142,7 +142,7 @@ func TestStorageDisk(t *testing.T) {
 		storage.data = dataFile{rafty: s, file: nil}
 		assert.Nil(storage.restore())
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("restore_close", func(t *testing.T) {
@@ -152,7 +152,7 @@ func TestStorageDisk(t *testing.T) {
 		assert.Nil(s.storage.restore())
 		s.storage.close()
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("persist_metadata_basic", func(t *testing.T) {
@@ -172,7 +172,7 @@ func TestStorageDisk(t *testing.T) {
 		s.storage.metadata.close()
 
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("restore_metadata_with_persistence_and_filepath", func(t *testing.T) {
@@ -211,7 +211,7 @@ func TestStorageDisk(t *testing.T) {
 		s.storage.metadata.close()
 
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 
 		s = nil
 		s = basicNodeSetup()
@@ -233,7 +233,7 @@ func TestStorageDisk(t *testing.T) {
 		assert.Nil(err)
 
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("persist_data_basic", func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestStorageDisk(t *testing.T) {
 		s.storage.data.close()
 
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("restore_and_persist_data", func(t *testing.T) {
@@ -322,7 +322,7 @@ func TestStorageDisk(t *testing.T) {
 
 		s.storage.data.close()
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("data_store_success", func(t *testing.T) {
@@ -339,7 +339,7 @@ func TestStorageDisk(t *testing.T) {
 		_ = s.logs.appendEntries([]*raftypb.LogEntry{&entry}, false)
 		assert.Equal(1, len(s.logs.log))
 		assert.Nil(s.storage.data.store(&entry))
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("data_store_restore_success_multiple_data", func(t *testing.T) {
@@ -364,7 +364,7 @@ func TestStorageDisk(t *testing.T) {
 		assert.Nil(s.storage.data.restore())
 		assert.Equal(max, len(s.logs.log))
 		s.storage.data.close()
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 
 	t.Run("metadata_store_nil", func(t *testing.T) {
@@ -373,6 +373,6 @@ func TestStorageDisk(t *testing.T) {
 		makeStorage(s, false)
 		s.storage.metadata.file = nil
 		assert.Nil(s.storage.metadata.store())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	})
 }

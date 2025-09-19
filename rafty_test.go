@@ -167,7 +167,7 @@ func TestRafty_newRafty(t *testing.T) {
 	t.Run("start_panic", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.id = ""
 		assert.Nil(s.logStore.Close())
@@ -188,7 +188,7 @@ func TestRafty_restore(t *testing.T) {
 		s.fillIDs()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		s.currentTerm.Store(1)
@@ -222,7 +222,7 @@ func TestRafty_restore(t *testing.T) {
 		s.fillIDs()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		assert.Nil(s.logStore.storeMetadata([]byte("a=b")))
@@ -235,7 +235,7 @@ func TestRafty_restore(t *testing.T) {
 	t.Run("metadata_newrafty_restore_error", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.isBootstrapped.Store(false)
@@ -263,7 +263,7 @@ func TestRafty_stop(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
 		s.State = Leader
@@ -320,7 +320,7 @@ func TestRafty_checkNodeIDs(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 
 	t.Run("empty", func(t *testing.T) {
@@ -339,7 +339,7 @@ func TestRafty_built_metadata(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	s.currentTerm.Store(1)
 	s.lastApplied.Store(1)
@@ -426,27 +426,32 @@ func TestRafty_start1Nodes_down_minimumSize(t *testing.T) {
 	}
 	cc.assert = assert.New(t)
 	cc.cluster = cc.makeCluster()
-	id := 0
-	node := cc.cluster[id]
-	dataDir := filepath.Dir(node.options.DataDir)
+	node1 := cc.cluster[0]
+	node2 := cc.cluster[1]
+	dataDir1 := filepath.Dir(node1.options.DataDir)
+	dataDir2 := filepath.Dir(node2.options.DataDir)
 
-	time.AfterFunc(20*time.Second, func() {
-		node.Stop()
+	time.AfterFunc(10*time.Second, func() {
+		node1.Stop()
 	})
 
-	if err := node.Start(); err != nil {
+	if err := node1.Start(); err != nil {
 		cc.t.Fatal("Fail to start node with error %w", err)
 	}
 
-	// double start to get error
-	// set metrics namespace prefix to prevent panic cause by
-	// duplicate metrics collector registration attempted
-	node.options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s", cc.testName, fake.CharactersN(100))
-	err := node.Start()
-	cc.assert.NotNil(err)
+	node2.Address = node1.Address
+	// somehow need to enforce this when performing all tests
+	// overwise tests will timeout and fail
+	time.AfterFunc(10*time.Second, func() {
+		node2.Stop()
+	})
+	cc.assert.NotNil(node2.Start())
 	t.Cleanup(func() {
-		if shouldBeRemoved(dataDir) {
-			_ = os.RemoveAll(dataDir)
+		if shouldBeRemoved(dataDir1) {
+			_ = os.RemoveAll(dataDir1)
+		}
+		if shouldBeRemoved(dataDir2) {
+			_ = os.RemoveAll(dataDir2)
 		}
 	})
 }

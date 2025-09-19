@@ -18,7 +18,7 @@ func TestSnapshot_internal(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		_, err := s.takeSnapshot()
@@ -28,7 +28,7 @@ func TestSnapshot_internal(t *testing.T) {
 	t.Run("takeSnapshot_GetLogByIndex_err", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		for index := range 100 {
@@ -51,7 +51,7 @@ func TestSnapshot_internal(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		for index := range 100 {
@@ -74,7 +74,7 @@ func TestSnapshot_internal(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		for index := range 100 {
@@ -113,7 +113,7 @@ func TestSnapshot_internal(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		snapshotTestHook = func() error { return errors.New("test error") }
@@ -126,7 +126,7 @@ func TestSnapshot_internal(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		for index := range 100 {
