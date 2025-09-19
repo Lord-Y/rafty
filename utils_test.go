@@ -84,17 +84,6 @@ func TestUtils_getAllPeers(t *testing.T) {
 	assert.Equal(3, total)
 }
 
-func TestUtils_isRunning(t *testing.T) {
-	assert := assert.New(t)
-
-	s := basicNodeSetup()
-	defer func() {
-		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
-	}()
-	assert.Equal(false, s.IsRunning())
-}
-
 func TestUtils_parsePeers(t *testing.T) {
 	assert := assert.New(t)
 

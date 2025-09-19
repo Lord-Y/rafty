@@ -290,3 +290,9 @@ func (r *Rafty) Leader() (bool, string, string) {
 		return lid != "" && lad != "", lad, lid
 	}
 }
+
+// IsRunning return a boolean tell if the node is running
+// and ready to perform its duty
+func (r *Rafty) IsRunning() bool {
+	return r.isRunning.Load()
+}

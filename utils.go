@@ -91,11 +91,6 @@ func (r *Rafty) getAllPeers() (peers []Peer, total int) {
 	return peers, len(peers)
 }
 
-// IsRunning return a boolean tell if the node is running
-func (r *Rafty) IsRunning() bool {
-	return r.isRunning.Load()
-}
-
 // parsePeers will parse all peers to validate their addresses.
 // When invalid, an error will be returned
 func (r *Rafty) parsePeers() error {
