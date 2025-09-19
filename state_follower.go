@@ -8,6 +8,7 @@ import (
 // init initialize all requirements needed by
 // the current node type
 func (r *follower) init() {
+	r.rafty.metrics.setNodeStateGauge(Follower)
 	r.rafty.leadershipTransferDisabled.Store(false)
 	if r.rafty.options.IsSingleServerCluster {
 		r.rafty.switchState(Candidate, stepUp, true, r.rafty.currentTerm.Load())

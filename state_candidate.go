@@ -8,6 +8,7 @@ import (
 // init initialize all requirements needed by
 // the current node type
 func (r *candidate) init() {
+	r.rafty.metrics.setNodeStateGauge(Candidate)
 	if r.rafty.options.IsSingleServerCluster {
 		r.isSingleServerCluster()
 		return

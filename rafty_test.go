@@ -439,6 +439,9 @@ func TestRafty_start1Nodes_down_minimumSize(t *testing.T) {
 	}
 
 	// double start to get error
+	// set metrics namespace prefix to prevent panic cause by
+	// duplicate metrics collector registration attempted
+	node.options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s", cc.testName, fake.CharactersN(100))
 	err := node.Start()
 	cc.assert.NotNil(err)
 	t.Cleanup(func() {

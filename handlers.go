@@ -409,6 +409,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 func (r *Rafty) handleInstallSnapshotRequest(data RPCRequest) {
 	r.wg.Add(1)
 	defer r.wg.Done()
+	defer r.metrics.timeSince("installSnapshot", time.Now())
 	request := data.Request.(*raftypb.InstallSnapshotRequest)
 	currentTerm := r.currentTerm.Load()
 	response := &raftypb.InstallSnapshotResponse{

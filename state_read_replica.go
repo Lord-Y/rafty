@@ -4,7 +4,9 @@ import "time"
 
 // init initialize all requirements needed by
 // the current node type
-func (r *readReplica) init() {}
+func (r *readReplica) init() {
+	r.rafty.metrics.setNodeStateGauge(ReadReplica)
+}
 
 // onTimeout permit to reset election timer
 // and then perform some other actions

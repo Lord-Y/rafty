@@ -3,6 +3,7 @@ package rafty
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 // takeSnapshot will take a new snapshot
@@ -14,6 +15,7 @@ func (r *Rafty) takeSnapshot() (string, error) {
 	if snapshotTestHook != nil {
 		return "", snapshotTestHook()
 	}
+	defer r.metrics.timeSince("takeSnapshot", time.Now())
 
 	lastLogIndex := r.lastLogIndex.Load()
 	lastLogTerm := r.lastLogTerm.Load()

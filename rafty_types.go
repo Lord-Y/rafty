@@ -142,6 +142,11 @@ type Options struct {
 	// It prevent to take snapshots to frequently.
 	// Default to 64
 	SnapshotThreshold uint64
+
+	// MetricsNamespacePrefix is the namespace to use for all rafty metrics.
+	// When set, the full metric name will be `<MetricsNamespacePrefix>_rafty_<metric_name>`.
+	// Otherwise it will be `rafty_<metric_name>`.
+	MetricsNamespacePrefix string
 }
 
 // Rafty is a struct representing the raft requirements
@@ -370,6 +375,9 @@ type Rafty struct {
 	// has already been bootstrapped. Election timeout will be reset to 30s
 	// while waiting. Once boostrapped, it will switched back to initial election timeout
 	isBootstrapped atomic.Bool
+
+	// metrics hold all prometheus metrics for rafty
+	metrics *metrics
 }
 
 // Status represent the current status of the node

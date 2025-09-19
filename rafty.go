@@ -237,6 +237,9 @@ func (r *Rafty) Start() error {
 		}
 	}
 
+	r.metrics = newMetrics(r.id, r.options.MetricsNamespacePrefix)
+	r.metrics.setNodeStateGauge(Down)
+
 	r.mu.Lock()
 	if r.listener, err = net.Listen(r.Address.Network(), r.Address.String()); err != nil {
 		r.mu.Unlock()

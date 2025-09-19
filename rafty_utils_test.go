@@ -50,6 +50,9 @@ func basicNodeSetup() *Rafty {
 		InitialPeers: initialPeers,
 		DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "basic_setup", id),
 	}
+	// set metrics namespace prefix to prevent panic cause by
+	// duplicate metrics collector registration attempted
+	options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s", id, fake.CharactersN(100))
 	storeOptions := BoltOptions{
 		DataDir: options.DataDir,
 		Options: bolt.DefaultOptions,
@@ -63,6 +66,8 @@ func basicNodeSetup() *Rafty {
 	if err != nil {
 		log.Fatal(err)
 	}
+	s.metrics = newMetrics(id, s.options.MetricsNamespacePrefix)
+	s.metrics.setNodeStateGauge(Down)
 	return s
 }
 
@@ -82,6 +87,9 @@ func singleServerClusterSetup(address string) *Rafty {
 		IsSingleServerCluster: true,
 		DataDir:               filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "single_server_setup_"+id),
 	}
+	// set metrics namespace prefix to prevent panic cause by
+	// duplicate metrics collector registration attempted
+	options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s", id, fake.CharactersN(100))
 	storeOptions := BoltOptions{
 		DataDir: options.DataDir,
 		Options: bolt.DefaultOptions,
@@ -96,6 +104,8 @@ func singleServerClusterSetup(address string) *Rafty {
 	if err != nil {
 		log.Fatal(err)
 	}
+	s.metrics = newMetrics(id, s.options.MetricsNamespacePrefix)
+	s.metrics.setNodeStateGauge(Down)
 	return s
 }
 
@@ -144,6 +154,9 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 			logSource:             cc.testName,
 			DataDir:               filepath.Join(os.TempDir(), "rafty_test", cc.testName, id),
 		}
+		// set metrics namespace prefix to prevent panic cause by
+		// duplicate metrics collector registration attempted
+		options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s_%s", cc.testName, id, fake.CharactersN(100))
 		storeOptions := BoltOptions{
 			DataDir: options.DataDir,
 			Options: bolt.DefaultOptions,
@@ -220,6 +233,9 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 					id = fmt.Sprintf("%d", addr.Port)
 					id = id[len(id)-2:]
 				}
+				// set metrics namespace prefix to prevent panic cause by
+				// duplicate metrics collector registration attempted
+				options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s_%s", cc.testName, id, fake.CharactersN(100))
 				fsm := NewSnapshotState(store)
 				server, err = NewRafty(addr, id, options, store, fsm, nil)
 				cc.assert.Nil(err)
@@ -253,6 +269,9 @@ func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leave
 		DataDir: options.DataDir,
 		Options: bolt.DefaultOptions,
 	}
+	// set metrics namespace prefix to prevent panic cause by
+	// duplicate metrics collector registration attempted
+	options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s_%s", cc.testName, id, fake.CharactersN(100))
 	store, err := NewBoltStorage(storeOptions)
 	cc.assert.Nil(err)
 	fsm := NewSnapshotState(store)
@@ -387,6 +406,9 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 					DataDir: options.DataDir,
 					Options: bolt.DefaultOptions,
 				}
+				// set metrics namespace prefix to prevent panic cause by
+				// duplicate metrics collector registration attempted
+				options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s_%s", cc.testName, id, fake.CharactersN(100))
 				store, err := NewBoltStorage(storeOptions)
 				cc.assert.Nil(err)
 				fsm := NewSnapshotState(store)
@@ -589,6 +611,14 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 func shouldBeRemoved(dir string) bool {
 	return strings.Contains(filepath.Dir(dir), "rafty_test")
 }
+
+// func getRootdir(dir string) bool {
+// 	pattern := "rafty_test"
+// 	if  strings.Contains(dir, pattern) {
+// 		split := strings.Split(dir, "/")
+// 		strings.Index()
+// 	}
+// }
 
 func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	if cc.runTestInParallel {
