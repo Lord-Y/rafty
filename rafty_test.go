@@ -428,24 +428,24 @@ func TestRafty_start1Nodes_down_minimumSize(t *testing.T) {
 	cc.cluster = cc.makeCluster()
 	node1 := cc.cluster[0]
 	node2 := cc.cluster[1]
+	node2.Address = node1.Address
 	dataDir1 := filepath.Dir(node1.options.DataDir)
 	dataDir2 := filepath.Dir(node2.options.DataDir)
 
 	time.AfterFunc(20*time.Second, func() {
 		node1.Stop()
+		node2.Stop()
 	})
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cc.assert.NotNil(node2.Start())
+	}()
 
 	if err := node1.Start(); err != nil {
 		cc.t.Fatal("Fail to start node with error %w", err)
 	}
 
-	node2.Address = node1.Address
-	// somehow need to enforce this when performing all tests
-	// overwise tests will timeout and fail
-	time.AfterFunc(10*time.Second, func() {
-		node2.Stop()
-	})
-	cc.assert.NotNil(node2.Start())
 	t.Cleanup(func() {
 		if shouldBeRemoved(dataDir1) {
 			_ = os.RemoveAll(dataDir1)
