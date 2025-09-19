@@ -887,3 +887,14 @@ func TestClient_Leader(t *testing.T) {
 	found, _, _ = s.Leader()
 	assert.Equal(found, false)
 }
+
+func TestClient_isRunning(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(s.options.DataDir))
+	}()
+	assert.Equal(false, s.IsRunning())
+}
