@@ -431,7 +431,7 @@ func TestRafty_start1Nodes_down_minimumSize(t *testing.T) {
 	dataDir1 := filepath.Dir(node1.options.DataDir)
 	dataDir2 := filepath.Dir(node2.options.DataDir)
 
-	time.AfterFunc(10*time.Second, func() {
+	time.AfterFunc(20*time.Second, func() {
 		node1.Stop()
 	})
 
