@@ -45,6 +45,7 @@ Here is a list of the supported features of `rafty`:
   - [x] Take snapshot (with FSM interface)
   - [x] Restore snapshot (with FSM interface)
   - [x] InstallSnapshot RPC call
+- [x] Prometheus metrics
 
 ## References
 
