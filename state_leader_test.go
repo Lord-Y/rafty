@@ -15,7 +15,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Follower
@@ -27,7 +27,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -41,7 +41,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -76,7 +76,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -110,7 +110,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -129,7 +129,7 @@ func TestStateLeader(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader

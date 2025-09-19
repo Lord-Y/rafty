@@ -20,7 +20,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 	s := basicNodeSetup()
 	defer func() {
 		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(s.options.DataDir))
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 	}()
 	s.isRunning.Store(true)
 	s.State = Leader
@@ -103,7 +103,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 		s := singleServerClusterSetup("")
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -150,7 +150,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 		s := singleServerClusterSetup("")
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -202,7 +202,7 @@ func TestLogReplication_singleServerCluster(t *testing.T) {
 		s := singleServerClusterSetup("")
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
@@ -285,7 +285,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		s.isRunning.Store(true)
@@ -314,7 +314,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		s.isRunning.Store(true)
@@ -342,7 +342,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		s.isRunning.Store(true)
@@ -381,7 +381,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		s.isRunning.Store(true)
@@ -424,7 +424,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
 		s.isRunning.Store(true)

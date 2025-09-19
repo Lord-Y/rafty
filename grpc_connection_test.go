@@ -14,7 +14,7 @@ func TestGrpcConnection_getClient(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		client := s.connectionManager.getClient(s.Address.String())
 		assert.NotNil(client)
@@ -27,7 +27,7 @@ func TestGrpcConnection_getClient(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		client := s.connectionManager.getClient(s.Address.String())
 		assert.NotNil(client)
@@ -40,7 +40,7 @@ func TestGrpcConnection_getClient(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		client := s.connectionManager.getClient(s.Address.String())
 		assert.NotNil(client)

@@ -63,7 +63,7 @@ func copyDir(src string, dest string) error {
 	return nil
 }
 
-func TestSnapshot(t *testing.T) {
+func TestSSnapshot(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("newSnapshot_max_0", func(t *testing.T) {
@@ -413,8 +413,8 @@ func TestSnapshot(t *testing.T) {
 		defer func() {
 			assert.Nil(s.logStore.Close())
 			assert.Nil(r.logStore.Close())
-			assert.Nil(os.RemoveAll(s.options.DataDir))
-			assert.Nil(os.RemoveAll(r.options.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+			assert.Nil(os.RemoveAll(getRootDir(r.options.DataDir)))
 		}()
 		s.currentTerm.Store(1)
 

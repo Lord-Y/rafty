@@ -26,7 +26,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		_ = createDirectoryIfNotExist(boltOptions.DataDir, 0750)
@@ -41,7 +41,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
@@ -55,7 +55,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
@@ -74,7 +74,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
@@ -114,7 +114,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
@@ -145,7 +145,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
@@ -190,7 +190,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
@@ -222,7 +222,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
@@ -247,7 +247,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
@@ -278,7 +278,7 @@ func TestLogsPersistant(t *testing.T) {
 			Options: bbolt.DefaultOptions,
 		}
 		defer func() {
-			assert.Nil(os.RemoveAll(boltOptions.DataDir))
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 		}()
 
 		store, err := NewBoltStorage(boltOptions)
