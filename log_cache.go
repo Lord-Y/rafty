@@ -22,6 +22,11 @@ func NewLogCache(options LogCacheOptions) *LogCache {
 	}
 }
 
+// Close will close the underlying long term store of the cache
+func (lc *LogCache) Close() error {
+	return lc.store.Close()
+}
+
 // isExpired return true if the cacheItem is expired
 func (i *cacheItem) isExpired() bool {
 	return !i.ttl.IsZero() && time.Now().Before(i.ttl)

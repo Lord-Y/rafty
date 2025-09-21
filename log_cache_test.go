@@ -25,10 +25,6 @@ func TestLogCache(t *testing.T) {
 		}()
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(store.Close())
-		}()
 
 		cacheOptions := LogCacheOptions{
 			Store:        store,
@@ -36,6 +32,10 @@ func TestLogCache(t *testing.T) {
 			TTL:          2 * time.Second,
 		}
 		cacheStore := NewLogCache(cacheOptions)
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+			assert.Nil(cacheStore.Close())
+		}()
 
 		var logs []*LogEntry
 		for index := range 100 {
@@ -50,7 +50,6 @@ func TestLogCache(t *testing.T) {
 	})
 
 	t.Run("cahce_get_log_by_index", func(t *testing.T) {
-
 		boltOptions := BoltOptions{
 			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cahce_get_log_by_index"),
 			Options: bbolt.DefaultOptions,
@@ -61,10 +60,6 @@ func TestLogCache(t *testing.T) {
 		}()
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(store.Close())
-		}()
 
 		cacheOptions := LogCacheOptions{
 			Store:        store,
@@ -72,6 +67,10 @@ func TestLogCache(t *testing.T) {
 			TTL:          2 * time.Second,
 		}
 		cacheStore := NewLogCache(cacheOptions)
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+			assert.Nil(cacheStore.Close())
+		}()
 
 		var logs []*LogEntry
 		for index := range 100 {
@@ -98,7 +97,6 @@ func TestLogCache(t *testing.T) {
 	})
 
 	t.Run("cache_get_logs_by_range", func(t *testing.T) {
-
 		boltOptions := BoltOptions{
 			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_get_logs_by_range"),
 			Options: bbolt.DefaultOptions,
@@ -109,10 +107,6 @@ func TestLogCache(t *testing.T) {
 		}()
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(store.Close())
-		}()
 
 		cacheOptions := LogCacheOptions{
 			Store:        store,
@@ -120,6 +114,10 @@ func TestLogCache(t *testing.T) {
 			TTL:          2 * time.Second,
 		}
 		cacheStore := NewLogCache(cacheOptions)
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+			assert.Nil(cacheStore.Close())
+		}()
 
 		var logs []*LogEntry
 		for index := range 100 {
@@ -141,7 +139,6 @@ func TestLogCache(t *testing.T) {
 	})
 
 	t.Run("cache_get_last_configuration", func(t *testing.T) {
-
 		boltOptions := BoltOptions{
 			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_get_last_configuration"),
 			Options: bbolt.DefaultOptions,
@@ -152,10 +149,6 @@ func TestLogCache(t *testing.T) {
 		}()
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(store.Close())
-		}()
 
 		cacheOptions := LogCacheOptions{
 			Store:        store,
@@ -163,6 +156,10 @@ func TestLogCache(t *testing.T) {
 			TTL:          2 * time.Second,
 		}
 		cacheStore := NewLogCache(cacheOptions)
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+			assert.Nil(cacheStore.Close())
+		}()
 
 		_, err = cacheStore.GetLastConfiguration("GetLastConfiguration")
 		assert.Error(err)
@@ -186,7 +183,6 @@ func TestLogCache(t *testing.T) {
 	})
 
 	t.Run("cache_discard_logs", func(t *testing.T) {
-
 		boltOptions := BoltOptions{
 			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_discard_logs"),
 			Options: bbolt.DefaultOptions,
@@ -197,22 +193,21 @@ func TestLogCache(t *testing.T) {
 		}()
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(store.Close())
-		}()
 
 		cacheOptions := LogCacheOptions{
 			Store:        store,
 			CacheOnWrite: true,
 		}
 		cacheStore := NewLogCache(cacheOptions)
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+			assert.Nil(cacheStore.Close())
+		}()
 
 		assert.Nil(cacheStore.DiscardLogs(0, 100))
 	})
 
 	t.Run("cache_metadata", func(t *testing.T) {
-
 		boltOptions := BoltOptions{
 			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_metadata"),
 			Options: bbolt.DefaultOptions,
@@ -258,7 +253,6 @@ func TestLogCache(t *testing.T) {
 	})
 
 	t.Run("cache_set_get", func(t *testing.T) {
-
 		boltOptions := BoltOptions{
 			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_set_get"),
 			Options: bbolt.DefaultOptions,
@@ -315,10 +309,6 @@ func TestLogCache(t *testing.T) {
 		}()
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(store.Close())
-		}()
 
 		cacheOptions := LogCacheOptions{
 			Store:        store,
@@ -326,6 +316,10 @@ func TestLogCache(t *testing.T) {
 			TTL:          2 * time.Second,
 		}
 		cacheStore := NewLogCache(cacheOptions)
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+			assert.Nil(cacheStore.Close())
+		}()
 
 		var logs []*LogEntry
 		for index := range 10 {
