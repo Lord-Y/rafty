@@ -141,7 +141,7 @@ func (r *leader) addNode(member Peer, req *raftypb.MembershipChangeRequest, foll
 
 	if !r.rafty.isPartOfTheCluster(member) {
 		_ = r.rafty.applyConfigEntry(entries[0])
-		if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+		if err := r.rafty.logStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 			panic(err)
 		}
 
@@ -257,7 +257,7 @@ func (r *leader) promoteNode(action MembershipChange, member Peer, follower *fol
 	}
 
 	_ = r.rafty.applyConfigEntry(entries[0])
-	if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+	if err := r.rafty.logStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 		panic(err)
 	}
 
@@ -318,7 +318,7 @@ func (r *leader) demoteNode(action MembershipChange, member Peer) (success bool,
 	}
 
 	_ = r.rafty.applyConfigEntry(entries[0])
-	if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+	if err := r.rafty.logStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 		panic(err)
 	}
 
@@ -399,7 +399,7 @@ func (r *leader) removeNode(action MembershipChange, member Peer) (success bool,
 	}
 
 	_ = r.rafty.applyConfigEntry(entries[0])
-	if err := r.rafty.logStore.storeMetadata(r.rafty.buildMetadata()); err != nil {
+	if err := r.rafty.logStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 		panic(err)
 	}
 

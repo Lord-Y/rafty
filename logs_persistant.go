@@ -217,8 +217,8 @@ func (b *BoltStore) GetMetadata() ([]byte, error) {
 	return b.getKV(bucketMetadataName, []byte("metadata"))
 }
 
-// storeMetadata will store rafty metadata into the k/v bucket
-func (b *BoltStore) storeMetadata(value []byte) error {
+// StoreMetadata will store rafty metadata into the k/v bucket
+func (b *BoltStore) StoreMetadata(value []byte) error {
 	return b.storeKV(bucketMetadataName, []byte("metadata"), value)
 }
 

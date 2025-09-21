@@ -232,7 +232,7 @@ func (r *Rafty) Start() error {
 	if r.id == "" {
 		r.id = uuid.NewString()
 		r.connectionManager.id = r.id
-		if err := r.logStore.storeMetadata(r.buildMetadata()); err != nil {
+		if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
 			return fmt.Errorf("fail to persist metadata %w", err)
 		}
 	}
