@@ -232,6 +232,10 @@ func TestLogsPersistant(t *testing.T) {
 		assert.Error(err)
 
 		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
 		s.currentTerm.Store(1)
 		s.lastApplied.Store(1)
 
