@@ -52,8 +52,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	cacheOptions := rafty.LogCacheOptions{
+		Store:        store,
+		CacheOnWrite: true,
+		TTL:          2 * time.Second,
+	}
+	cacheStore := rafty.NewLogCache(cacheOptions)
+
 	fsm := NewSnapshotState(store)
-	s, err := rafty.NewRafty(addr, id, options, store, fsm, nil)
+	s, err := rafty.NewRafty(addr, id, options, cacheStore, fsm, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
