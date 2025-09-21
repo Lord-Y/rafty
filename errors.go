@@ -14,7 +14,7 @@ var (
 	ErrLogNotUpToDateEnough                  = errors.New("log not up to date enough")
 	ErrIndexOutOfRange                       = errors.New("index out of range")
 	ErrUnkownRPCType                         = errors.New("unknown rpcType")
-	ErrTimeoutSendingRequest                 = errors.New("timeout sending request")
+	ErrTimeout                               = errors.New("operation timeout")
 	ErrUnkown                                = errors.New("unknown error")
 	ErrLeadershipTransferInProgress          = errors.New("leadership transfer in progress")
 	ErrMembershipChangeNodeTooSlow           = errors.New("new node is too slow catching up leader logs")

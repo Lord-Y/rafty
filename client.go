@@ -33,7 +33,7 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 		select {
 		case r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}:
 		case <-time.After(timeout):
-			return nil, ErrTimeoutSendingRequest
+			return nil, ErrTimeout
 		}
 
 		// answer back to the client
@@ -45,7 +45,7 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 			return nil, ErrShutdown
 
 		case <-time.After(timeout):
-			return nil, ErrTimeoutSendingRequest
+			return nil, ErrTimeout
 		}
 	}
 
@@ -102,7 +102,7 @@ func (r *Rafty) submitCommandReadLeader(timeout time.Duration, command []byte) (
 			return nil, ErrShutdown
 
 		case <-ctx.Done():
-			return nil, ErrTimeoutSendingRequest
+			return nil, ErrTimeout
 		}
 	}
 
@@ -133,7 +133,7 @@ func (r *Rafty) submitCommandReadStale(timeout time.Duration, command []byte) ([
 		return nil, ErrShutdown
 
 	case <-ctx.Done():
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }
 
@@ -176,7 +176,7 @@ func (r *Rafty) BootstrapCluster(timeout time.Duration) error {
 		ResponseChan: responseChan,
 	}:
 	case <-time.After(timeout):
-		return ErrTimeoutSendingRequest
+		return ErrTimeout
 	}
 
 	select {
@@ -187,7 +187,7 @@ func (r *Rafty) BootstrapCluster(timeout time.Duration) error {
 		return ErrShutdown
 
 	case <-time.After(timeout):
-		return ErrTimeoutSendingRequest
+		return ErrTimeout
 	}
 }
 
@@ -234,7 +234,7 @@ func (r *Rafty) manageMembers(timeout time.Duration, action MembershipChange, ad
 		ResponseChan: responseChan,
 	}:
 	case <-time.After(timeout):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 
 	select {
@@ -245,7 +245,7 @@ func (r *Rafty) manageMembers(timeout time.Duration, action MembershipChange, ad
 		return nil, ErrShutdown
 
 	case <-time.After(timeout):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }
 

@@ -102,7 +102,7 @@ func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVote
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 
 	select {
@@ -116,7 +116,7 @@ func (r *rpcManager) SendPreVoteRequest(ctx context.Context, in *raftypb.PreVote
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }
 
@@ -142,7 +142,7 @@ func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteReques
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 
 	select {
@@ -156,7 +156,7 @@ func (r *rpcManager) SendVoteRequest(ctx context.Context, in *raftypb.VoteReques
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }
 
@@ -182,7 +182,7 @@ func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.A
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 
 	select {
@@ -196,7 +196,7 @@ func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.A
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }
 
@@ -260,7 +260,7 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 
 	select {
@@ -274,7 +274,7 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }
 
@@ -318,7 +318,7 @@ func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 
 	select {
@@ -332,7 +332,7 @@ func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(membershipTimeoutSeconds * time.Second):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }
 
@@ -357,7 +357,7 @@ func (r *rpcManager) SendBootstrapClusterRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 
 	select {
@@ -371,7 +371,7 @@ func (r *rpcManager) SendBootstrapClusterRequest(ctx context.Context, in *raftyp
 		return nil, ErrShutdown
 
 	case <-time.After(time.Second):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }
 
@@ -396,7 +396,7 @@ func (r *rpcManager) SendInstallSnapshotRequest(ctx context.Context, in *raftypb
 		return nil, ErrShutdown
 
 	case <-time.After(500 * time.Millisecond):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 
 	select {
@@ -410,6 +410,6 @@ func (r *rpcManager) SendInstallSnapshotRequest(ctx context.Context, in *raftypb
 		return nil, ErrShutdown
 
 	case <-time.After(5 * time.Second):
-		return nil, ErrTimeoutSendingRequest
+		return nil, ErrTimeout
 	}
 }

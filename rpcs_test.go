@@ -57,7 +57,7 @@ func TestRpcs_askNodeIDResult(t *testing.T) {
 	resp := RPCResponse{
 		TargetPeer: Peer{Address: s.configuration.ServerMembers[0].Address},
 		Response:   rpcResponse,
-		Error:      ErrTimeoutSendingRequest,
+		Error:      ErrTimeout,
 	}
 
 	t.Run("error", func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestRpcs_getLeaderResult(t *testing.T) {
 	resp := RPCResponse{
 		TargetPeer: Peer{Address: s.configuration.ServerMembers[0].Address},
 		Response:   rpcResponse,
-		Error:      ErrTimeoutSendingRequest,
+		Error:      ErrTimeout,
 	}
 
 	t.Run("error", func(t *testing.T) {
@@ -141,7 +141,7 @@ func TestRpcs_membershipChangeResponse(t *testing.T) {
 	resp := RPCResponse{
 		TargetPeer: Peer{Address: s.configuration.ServerMembers[0].Address},
 		Response:   rpcResponse,
-		Error:      ErrTimeoutSendingRequest,
+		Error:      ErrTimeout,
 	}
 
 	t.Run("error", func(t *testing.T) {
