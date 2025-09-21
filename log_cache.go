@@ -109,8 +109,9 @@ func (lc *LogCache) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 
 // GetLastConfiguration return data from cache when exist otherwise
 // data is fetch from long term storage
-func (lc *LogCache) GetLastConfiguration(key string) (*LogEntry, error) {
+func (lc *LogCache) GetLastConfiguration() (*LogEntry, error) {
 	lc.mu.RLock()
+	key := "lastConfiguration"
 	if val, ok := lc.cache[key]; ok {
 		// if key is not expired
 		if !val.isExpired() {
@@ -145,10 +146,67 @@ func (lc *LogCache) DiscardLogs(minIndex, maxIndex uint64) error {
 	return lc.store.DiscardLogs(minIndex, maxIndex)
 }
 
+// FirstIndex return data from cache when exist otherwise
+// data is fetch from long term storage
+func (lc *LogCache) FirstIndex() (uint64, error) {
+	key := "rafty_cache_first_index"
+	lc.mu.RLock()
+	if val, ok := lc.cache[key]; ok {
+		// if key is not expired
+		if !val.isExpired() {
+			lc.mu.RUnlock()
+			return val.data.(uint64), nil
+		}
+	}
+	lc.mu.RUnlock()
+
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	delete(lc.cache, key)
+
+	data, err := lc.store.FirstIndex()
+	if err != nil {
+		return data, err
+	}
+
+	lc.cache[key] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
+
+	return data, err
+}
+
+// LastIndex return data from cache when exist otherwise
+// data is fetch from long term storage
+func (lc *LogCache) LastIndex() (uint64, error) {
+	lc.mu.RLock()
+	key := "rafty_cache_last_index"
+	if val, ok := lc.cache[key]; ok {
+		// if key is not expired
+		if !val.isExpired() {
+			lc.mu.RUnlock()
+			return val.data.(uint64), nil
+		}
+	}
+	lc.mu.RUnlock()
+
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	delete(lc.cache, key)
+
+	data, err := lc.store.LastIndex()
+	if err != nil {
+		return data, err
+	}
+
+	lc.cache[key] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
+
+	return data, err
+}
+
 // GetMetadata return data from cache when exist otherwise
 // data is fetch from long term storage
-func (lc *LogCache) GetMetadata(key string) ([]byte, error) {
+func (lc *LogCache) GetMetadata() ([]byte, error) {
 	lc.mu.RLock()
+	key := "rafty_cache_metadata"
 	if val, ok := lc.cache[key]; ok {
 		// if key is not expired
 		if !val.isExpired() {
@@ -172,9 +230,10 @@ func (lc *LogCache) GetMetadata(key string) ([]byte, error) {
 	return data, err
 }
 
-// storeMetadata stores data in cache and in long term storage
-func (lc *LogCache) storeMetadata(key string, value []byte) error {
+// StoreMetadata stores data in cache and in long term storage
+func (lc *LogCache) StoreMetadata(value []byte) error {
 	lc.mu.Lock()
+	key := "rafty_cache_metadata"
 	if lc.cacheOnWrite {
 		lc.cache[key] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: value}
 	}
@@ -224,56 +283,40 @@ func (lc *LogCache) Get(key []byte) ([]byte, error) {
 	return data, err
 }
 
-// FirstIndex return data from cache when exist otherwise
-// data is fetch from long term storage
-func (lc *LogCache) FirstIndex(key string) (uint64, error) {
-	lc.mu.RLock()
-	if val, ok := lc.cache[key]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.(uint64), nil
-		}
-	}
-	lc.mu.RUnlock()
-
+// SetUint64 stores data in cache and in long term storage
+func (lc *LogCache) SetUint64(key, value []byte) error {
 	lc.mu.Lock()
-	defer lc.mu.Unlock()
-	delete(lc.cache, key)
-
-	data, err := lc.store.FirstIndex()
-	if err != nil {
-		return data, err
+	if lc.cacheOnWrite {
+		lc.cache[string(key)] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: value}
 	}
+	lc.mu.Unlock()
 
-	lc.cache[key] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
-
-	return data, err
+	return lc.store.SetUint64(key, value)
 }
 
-// LastIndex return data from cache when exist otherwise
+// GetUint64 return data from cache when exist otherwise
 // data is fetch from long term storage
-func (lc *LogCache) LastIndex(key string) (uint64, error) {
+func (lc *LogCache) GetUint64(key []byte) uint64 {
 	lc.mu.RLock()
-	if val, ok := lc.cache[key]; ok {
+	s := string(key)
+	if val, ok := lc.cache[s]; ok {
 		// if key is not expired
 		if !val.isExpired() {
 			lc.mu.RUnlock()
-			return val.data.(uint64), nil
+			return val.data.(uint64)
 		}
 	}
 	lc.mu.RUnlock()
 
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
-	delete(lc.cache, key)
+	delete(lc.cache, s)
 
-	data, err := lc.store.LastIndex()
-	if err != nil {
-		return data, err
+	data := lc.store.GetUint64(key)
+
+	if lc.cacheOnWrite {
+		lc.cache[s] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
 	}
 
-	lc.cache[key] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
-
-	return data, err
+	return data
 }
