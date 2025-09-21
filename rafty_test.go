@@ -153,7 +153,7 @@ func TestRafty_newRafty(t *testing.T) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		assert.Nil(store.storeMetadata([]byte("a=b")))
+		assert.Nil(store.StoreMetadata([]byte("a=b")))
 		assert.Nil(store.Close())
 		defer func() {
 			if r := recover(); r != nil {
@@ -210,7 +210,7 @@ func TestRafty_restore(t *testing.T) {
 		s.updateEntriesIndex(protoEntries)
 		assert.Nil(s.logStore.StoreLogs(entries))
 		assert.Nil(s.applyConfigEntry(entry))
-		assert.Nil(s.logStore.storeMetadata(s.buildMetadata()))
+		assert.Nil(s.logStore.StoreMetadata(s.buildMetadata()))
 		metadata, err := s.logStore.GetMetadata()
 		assert.Nil(err)
 		s.isBootstrapped.Store(false)
@@ -225,7 +225,7 @@ func TestRafty_restore(t *testing.T) {
 			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
-		assert.Nil(s.logStore.storeMetadata([]byte("a=b")))
+		assert.Nil(s.logStore.StoreMetadata([]byte("a=b")))
 		metadata, err := s.logStore.GetMetadata()
 		assert.Nil(err)
 		s.isBootstrapped.Store(false)
@@ -239,7 +239,7 @@ func TestRafty_restore(t *testing.T) {
 		}()
 		s.fillIDs()
 		s.isBootstrapped.Store(false)
-		assert.Nil(s.logStore.storeMetadata([]byte("a=b")))
+		assert.Nil(s.logStore.StoreMetadata([]byte("a=b")))
 		assert.Nil(s.logStore.Close())
 		options := s.options
 

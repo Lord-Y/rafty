@@ -239,7 +239,7 @@ func TestLogsPersistant(t *testing.T) {
 		s.currentTerm.Store(1)
 		s.lastApplied.Store(1)
 
-		assert.Nil(store.storeMetadata(s.buildMetadata()))
+		assert.Nil(store.StoreMetadata(s.buildMetadata()))
 		_, err = store.GetMetadata()
 		assert.Nil(err)
 		assert.Nil(store.Close())

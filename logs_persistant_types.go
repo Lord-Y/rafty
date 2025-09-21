@@ -68,9 +68,9 @@ type Store interface {
 	// GetMetadata will fetch rafty metadata from the k/v store
 	GetMetadata() ([]byte, error)
 
-	// storeMetadata will store rafty metadata into the k/v bucket.
+	// StoreMetadata will store rafty metadata into the k/v bucket.
 	// This won't be replicated
-	storeMetadata([]byte) error
+	StoreMetadata([]byte) error
 
 	// Set will add key/value to the k/v store
 	Set(key, value []byte) error

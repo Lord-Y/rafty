@@ -175,7 +175,7 @@ func (lc *LogCache) storeMetadata(key string, value []byte) error {
 	}
 	lc.mu.Unlock()
 
-	return lc.store.storeMetadata(value)
+	return lc.store.StoreMetadata(value)
 }
 
 // Set stores data in cache and in long term storage
