@@ -32,6 +32,10 @@ Here is a list of the supported features of `rafty`:
   - [x] Submit read commands
   - [x] Forward read/write commands to leader
   - [] Log compaction
+- [x] Log storage
+  - [x] etcd bbolt for long term storage
+  - [x] log cache backed by etcd bbolt long term storage
+  - [x] in memory storage (for development)
 - [x] Membership changes
   - [x] Add member
   - [x] promote member
