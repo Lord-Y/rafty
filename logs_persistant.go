@@ -153,7 +153,7 @@ func (b *BoltStore) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 				Index:      entry.Index,
 				Command:    entry.Command,
 			})
-			response.Total += 1
+			response.Total++
 			response.LastLogIndex = entry.Index
 			response.LastLogTerm = entry.Term
 			if response.Total+1 > maxAppendEntries {
