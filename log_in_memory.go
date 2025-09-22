@@ -7,8 +7,9 @@ import (
 
 func NewInMemoryStorage() *LogInMemory {
 	return &LogInMemory{
-		memory: make(map[uint64]*LogEntry),
-		vars:   make(map[string][]byte),
+		logs:     make(map[uint64]*LogEntry),
+		metadata: make(map[string][]byte),
+		kv:       make(map[string][]byte),
 	}
 }
 
@@ -17,8 +18,9 @@ func (in *LogInMemory) Close() error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
-	in.memory = nil
-	in.vars = nil
+	in.logs = nil
+	in.metadata = nil
+	in.kv = nil
 
 	return nil
 }
@@ -29,7 +31,7 @@ func (in *LogInMemory) StoreLogs(logs []*LogEntry) error {
 	defer in.mu.Unlock()
 
 	for _, entry := range logs {
-		in.memory[entry.Index] = entry
+		in.logs[entry.Index] = entry
 	}
 	return nil
 }
@@ -44,7 +46,7 @@ func (in *LogInMemory) GetLogByIndex(index uint64) (*LogEntry, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
-	if val, ok := in.memory[index]; ok {
+	if val, ok := in.logs[index]; ok {
 		return val, nil
 	}
 	return nil, ErrLogNotFound
@@ -58,7 +60,7 @@ func (in *LogInMemory) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint6
 	defer in.mu.RUnlock()
 
 	for index := minIndex; index <= maxIndex; index++ {
-		if val, ok := in.memory[index]; ok {
+		if val, ok := in.logs[index]; ok {
 			response.Logs = append(response.Logs, val)
 			response.Total++
 			response.LastLogIndex = val.Index
@@ -79,10 +81,10 @@ func (in *LogInMemory) GetLastConfiguration() (*LogEntry, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
-	keys := slices.Sorted(maps.Keys(in.memory))
+	keys := slices.Sorted(maps.Keys(in.logs))
 	slices.Reverse(keys)
 	for index := range keys {
-		if val, ok := in.memory[uint64(index)]; ok && logKind(val.LogType) == LogConfiguration {
+		if val, ok := in.logs[uint64(index)]; ok && logKind(val.LogType) == LogConfiguration {
 			return val, nil
 		}
 	}
@@ -95,8 +97,8 @@ func (in *LogInMemory) DiscardLogs(minIndex, maxIndex uint64) error {
 	defer in.mu.RUnlock()
 
 	for index := minIndex; index <= maxIndex; index++ {
-		if _, ok := in.memory[index]; ok {
-			delete(in.memory, index)
+		if _, ok := in.logs[index]; ok {
+			delete(in.logs, index)
 		} else {
 			return ErrKeyNotFound
 		}
@@ -110,7 +112,7 @@ func (in *LogInMemory) FirstIndex() (uint64, error) {
 	defer in.mu.RUnlock()
 
 	// in golang and other languages maps which are hashmaps are not ordered
-	keys := slices.Sorted(maps.Keys(in.memory))
+	keys := slices.Sorted(maps.Keys(in.logs))
 	for entry := range keys {
 		return keys[entry], nil
 	}
@@ -123,7 +125,7 @@ func (in *LogInMemory) LastIndex() (uint64, error) {
 	defer in.mu.RUnlock()
 
 	// in golang and other languages maps which are hashmaps are not ordered
-	keys := slices.Sorted(maps.Keys(in.memory))
+	keys := slices.Sorted(maps.Keys(in.logs))
 	slices.Reverse(keys)
 	for entry := range keys {
 		return keys[entry], nil
@@ -136,7 +138,7 @@ func (in *LogInMemory) GetMetadata() ([]byte, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
-	if val, ok := in.vars["rafty_metadata"]; ok {
+	if val, ok := in.metadata["rafty_metadata"]; ok {
 		return val, nil
 	}
 	return nil, ErrKeyNotFound
@@ -147,7 +149,7 @@ func (in *LogInMemory) StoreMetadata(value []byte) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
-	in.vars["rafty_metadata"] = value
+	in.metadata["rafty_metadata"] = value
 	return nil
 }
 
@@ -157,7 +159,7 @@ func (in *LogInMemory) Set(key, value []byte) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
-	in.vars[string(key)] = value
+	in.kv[string(key)] = value
 	return nil
 }
 
@@ -167,7 +169,7 @@ func (in *LogInMemory) Get(key []byte) ([]byte, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
-	if val, ok := in.vars[string(key)]; ok {
+	if val, ok := in.kv[string(key)]; ok {
 		return val, nil
 	}
 	return nil, ErrKeyNotFound
@@ -179,7 +181,7 @@ func (in *LogInMemory) SetUint64(key, value []byte) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
-	in.vars[string(key)] = value
+	in.kv[string(key)] = value
 	return nil
 }
 
@@ -189,7 +191,7 @@ func (in *LogInMemory) GetUint64(key []byte) uint64 {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
-	if val, ok := in.vars[string(key)]; ok {
+	if val, ok := in.kv[string(key)]; ok {
 		return DecodeUint64ToBytes(val)
 	}
 	return 0
