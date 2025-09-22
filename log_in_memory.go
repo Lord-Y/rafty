@@ -79,8 +79,9 @@ func (in *LogInMemory) GetLastConfiguration() (*LogEntry, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
-	size := len(in.memory)
-	for index := size; index >= 0; index-- {
+	keys := slices.Sorted(maps.Keys(in.memory))
+	slices.Reverse(keys)
+	for index := range keys {
 		if val, ok := in.memory[uint64(index)]; ok && logKind(val.LogType) == LogConfiguration {
 			return val, nil
 		}
