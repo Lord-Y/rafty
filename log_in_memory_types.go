@@ -9,9 +9,12 @@ type LogInMemory struct {
 	// mu hold locking mecanism
 	mu sync.RWMutex
 
-	// memory hold a map of the log entries
-	memory map[uint64]*LogEntry
+	// logs map holds a map of the log entries
+	logs map[uint64]*LogEntry
 
-	// vars hold the a map of k/v store
-	vars map[string][]byte
+	// metadata map holds the a map of metadata store
+	metadata map[string][]byte
+
+	// kv map holds the a map of k/v store
+	kv map[string][]byte
 }
