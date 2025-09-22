@@ -37,6 +37,9 @@ type LogCache struct {
 	// cache hold the log entry
 	cache map[string]*cacheItem
 
+	// vars hold the a map of k/v store
+	vars map[string]*cacheItem
+
 	// cacheOnWrite when set to true will put every write
 	// request in cache before writting to the long term storage
 	cacheOnWrite bool
