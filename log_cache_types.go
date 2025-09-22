@@ -34,11 +34,14 @@ type LogCache struct {
 	// mu hold locking mecanism
 	mu sync.RWMutex
 
-	// cache hold the log entry
-	cache map[string]*cacheItem
+	// logs map holds a map of the log entries
+	logs map[string]*cacheItem
 
-	// vars hold the a map of k/v store
-	vars map[string]*cacheItem
+	// metadata map holds the a map of metadata store
+	metadata map[string]*cacheItem
+
+	// kv map holds the a map of k/v store
+	kv map[string]*cacheItem
 
 	// cacheOnWrite when set to true will put every write
 	// request in cache before writting to the long term storage
