@@ -16,6 +16,7 @@ func NewLogCache(options LogCacheOptions) *LogCache {
 
 	return &LogCache{
 		cache:        make(map[string]*cacheItem),
+		vars:         make(map[string]*cacheItem),
 		cacheOnWrite: options.CacheOnWrite,
 		store:        options.Store,
 		ttl:          ttl,
@@ -57,12 +58,9 @@ func (lc *LogCache) GetLogByIndex(index uint64) (*LogEntry, error) {
 	key := fmt.Sprintf("%d", index)
 
 	lc.mu.RLock()
-	if val, ok := lc.cache[key]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.(*LogEntry), nil
-		}
+	if val, ok := lc.cache[key]; ok && !val.isExpired() {
+		lc.mu.RUnlock()
+		return val.data.(*LogEntry), nil
 	}
 	lc.mu.RUnlock()
 
@@ -86,12 +84,9 @@ func (lc *LogCache) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 	key := fmt.Sprintf("%d%d%d", minIndex, maxIndex, maxAppendEntries)
 
 	lc.mu.RLock()
-	if val, ok := lc.cache[key]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.(GetLogsByRangeResponse)
-		}
+	if val, ok := lc.cache[key]; ok && !val.isExpired() {
+		lc.mu.RUnlock()
+		return val.data.(GetLogsByRangeResponse)
 	}
 	lc.mu.RUnlock()
 
@@ -112,12 +107,9 @@ func (lc *LogCache) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 func (lc *LogCache) GetLastConfiguration() (*LogEntry, error) {
 	lc.mu.RLock()
 	key := "lastConfiguration"
-	if val, ok := lc.cache[key]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.(*LogEntry), nil
-		}
+	if val, ok := lc.cache[key]; ok && !val.isExpired() {
+		lc.mu.RUnlock()
+		return val.data.(*LogEntry), nil
 	}
 	lc.mu.RUnlock()
 
@@ -151,12 +143,9 @@ func (lc *LogCache) DiscardLogs(minIndex, maxIndex uint64) error {
 func (lc *LogCache) FirstIndex() (uint64, error) {
 	key := "rafty_cache_first_index"
 	lc.mu.RLock()
-	if val, ok := lc.cache[key]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.(uint64), nil
-		}
+	if val, ok := lc.cache[key]; ok && !val.isExpired() {
+		lc.mu.RUnlock()
+		return val.data.(uint64), nil
 	}
 	lc.mu.RUnlock()
 
@@ -179,12 +168,9 @@ func (lc *LogCache) FirstIndex() (uint64, error) {
 func (lc *LogCache) LastIndex() (uint64, error) {
 	lc.mu.RLock()
 	key := "rafty_cache_last_index"
-	if val, ok := lc.cache[key]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.(uint64), nil
-		}
+	if val, ok := lc.cache[key]; ok && !val.isExpired() {
+		lc.mu.RUnlock()
+		return val.data.(uint64), nil
 	}
 	lc.mu.RUnlock()
 
@@ -207,12 +193,9 @@ func (lc *LogCache) LastIndex() (uint64, error) {
 func (lc *LogCache) GetMetadata() ([]byte, error) {
 	lc.mu.RLock()
 	key := "rafty_cache_metadata"
-	if val, ok := lc.cache[key]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.([]byte), nil
-		}
+	if val, ok := lc.cache[key]; ok && !val.isExpired() {
+		lc.mu.RUnlock()
+		return val.data.([]byte), nil
 	}
 	lc.mu.RUnlock()
 
@@ -246,7 +229,7 @@ func (lc *LogCache) StoreMetadata(value []byte) error {
 func (lc *LogCache) Set(key, value []byte) error {
 	lc.mu.Lock()
 	if lc.cacheOnWrite {
-		lc.cache[string(key)] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: value}
+		lc.vars[string(key)] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: value}
 	}
 	lc.mu.Unlock()
 
@@ -258,18 +241,15 @@ func (lc *LogCache) Set(key, value []byte) error {
 func (lc *LogCache) Get(key []byte) ([]byte, error) {
 	lc.mu.RLock()
 	s := string(key)
-	if val, ok := lc.cache[s]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.([]byte), nil
-		}
+	if val, ok := lc.vars[s]; ok && !val.isExpired() {
+		lc.mu.RUnlock()
+		return val.data.([]byte), nil
 	}
 	lc.mu.RUnlock()
 
 	lc.mu.Lock()
 	defer lc.mu.Unlock()
-	delete(lc.cache, s)
+	delete(lc.vars, s)
 
 	data, err := lc.store.Get(key)
 	if err != nil {
@@ -277,7 +257,7 @@ func (lc *LogCache) Get(key []byte) ([]byte, error) {
 	}
 
 	if lc.cacheOnWrite {
-		lc.cache[s] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
+		lc.vars[s] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
 	}
 
 	return data, err
@@ -287,7 +267,7 @@ func (lc *LogCache) Get(key []byte) ([]byte, error) {
 func (lc *LogCache) SetUint64(key, value []byte) error {
 	lc.mu.Lock()
 	if lc.cacheOnWrite {
-		lc.cache[string(key)] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: value}
+		lc.vars[string(key)] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: value}
 	}
 	lc.mu.Unlock()
 
@@ -299,12 +279,9 @@ func (lc *LogCache) SetUint64(key, value []byte) error {
 func (lc *LogCache) GetUint64(key []byte) uint64 {
 	lc.mu.RLock()
 	s := string(key)
-	if val, ok := lc.cache[s]; ok {
-		// if key is not expired
-		if !val.isExpired() {
-			lc.mu.RUnlock()
-			return val.data.(uint64)
-		}
+	if val, ok := lc.vars[s]; ok && !val.isExpired() {
+		lc.mu.RUnlock()
+		return val.data.(uint64)
 	}
 	lc.mu.RUnlock()
 
@@ -315,7 +292,7 @@ func (lc *LogCache) GetUint64(key []byte) uint64 {
 	data := lc.store.GetUint64(key)
 
 	if lc.cacheOnWrite {
-		lc.cache[s] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
+		lc.vars[s] = &cacheItem{ttl: time.Now().Add(lc.ttl), data: data}
 	}
 
 	return data

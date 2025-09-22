@@ -48,9 +48,9 @@ func TestLogCache(t *testing.T) {
 		assert.Nil(cacheStore.StoreLog(&LogEntry{Index: 100, Term: 1}))
 	})
 
-	t.Run("cahce_get_log_by_index", func(t *testing.T) {
+	t.Run("cache_get_log_by_index", func(t *testing.T) {
 		boltOptions := BoltOptions{
-			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cahce_get_log_by_index"),
+			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_get_log_by_index"),
 			Options: bbolt.DefaultOptions,
 		}
 
