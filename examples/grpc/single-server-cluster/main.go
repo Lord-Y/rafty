@@ -111,8 +111,14 @@ func main() {
 					if err != nil {
 						s.Logger.Fatal().Err(err).Msg("Fail to create sotre")
 					}
-					fsm := NewSnapshotState(store)
-					if s, err = rafty.NewRafty(addr, id, options, store, fsm, nil); err != nil {
+					cacheOptions := rafty.LogCacheOptions{
+						Store:        store,
+						CacheOnWrite: true,
+						TTL:          2 * time.Second,
+					}
+					cacheStore := rafty.NewLogCache(cacheOptions)
+					fsm := NewSnapshotState(cacheStore)
+					if s, err = rafty.NewRafty(addr, id, options, cacheStore, fsm, nil); err != nil {
 						s.Logger.Fatal().Err(err).Msg("Fail to create cluster config")
 					}
 					if err := s.Start(); err != nil {
