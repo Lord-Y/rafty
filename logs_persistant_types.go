@@ -15,6 +15,7 @@ const (
 	bucketKVName string = "rafty_kv"
 )
 
+// BoltOptions is all requirements related to boltdb
 type BoltOptions struct {
 	// DataDir is the default data directory that will be used to store all data on the disk. It's required
 	DataDir string
@@ -32,38 +33,11 @@ type BoltStore struct {
 	db *bolt.DB
 }
 
-// Store is an interface that allow us to store and retrieve
-// logs from memory
-type Store interface {
+// ClusterStore is an interface that allow us to store and retrieve
+// data only for cluster related purpose
+type ClusterStore interface {
 	// Close permits to close the store
 	Close() error
-
-	// StoreLogs stores multiple log entries
-	StoreLogs(logs []*LogEntry) error
-
-	// StoreLog stores a single log entry
-	StoreLog(log *LogEntry) error
-
-	// GetLogByIndex permits to retrieve log from specified index
-	GetLogByIndex(index uint64) (*LogEntry, error)
-
-	// GetLogsByRange will return a slice of logs
-	// with peer lastLogIndex and leader lastLogIndex capped
-	// by options.MaxAppendEntries
-	GetLogsByRange(peerLastLogIndex, leaderLastLogIndex, maxAppendEntries uint64) GetLogsByRangeResponse
-
-	// GetLastConfiguration returns the last configuration found
-	// in logs
-	GetLastConfiguration() (*LogEntry, error)
-
-	// DiscardLogs permits to wipe entries with the provided range indexes
-	DiscardLogs(from, to uint64) error
-
-	// FistIndex will return the first index from the raft log
-	FirstIndex() (uint64, error)
-
-	// LastIndex will return the last index from the raft log
-	LastIndex() (uint64, error)
 
 	// GetMetadata will fetch rafty metadata from the k/v store
 	GetMetadata() ([]byte, error)
@@ -83,6 +57,40 @@ type Store interface {
 
 	// GetUint64 will fetch provided key from the k/v store
 	GetUint64(key []byte) uint64
+}
+
+// LogStore is an interface that allow us to store and retrieve
+// raft logs from memory
+type LogStore interface {
+	// Close permits to close the store
+	Close() error
+
+	// StoreLogs stores multiple log entries
+	StoreLogs(logs []*LogEntry) error
+
+	// StoreLog stores a single log entry
+	StoreLog(log *LogEntry) error
+
+	// GetLogByIndex permits to retrieve log from specified index
+	GetLogByIndex(index uint64) (*LogEntry, error)
+
+	// GetLogsByRange will return a slice of logs
+	// with peer lastLogIndex and leader lastLogIndex capped
+	// by options.MaxAppendEntries
+	GetLogsByRange(peerLastLogIndex, leaderLastLogIndex, maxAppendEntries uint64) GetLogsByRangeResponse
+
+	// DiscardLogs permits to wipe entries with the provided range indexes
+	DiscardLogs(from, to uint64) error
+
+	// FistIndex will return the first index from the raft log
+	FirstIndex() (uint64, error)
+
+	// LastIndex will return the last index from the raft log
+	LastIndex() (uint64, error)
+
+	// GetLastConfiguration returns the last configuration found
+	// in logs
+	GetLastConfiguration() (*LogEntry, error)
 }
 
 // GetLogsByRangeResponse returns response from GetLogsByRange func

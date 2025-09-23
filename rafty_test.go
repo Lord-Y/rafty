@@ -100,13 +100,13 @@ func TestRafty_newRafty(t *testing.T) {
 				store, err := NewBoltStorage(storeOptions)
 				assert.ErrorIs(err, ErrDataDirRequired)
 				fsm := NewSnapshotState(store)
-				_, err = NewRafty(address, tc.id, options, store, fsm, nil)
+				_, err = NewRafty(address, tc.id, options, store, store, fsm, nil)
 				assert.ErrorIs(err, ErrDataDirRequired)
 			} else {
 				store, err := NewBoltStorage(storeOptions)
 				assert.Nil(err)
 				fsm := NewSnapshotState(store)
-				r, err := NewRafty(address, tc.id, options, store, fsm, nil)
+				r, err := NewRafty(address, tc.id, options, store, store, fsm, nil)
 				assert.Nil(err)
 				assert.Equal(tc.TimeMultiplierExpected, r.options.TimeMultiplier)
 				assert.Equal(tc.MinimumClusterSizeExpected, r.options.MinimumClusterSize)
@@ -161,7 +161,7 @@ func TestRafty_newRafty(t *testing.T) {
 			}
 		}()
 		fsm := NewSnapshotState(store)
-		_, _ = NewRafty(addr, id, options, store, fsm, nil)
+		_, _ = NewRafty(addr, id, options, store, store, fsm, nil)
 	})
 
 	t.Run("start_panic", func(t *testing.T) {
@@ -210,8 +210,8 @@ func TestRafty_restore(t *testing.T) {
 		s.updateEntriesIndex(protoEntries)
 		assert.Nil(s.logStore.StoreLogs(entries))
 		assert.Nil(s.applyConfigEntry(entry))
-		assert.Nil(s.logStore.StoreMetadata(s.buildMetadata()))
-		metadata, err := s.logStore.GetMetadata()
+		assert.Nil(s.clusterStore.StoreMetadata(s.buildMetadata()))
+		metadata, err := s.clusterStore.GetMetadata()
 		assert.Nil(err)
 		s.isBootstrapped.Store(false)
 		assert.Nil(s.restore(metadata))
@@ -225,8 +225,8 @@ func TestRafty_restore(t *testing.T) {
 			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
-		assert.Nil(s.logStore.StoreMetadata([]byte("a=b")))
-		metadata, err := s.logStore.GetMetadata()
+		assert.Nil(s.clusterStore.StoreMetadata([]byte("a=b")))
+		metadata, err := s.clusterStore.GetMetadata()
 		assert.Nil(err)
 		s.isBootstrapped.Store(false)
 		assert.Error(s.restore(metadata))
@@ -239,7 +239,7 @@ func TestRafty_restore(t *testing.T) {
 		}()
 		s.fillIDs()
 		s.isBootstrapped.Store(false)
-		assert.Nil(s.logStore.StoreMetadata([]byte("a=b")))
+		assert.Nil(s.clusterStore.StoreMetadata([]byte("a=b")))
 		assert.Nil(s.logStore.Close())
 		options := s.options
 
@@ -250,7 +250,7 @@ func TestRafty_restore(t *testing.T) {
 		store, err := NewBoltStorage(storeOptions)
 		assert.Nil(err)
 		fsm := NewSnapshotState(store)
-		_, err = NewRafty(s.Address, s.id, options, store, fsm, nil)
+		_, err = NewRafty(s.Address, s.id, options, store, store, fsm, nil)
 		assert.Error(err)
 		assert.Nil(store.Close())
 	})

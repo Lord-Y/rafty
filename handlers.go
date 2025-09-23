@@ -68,7 +68,7 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 			Msgf("Vote granted to peer")
 
 		r.switchState(Follower, stepDown, true, request.CurrentTerm)
-		if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
+		if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 			panic(err)
 		}
 		response.CurrentTerm = request.CurrentTerm
@@ -133,7 +133,7 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 				Msgf("Vote granted to peer")
 
 			r.switchState(Follower, stepDown, false, request.CurrentTerm)
-			if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
+			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 				panic(err)
 			}
 			data.ResponseChan <- rpcResponse
@@ -169,7 +169,7 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 		Msgf("Vote granted to peer")
 
 	r.switchState(Follower, stepDown, false, request.CurrentTerm)
-	if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
+	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 		panic(err)
 	}
 
@@ -244,7 +244,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	}
 
 	r.currentTerm.Store(request.Term)
-	if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
+	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 		panic(err)
 	}
 
@@ -347,7 +347,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 						Msgf("Fail to apply config entry")
 				}
 			}
-			if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
+			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 				panic(err)
 			}
 
@@ -387,7 +387,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("lastAppliedConfigTerm", fmt.Sprintf("%d", r.lastAppliedConfigTerm.Load())).
 				Msgf("Node state index updated")
 
-			if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
+			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 				panic(err)
 			}
 		}
