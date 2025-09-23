@@ -11,10 +11,4 @@ type LogInMemory struct {
 
 	// logs map holds a map of the log entries
 	logs map[uint64]*LogEntry
-
-	// metadata map holds the a map of metadata store
-	metadata map[string][]byte
-
-	// kv map holds the a map of k/v store
-	kv map[string][]byte
 }

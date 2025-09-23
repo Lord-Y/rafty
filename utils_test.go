@@ -146,7 +146,7 @@ func TestUtils_parsePeers(t *testing.T) {
 	store, err := NewBoltStorage(storeOptions)
 	assert.Nil(err)
 	fsm := NewSnapshotState(store)
-	s, _ := NewRafty(addr, id, options, store, fsm, nil)
+	s, _ := NewRafty(addr, id, options, store, store, fsm, nil)
 
 	mergePeers := func(peers []InitialPeer) {
 		for _, v := range peers {

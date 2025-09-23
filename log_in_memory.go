@@ -7,9 +7,7 @@ import (
 
 func NewInMemoryStorage() *LogInMemory {
 	return &LogInMemory{
-		logs:     make(map[uint64]*LogEntry),
-		metadata: make(map[string][]byte),
-		kv:       make(map[string][]byte),
+		logs: make(map[uint64]*LogEntry),
 	}
 }
 
@@ -19,8 +17,6 @@ func (in *LogInMemory) Close() error {
 	defer in.mu.Unlock()
 
 	in.logs = nil
-	in.metadata = nil
-	in.kv = nil
 
 	return nil
 }
@@ -131,68 +127,4 @@ func (in *LogInMemory) LastIndex() (uint64, error) {
 		return keys[entry], nil
 	}
 	return 0, ErrKeyNotFound
-}
-
-// GetMetadata will fetch rafty metadata from the k/v store
-func (in *LogInMemory) GetMetadata() ([]byte, error) {
-	in.mu.RLock()
-	defer in.mu.RUnlock()
-
-	if val, ok := in.metadata["rafty_metadata"]; ok {
-		return val, nil
-	}
-	return nil, ErrKeyNotFound
-}
-
-// StoreMetadata will store rafty metadata into the k/v bucket
-func (in *LogInMemory) StoreMetadata(value []byte) error {
-	in.mu.Lock()
-	defer in.mu.Unlock()
-
-	in.metadata["rafty_metadata"] = value
-	return nil
-}
-
-// Set will add key/value to the k/v store.
-// An error will be returned if necessary
-func (in *LogInMemory) Set(key, value []byte) error {
-	in.mu.Lock()
-	defer in.mu.Unlock()
-
-	in.kv[string(key)] = value
-	return nil
-}
-
-// Get will fetch provided key from the k/v store.
-// An error will be returned if the key is not found
-func (in *LogInMemory) Get(key []byte) ([]byte, error) {
-	in.mu.RLock()
-	defer in.mu.RUnlock()
-
-	if val, ok := in.kv[string(key)]; ok {
-		return val, nil
-	}
-	return nil, ErrKeyNotFound
-}
-
-// Set will add key/value to the k/v store.
-// An error will be returned if necessary
-func (in *LogInMemory) SetUint64(key, value []byte) error {
-	in.mu.Lock()
-	defer in.mu.Unlock()
-
-	in.kv[string(key)] = value
-	return nil
-}
-
-// Get will fetch provided key from the k/v store.
-// An error will be returned if the key is not found
-func (in *LogInMemory) GetUint64(key []byte) uint64 {
-	in.mu.RLock()
-	defer in.mu.RUnlock()
-
-	if val, ok := in.kv[string(key)]; ok {
-		return DecodeUint64ToBytes(val)
-	}
-	return 0
 }

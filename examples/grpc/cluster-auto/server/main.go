@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"math/rand"
@@ -89,7 +90,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 				}
 				store, _ := rafty.NewBoltStorage(storeOptions)
 				fsm := NewSnapshotState(store)
-				server, err = rafty.NewRafty(addr, id, options, store, fsm, nil)
+				server, err = rafty.NewRafty(addr, id, options, store, store, fsm, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -182,12 +183,30 @@ func main() {
 	go cc.startCluster()
 }
 
+// userLogInMemory hold the requirements related to user data
+type userLogInMemory struct {
+	// mu hold locking mecanism
+	mu sync.RWMutex
+
+	// userStore map holds a map of the log entries
+	userStore map[uint64]*rafty.LogEntry
+
+	// metadata map holds the a map of metadata store
+	metadata map[string][]byte
+
+	// kv map holds the a map of k/v store
+	kv map[string][]byte
+}
+
 // SnapshotState is a struct holding a set of configs needed to take a snapshot.
 // This can be used by fsm (finite state machine) as an example.
 // See state_machine_test.go
 type SnapshotState struct {
 	// LogStore is the store holding the data
-	logStore rafty.Store
+	logStore rafty.LogStore
+
+	// userStore is only for user land management
+	userStore userLogInMemory
 }
 
 // CommandKind represent the command that will be applied to the state machine
@@ -274,9 +293,14 @@ func DecodeCommand(data []byte) (Command, error) {
 
 // NewSnapshotState return a SnapshotState that allow us to
 // take or restore snapshots
-func NewSnapshotState(logStore rafty.Store) *SnapshotState {
+func NewSnapshotState(logStore rafty.LogStore) *SnapshotState {
 	return &SnapshotState{
 		logStore: logStore,
+		userStore: userLogInMemory{
+			userStore: make(map[uint64]*rafty.LogEntry),
+			metadata:  make(map[string][]byte),
+			kv:        make(map[string][]byte),
+		},
 	}
 }
 
@@ -361,10 +385,10 @@ func (s *SnapshotState) ApplyCommand(cmd []byte) ([]byte, error) {
 	decodedCmd, _ := DecodeCommand(cmd)
 	switch decodedCmd.Kind {
 	case CommandSet:
-		return nil, s.logStore.Set([]byte(decodedCmd.Key), []byte(decodedCmd.Value))
+		return nil, s.userStore.Set([]byte(decodedCmd.Key), []byte(decodedCmd.Value))
 
 	case CommandGet:
-		value, err := s.logStore.Get([]byte(decodedCmd.Key))
+		value, err := s.userStore.Get([]byte(decodedCmd.Key))
 		if err != nil {
 			return nil, err
 		}
@@ -374,4 +398,48 @@ func (s *SnapshotState) ApplyCommand(cmd []byte) ([]byte, error) {
 		return nil, fmt.Errorf("not implemented yet")
 	}
 	return nil, nil
+}
+
+// Set will add key/value to the k/v store.
+// An error will be returned if necessary
+func (in *userLogInMemory) Set(key, value []byte) error {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	in.kv[string(key)] = value
+	return nil
+}
+
+// Get will fetch provided key from the k/v store.
+// An error will be returned if the key is not found
+func (in *userLogInMemory) Get(key []byte) ([]byte, error) {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+
+	if val, ok := in.kv[string(key)]; ok {
+		return val, nil
+	}
+	return nil, rafty.ErrKeyNotFound
+}
+
+// Set will add key/value to the k/v store.
+// An error will be returned if necessary
+func (in *userLogInMemory) SetUint64(key, value []byte) error {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+
+	in.kv[string(key)] = value
+	return nil
+}
+
+// Get will fetch provided key from the k/v store.
+// An error will be returned if the key is not found
+func (in *userLogInMemory) GetUint64(key []byte) uint64 {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+
+	if val, ok := in.kv[string(key)]; ok {
+		return rafty.DecodeUint64ToBytes(val)
+	}
+	return 0
 }

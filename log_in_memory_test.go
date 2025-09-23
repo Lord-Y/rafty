@@ -1,9 +1,7 @@
 package rafty
 
 import (
-	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -140,62 +138,5 @@ func TestLogInMemory(t *testing.T) {
 		l, err := store.LastIndex()
 		assert.Nil(err)
 		assert.Equal(last, l)
-	})
-
-	t.Run("in_memory_metadata", func(t *testing.T) {
-		store := NewInMemoryStorage()
-		defer func() {
-			assert.Nil(store.Close())
-		}()
-
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.currentTerm.Store(1)
-		s.lastApplied.Store(1)
-
-		_, err := store.GetMetadata()
-		assert.Error(err)
-
-		assert.Nil(store.StoreMetadata(s.buildMetadata()))
-		_, err = store.GetMetadata()
-		assert.Nil(err)
-	})
-
-	t.Run("in_memory_set_get", func(t *testing.T) {
-		store := NewInMemoryStorage()
-		defer func() {
-			assert.Nil(store.Close())
-		}()
-
-		key, value := []byte("key"), []byte("value")
-		_, err := store.Get(key)
-		assert.Error(err)
-
-		assert.Nil(store.Set(key, value))
-
-		time.Sleep(time.Second)
-		_, err = store.Get(key)
-		assert.Nil(err)
-
-		time.Sleep(2 * time.Second)
-		_, err = store.Get(key)
-		assert.Nil(err)
-	})
-
-	t.Run("in_memory_uint64_set_get", func(t *testing.T) {
-		store := NewInMemoryStorage()
-		defer func() {
-			assert.Nil(store.Close())
-		}()
-
-		key, value := "key", uint64(64)
-		result := store.GetUint64([]byte(key))
-		assert.Equal(uint64(0), result)
-
-		assert.Nil(store.SetUint64([]byte(key), EncodeUint64ToBytes(value)))
-		assert.Equal(value, store.GetUint64([]byte(key)))
 	})
 }

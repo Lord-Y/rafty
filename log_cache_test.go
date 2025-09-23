@@ -26,7 +26,7 @@ func TestLogCache(t *testing.T) {
 		assert.Nil(err)
 
 		cacheOptions := LogCacheOptions{
-			Store:        store,
+			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
@@ -61,7 +61,7 @@ func TestLogCache(t *testing.T) {
 		assert.Nil(err)
 
 		cacheOptions := LogCacheOptions{
-			Store:        store,
+			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
@@ -108,7 +108,7 @@ func TestLogCache(t *testing.T) {
 		assert.Nil(err)
 
 		cacheOptions := LogCacheOptions{
-			Store:        store,
+			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
@@ -150,7 +150,7 @@ func TestLogCache(t *testing.T) {
 		assert.Nil(err)
 
 		cacheOptions := LogCacheOptions{
-			Store:        store,
+			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
@@ -194,7 +194,7 @@ func TestLogCache(t *testing.T) {
 		assert.Nil(err)
 
 		cacheOptions := LogCacheOptions{
-			Store:        store,
+			LogStore:     store,
 			CacheOnWrite: true,
 		}
 		cacheStore := NewLogCache(cacheOptions)
@@ -219,7 +219,7 @@ func TestLogCache(t *testing.T) {
 		assert.Nil(err)
 
 		cacheOptions := LogCacheOptions{
-			Store:        store,
+			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
@@ -267,124 +267,5 @@ func TestLogCache(t *testing.T) {
 		l, err = cacheStore.LastIndex()
 		assert.Nil(err)
 		assert.Equal(last, l)
-	})
-
-	t.Run("cache_metadata", func(t *testing.T) {
-		boltOptions := BoltOptions{
-			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_metadata"),
-			Options: bbolt.DefaultOptions,
-		}
-
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-		}()
-		store, err := NewBoltStorage(boltOptions)
-		assert.Nil(err)
-
-		cacheOptions := LogCacheOptions{
-			Store:        store,
-			CacheOnWrite: true,
-			TTL:          2 * time.Second,
-		}
-		cacheStore := NewLogCache(cacheOptions)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(cacheStore.Close())
-		}()
-
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.currentTerm.Store(1)
-		s.lastApplied.Store(1)
-
-		_, err = cacheStore.GetMetadata()
-		assert.Error(err)
-
-		assert.Nil(cacheStore.StoreMetadata(s.buildMetadata()))
-
-		time.Sleep(time.Second)
-		_, err = cacheStore.GetMetadata()
-		assert.Nil(err)
-
-		time.Sleep(2 * time.Second)
-		_, err = cacheStore.GetMetadata()
-		assert.Nil(err)
-	})
-
-	t.Run("cache_set_get", func(t *testing.T) {
-		boltOptions := BoltOptions{
-			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_set_get"),
-			Options: bbolt.DefaultOptions,
-		}
-
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-		}()
-		store, err := NewBoltStorage(boltOptions)
-		assert.Nil(err)
-
-		cacheOptions := LogCacheOptions{
-			Store:        store,
-			CacheOnWrite: true,
-			TTL:          2 * time.Second,
-		}
-		cacheStore := NewLogCache(cacheOptions)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(cacheStore.Close())
-		}()
-
-		key, value := []byte("key"), []byte("value")
-		_, err = cacheStore.Get(key)
-		assert.Error(err)
-
-		assert.Nil(cacheStore.Set(key, value))
-
-		time.Sleep(time.Second)
-		_, err = cacheStore.Get(key)
-		assert.Nil(err)
-
-		time.Sleep(2 * time.Second)
-		_, err = cacheStore.Get(key)
-		assert.Nil(err)
-	})
-
-	t.Run("cache_uint64_set_get", func(t *testing.T) {
-		boltOptions := BoltOptions{
-			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_uint64_set_get"),
-			Options: bbolt.DefaultOptions,
-		}
-
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-		}()
-		store, err := NewBoltStorage(boltOptions)
-		assert.Nil(err)
-
-		cacheOptions := LogCacheOptions{
-			Store:        store,
-			CacheOnWrite: true,
-			TTL:          2 * time.Second,
-		}
-		cacheStore := NewLogCache(cacheOptions)
-		defer func() {
-			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
-			assert.Nil(cacheStore.Close())
-		}()
-
-		key, value := "key", uint64(64)
-		result := cacheStore.GetUint64([]byte(key))
-		assert.Equal(uint64(0), result)
-
-		assert.Nil(cacheStore.SetUint64([]byte(key), EncodeUint64ToBytes(value)))
-
-		time.Sleep(time.Second)
-		assert.Equal(value, cacheStore.GetUint64([]byte(key)))
-
-		time.Sleep(2 * time.Second)
-		assert.Equal(value, cacheStore.GetUint64([]byte(key)))
 	})
 }

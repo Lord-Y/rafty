@@ -17,8 +17,8 @@ type cacheItem struct {
 // LogCacheOptions hold all cache options that will be later
 // used by LogCache
 type LogCacheOptions struct {
-	// Store hold the long term storage data
-	Store Store
+	// LogStore hold the long term storage data related to raft logs
+	LogStore LogStore
 
 	// CacheOnWrite when set to true will put every write
 	// request in cache before writting to the long term storage
@@ -37,18 +37,12 @@ type LogCache struct {
 	// logs map holds a map of the log entries
 	logs map[string]*cacheItem
 
-	// metadata map holds the a map of metadata store
-	metadata map[string]*cacheItem
-
-	// kv map holds the a map of k/v store
-	kv map[string]*cacheItem
-
 	// cacheOnWrite when set to true will put every write
 	// request in cache before writting to the long term storage
 	cacheOnWrite bool
 
-	// store hold the long term storage data
-	store Store
+	// logStore hold the long term storage data related to raft logs
+	logStore LogStore
 
 	// ttl is the maximum amount of time to keep the entry in cache.
 	// Default to 30 seconds if ttl == 0

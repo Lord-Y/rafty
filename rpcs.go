@@ -541,7 +541,7 @@ func (r *Rafty) bootstrapCluster(data RPCRequest) {
 		panic(err)
 	}
 	_ = r.applyConfigEntry(entries[0])
-	if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
+	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 		panic(err)
 	}
 

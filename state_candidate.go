@@ -121,7 +121,7 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 	if response.CurrentTerm > response.RequesterTerm {
 		r.rafty.currentTerm.Store(response.CurrentTerm)
 		r.rafty.switchState(Follower, stepDown, false, response.CurrentTerm)
-		if err := r.rafty.logStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
+		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 			panic(err)
 		}
 		return
@@ -149,7 +149,7 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 // to other nodes in order to elect a leader
 func (r *candidate) startElection() {
 	currentTerm := r.rafty.currentTerm.Add(1)
-	if err := r.rafty.logStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
+	if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 		panic(err)
 	}
 
@@ -226,7 +226,7 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 
 		r.rafty.currentTerm.Store(response.CurrentTerm)
 		r.rafty.switchState(Follower, stepDown, false, response.CurrentTerm)
-		if err := r.rafty.logStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
+		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 			panic(err)
 		}
 		return
@@ -254,7 +254,7 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 func (r *candidate) isSingleServerCluster() {
 	currentTerm := r.rafty.currentTerm.Add(1)
 	r.rafty.switchState(Candidate, stepUp, true, currentTerm)
-	if err := r.rafty.logStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
+	if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 		panic(err)
 	}
 	r.rafty.switchState(Leader, stepUp, true, currentTerm)

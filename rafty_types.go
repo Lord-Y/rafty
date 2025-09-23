@@ -314,8 +314,30 @@ type Rafty struct {
 	// logs allow us to manipulate logs
 	logs logs
 
-	// logStore is long term storage backend of raft
-	logStore Store
+	// logStore is long term storage backend only for raft logs.
+	// The same long term storage for clusterStore and logStore can be used
+	// BUT in different namespace or buckets to avoid collisions.
+	// In logs_persistant_types, you will see different buckets for bolt storage:
+	// - bucketLogsName
+	// - bucketMetadataName
+	// - bucketKVName
+	// The same logic is applied for LogCache and LogInMemory.
+	// User land MUST NOT modified those logs.
+	// Users must use their own buckets with stateMachine when use ApplyCommand.
+	logStore LogStore
+
+	// clusterStore is long term storage backend only for the raft cluster
+	// purpose like metadata and other KVs e.g.
+	// The same long term storage for clusterStore and logStore can be used
+	// BUT in different namespace or buckets to avoid collisions.
+	// In logs_persistant_types, you will see different buckets for bolt storage:
+	// - bucketLogsName
+	// - bucketMetadataName
+	// - bucketKVName
+	// The same logic is applied for LogCache and LogInMemory.
+	// User land MUST NOT modified those entries.
+	// Users must use their own buckets with stateMachine when use ApplyCommand.
+	clusterStore ClusterStore
 
 	// snapshot hold the configuration to manage snapshots
 	snapshot SnapshotStore

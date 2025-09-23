@@ -62,7 +62,7 @@ func basicNodeSetup() *Rafty {
 		log.Fatal(err)
 	}
 	fsm := NewSnapshotState(store)
-	s, err := NewRafty(addr, id, options, store, fsm, nil)
+	s, err := NewRafty(addr, id, options, store, store, fsm, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func singleServerClusterSetup(address string) *Rafty {
 	}
 	fsm := NewSnapshotState(store)
 	snapshot := NewSnapshot(options.DataDir, 3) // only forced here for more unit testing coverage
-	s, err := NewRafty(addr, id, options, store, fsm, snapshot)
+	s, err := NewRafty(addr, id, options, store, store, fsm, snapshot)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		store, err := NewBoltStorage(storeOptions)
 		cc.assert.Nil(err)
 		fsm := NewSnapshotState(store)
-		server, err := NewRafty(addr, id, options, store, fsm, nil)
+		server, err := NewRafty(addr, id, options, store, store, fsm, nil)
 		cc.assert.Nil(err)
 		cluster = append(cluster, server)
 		return
@@ -237,7 +237,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 				// duplicate metrics collector registration attempted
 				options.MetricsNamespacePrefix = fmt.Sprintf("%s_%s_%s", cc.testName, id, fake.CharactersN(100))
 				fsm := NewSnapshotState(store)
-				server, err = NewRafty(addr, id, options, store, fsm, nil)
+				server, err = NewRafty(addr, id, options, store, store, fsm, nil)
 				cc.assert.Nil(err)
 			}
 		}
@@ -275,7 +275,7 @@ func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leave
 	store, err := NewBoltStorage(storeOptions)
 	cc.assert.Nil(err)
 	fsm := NewSnapshotState(store)
-	r, err := NewRafty(addr, id, options, store, fsm, nil)
+	r, err := NewRafty(addr, id, options, store, store, fsm, nil)
 	cc.assert.Nil(err)
 	cc.newNodes = append(cc.newNodes, r)
 }
@@ -412,7 +412,7 @@ func (cc *clusterConfig) restartNode(nodeId int, wg *sync.WaitGroup) {
 				store, err := NewBoltStorage(storeOptions)
 				cc.assert.Nil(err)
 				fsm := NewSnapshotState(store)
-				node, err := NewRafty(address, id, options, store, fsm, nil)
+				node, err := NewRafty(address, id, options, store, store, fsm, nil)
 				cc.assert.Nil(err)
 				cc.cluster[nodeId] = node
 				cc.mu.Unlock()

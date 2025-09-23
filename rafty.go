@@ -97,7 +97,7 @@ No checks will be done when this flag is set so it must be set with cautious.
 
 // NewRafty instantiate rafty with default configuration
 // with server address and its id
-func NewRafty(address net.TCPAddr, id string, options Options, store Store, fsm StateMachine, snapshot SnapshotStore) (*Rafty, error) {
+func NewRafty(address net.TCPAddr, id string, options Options, logStore LogStore, clusterStore ClusterStore, fsm StateMachine, snapshot SnapshotStore) (*Rafty, error) {
 	r := &Rafty{
 		rpcPreVoteRequestChan:                make(chan RPCRequest),
 		rpcVoteRequestChan:                   make(chan RPCRequest),
@@ -201,7 +201,8 @@ func NewRafty(address net.TCPAddr, id string, options Options, store Store, fsm 
 	r.timer = time.NewTicker(r.randomElectionTimeout())
 	r.quitCtx, r.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
-	r.logStore = store
+	r.logStore = logStore
+	r.clusterStore = clusterStore
 	r.fsm = fsm
 	if snapshot == nil {
 		r.snapshot = NewSnapshot(r.options.DataDir, 3)
@@ -209,7 +210,7 @@ func NewRafty(address net.TCPAddr, id string, options Options, store Store, fsm 
 		r.snapshot = snapshot
 	}
 
-	metadata, err := store.GetMetadata()
+	metadata, err := clusterStore.GetMetadata()
 	if err != nil && err != ErrKeyNotFound {
 		return nil, err
 	}
@@ -232,7 +233,7 @@ func (r *Rafty) Start() error {
 	if r.id == "" {
 		r.id = uuid.NewString()
 		r.connectionManager.id = r.id
-		if err := r.logStore.StoreMetadata(r.buildMetadata()); err != nil {
+		if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 			return fmt.Errorf("fail to persist metadata %w", err)
 		}
 	}
