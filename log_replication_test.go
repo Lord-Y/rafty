@@ -17,24 +17,25 @@ import (
 
 func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 	assert := assert.New(t)
-	s := basicNodeSetup()
-	defer func() {
-		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-	}()
-	s.isRunning.Store(true)
-	s.State = Leader
-	followers, totalFollowers := s.getPeers()
-
-	entries := []*raftypb.LogEntry{{Term: 1}}
-	s.updateEntriesIndex(entries)
-	assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
-
-	id := 0
-	client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
-	currentTerm := s.currentTerm.Add(1)
 
 	t.Run("total_zero", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.State = Leader
+		followers, totalFollowers := s.getPeers()
+
+		entries := []*raftypb.LogEntry{{Term: 1}}
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+
+		id := 0
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
+		currentTerm := s.currentTerm.Add(1)
+
 		oldRequest := &onAppendEntriesRequest{
 			totalFollowers:             uint64(totalFollowers),
 			quorum:                     uint64(s.quorum()),
@@ -62,9 +63,27 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
+		s.wg.Wait()
 	})
 
 	t.Run("timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.State = Leader
+		followers, totalFollowers := s.getPeers()
+
+		entries := []*raftypb.LogEntry{{Term: 1}}
+		s.updateEntriesIndex(entries)
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+
+		id := 0
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
+		currentTerm := s.currentTerm.Add(1)
+
 		oldRequest := &onAppendEntriesRequest{
 			totalFollowers:             uint64(totalFollowers),
 			quorum:                     uint64(s.quorum()),
@@ -92,8 +111,65 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 			newEntryChan: make(chan *onAppendEntriesRequest, 1),
 		}
 		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
+		s.wg.Wait()
 	})
-	s.wg.Wait()
+
+	t.Run("sendSnapshot", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.State = Leader
+		followers, totalFollowers := s.getPeers()
+		s.options.MaxAppendEntries = 64
+
+		max := 100
+		var entries []*raftypb.LogEntry
+		for index := range max {
+			entries = append(entries, &raftypb.LogEntry{
+				Term:    1,
+				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
+			})
+
+			s.updateEntriesIndex(entries)
+		}
+		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+
+		id := 0
+		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
+		currentTerm := s.currentTerm.Add(1)
+
+		oldRequest := &onAppendEntriesRequest{
+			totalFollowers:             uint64(totalFollowers),
+			quorum:                     uint64(s.quorum()),
+			term:                       currentTerm,
+			prevLogIndex:               s.lastLogIndex.Load(),
+			prevLogTerm:                s.lastLogTerm.Load(),
+			totalLogs:                  s.lastLogIndex.Load(),
+			uuid:                       uuid.NewString(),
+			commitIndex:                s.commitIndex.Load(),
+			entries:                    entries,
+			catchup:                    true,
+			rpcTimeout:                 s.randomRPCTimeout(true),
+			membershipChangeInProgress: &atomic.Bool{},
+		}
+
+		oldResponse := &raftypb.AppendEntryResponse{
+			LogNotFound:  true,
+			LastLogIndex: 0,
+			LastLogTerm:  0,
+		}
+
+		followerRepl := &followerReplication{
+			Peer:         followers[id],
+			rafty:        s,
+			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+		}
+		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
+		s.wg.Wait()
+	})
 }
 
 func TestLogReplication_singleServerCluster(t *testing.T) {
