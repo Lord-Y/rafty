@@ -362,10 +362,9 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 						Str("leaderAddress", request.LeaderAddress).
 						Str("leaderId", request.LeaderId).
 						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
-						Msgf("Fail to apply log entries")
+						Msgf("Fail to apply log entries to the fsm")
 				}
 			}
-			r.lastApplied.Store(r.lastLogIndex.Load())
 
 			r.Logger.Debug().
 				Str("address", r.Address.String()).

@@ -278,7 +278,7 @@ type Rafty struct {
 	// currentTerm is latest term seen during the voting campaign
 	currentTerm atomic.Uint64
 
-	// lastApplied is the index of the highest log entry applied to the current raft server
+	// lastApplied is the index of the highest log entry applied to the current raft server fsm
 	lastApplied atomic.Uint64
 
 	// lastAppliedConfigIndex is the index of the highest log entry configuration applied

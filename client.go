@@ -139,10 +139,6 @@ func (r *Rafty) submitCommandReadStale(timeout time.Duration, command []byte) ([
 
 // applyLogs apply the provided logs to the state machine
 func (r *Rafty) applyLogs(logs applyLogs) ([]byte, error) {
-	var (
-		response []byte
-		err      error
-	)
 	for _, entry := range logs.entries {
 		if entry.Index <= r.lastApplied.Load() {
 			continue
@@ -151,12 +147,10 @@ func (r *Rafty) applyLogs(logs applyLogs) ([]byte, error) {
 		if entry.LogType != uint32(LogReplication) {
 			continue
 		}
-		response, err = r.fsm.ApplyCommand(makeLogEntry(entry)[0])
-		if err != nil {
-			return nil, err
-		}
+		r.lastApplied.Store(entry.Index)
+		return r.fsm.ApplyCommand(makeLogEntry(entry)[0])
 	}
-	return response, nil
+	return nil, nil
 }
 
 // BootstrapCluster is used by the current node
