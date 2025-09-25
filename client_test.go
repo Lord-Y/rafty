@@ -849,6 +849,28 @@ func TestClient_status(t *testing.T) {
 	assert.Equal(Leader, status.State)
 }
 
+func TestClient_IsBootstrapped(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+	}()
+	s.fillIDs()
+	s.State = Leader
+	s.options.BootstrapCluster = true
+	s.isBootstrapped.Store(true)
+	s.isRunning.Store(true)
+
+	assert.Equal(s.IsBootstrapped(), true)
+	s.State = Follower
+
+	s.options.BootstrapCluster = false
+	s.isBootstrapped.Store(false)
+	assert.Equal(s.IsBootstrapped(), false)
+}
+
 func TestClient_IsLeader(t *testing.T) {
 	assert := assert.New(t)
 
