@@ -235,8 +235,22 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		return nil, ErrClusterNotBootstrapped
 	}
 
-	if in.LogType == uint32(LogCommandReadStale) || in.LogType == uint32(LogCommandReadLeader) {
-		response, err := r.rafty.fsm.ApplyCommand(in.Command)
+	if in.LogType == uint32(LogCommandReadLeader) {
+		if r.rafty.IsLeader() {
+			response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: in.LogType, Command: in.Command})
+			return &raftypb.ForwardCommandToLeaderResponse{
+				LeaderId:      r.rafty.id,
+				LeaderAddress: r.rafty.Address.String(),
+				Data:          response,
+				Error:         fmt.Sprintf("%v", err),
+			}, err
+		}
+
+		return &raftypb.ForwardCommandToLeaderResponse{}, ErrNotLeader
+	}
+
+	if in.LogType == uint32(LogCommandReadStale) {
+		response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: in.LogType, Command: in.Command})
 		return &raftypb.ForwardCommandToLeaderResponse{
 			LeaderId:      r.rafty.id,
 			LeaderAddress: r.rafty.Address.String(),

@@ -89,7 +89,7 @@ func (r *Rafty) submitCommandReadLeader(timeout time.Duration, command []byte) (
 			err      error
 		)
 		go func() {
-			response, err = r.fsm.ApplyCommand(command)
+			response, err = r.fsm.ApplyCommand(&LogEntry{LogType: uint32(LogCommandReadLeader), Command: command})
 			done <- struct{}{}
 		}()
 
@@ -120,7 +120,7 @@ func (r *Rafty) submitCommandReadStale(timeout time.Duration, command []byte) ([
 		err      error
 	)
 	go func() {
-		response, err = r.fsm.ApplyCommand(command)
+		response, err = r.fsm.ApplyCommand(&LogEntry{LogType: uint32(LogCommandReadStale), Command: command})
 		done <- struct{}{}
 	}()
 
@@ -151,7 +151,7 @@ func (r *Rafty) applyLogs(logs applyLogs) ([]byte, error) {
 		if entry.LogType != uint32(LogReplication) {
 			continue
 		}
-		response, err = r.fsm.ApplyCommand(entry.Command)
+		response, err = r.fsm.ApplyCommand(makeLogEntry(entry)[0])
 		if err != nil {
 			return nil, err
 		}
