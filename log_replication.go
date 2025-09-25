@@ -143,7 +143,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 								request.leaderVolatileStateUpdated.Store(true)
 								r.rafty.nextIndex.Add(1)
 								r.rafty.matchIndex.Add(1)
-								r.rafty.lastApplied.Add(1)
 								r.rafty.commitIndex.Add(1)
 
 								r.rafty.Logger.Trace().
@@ -159,6 +158,47 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 									Str("lastApplied", fmt.Sprintf("%d", r.rafty.lastApplied.Load())).
 									Str("requestUUID", request.uuid).
 									Msgf("Leader volatile state has been updated")
+							}
+
+							if request.entries[0].LogType == uint32(LogReplication) {
+								if _, err := r.rafty.applyLogs(applyLogs{entries: request.entries}); err != nil {
+									r.rafty.Logger.Error().Err(err).
+										Str("id", r.rafty.id).
+										Str("state", r.rafty.getState().String()).
+										Str("term", fmt.Sprintf("%d", response.Term)).
+										Msgf("Fail to apply log entries to the fsm")
+								}
+							}
+
+							if request.replyToClient {
+								select {
+								case <-r.rafty.quitCtx.Done():
+									return
+								case <-time.After(500 * time.Millisecond):
+									return
+								case request.replyToClientChan <- appendEntriesResponse{}:
+								}
+							}
+
+							if request.replyToForwardedCommand {
+								response := &raftypb.ForwardCommandToLeaderResponse{
+									LeaderId:      r.rafty.id,
+									LeaderAddress: r.rafty.Address.String(),
+								}
+								rpcResponse := RPCResponse{
+									Response: response,
+								}
+								select {
+								case <-r.rafty.quitCtx.Done():
+									return
+								case <-time.After(500 * time.Millisecond):
+									return
+								case request.replyToForwardedCommandChan <- rpcResponse:
+								}
+							}
+
+							if request.membershipChangeInProgress.Load() && request.membershipChangeID != "" {
+								request.membershipChangeCommitted.Store(true)
 							}
 						}
 
@@ -179,51 +219,6 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 								Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
 								Str("requestUUID", request.uuid).
 								Msgf("Follower nextIndex / matchIndex has been updated")
-
-							var (
-								response []byte
-								err      error
-							)
-							if request.entries[0].LogType != uint32(LogReplication) {
-								response = nil
-							} else {
-								response, err = r.rafty.fsm.ApplyCommand(makeLogEntry(request.entries[0])[0])
-							}
-							if request.replyToClient {
-								select {
-								case <-r.rafty.quitCtx.Done():
-									return
-								case <-time.After(500 * time.Millisecond):
-									return
-								case request.replyToClientChan <- appendEntriesResponse{
-									Data:  response,
-									Error: err,
-								}:
-								}
-							}
-
-							if request.replyToForwardedCommand {
-								response := &raftypb.ForwardCommandToLeaderResponse{
-									LeaderId:      r.rafty.id,
-									LeaderAddress: r.rafty.Address.String(),
-									Data:          response,
-									Error:         fmt.Sprintf("%v", err),
-								}
-								rpcResponse := RPCResponse{
-									Response: response,
-								}
-								select {
-								case <-r.rafty.quitCtx.Done():
-									return
-								case <-time.After(500 * time.Millisecond):
-									return
-								case request.replyToForwardedCommandChan <- rpcResponse:
-								}
-							}
-
-							if request.membershipChangeInProgress.Load() && request.membershipChangeID != "" {
-								request.membershipChangeCommitted.Store(true)
-							}
 						}
 					}
 				}
@@ -411,7 +406,6 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 
 	r.rafty.nextIndex.Add(1)
 	r.rafty.matchIndex.Add(1)
-	r.rafty.lastApplied.Add(1)
 	r.rafty.commitIndex.Add(1)
 
 	r.rafty.Logger.Trace().
@@ -426,14 +420,14 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 		Str("requestUUID", request.uuid).
 		Msgf("Leader volatile state has been updated")
 
-	var (
-		response []byte
-		err      error
-	)
-	if request.entries[0].LogType != uint32(LogReplication) {
-		response = nil
-	} else {
-		response, err = r.rafty.fsm.ApplyCommand(makeLogEntry(request.entries[0])[0])
+	if request.entries[0].LogType == uint32(LogReplication) {
+		if _, err := r.rafty.applyLogs(applyLogs{entries: request.entries}); err != nil {
+			r.rafty.Logger.Error().Err(err).
+				Str("id", r.rafty.id).
+				Str("state", r.rafty.getState().String()).
+				Str("term", fmt.Sprintf("%d", request.term)).
+				Msgf("Fail to apply log entries to the fsm")
+		}
 	}
 	if request.replyToClient {
 		select {
@@ -441,10 +435,7 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 			return
 		case <-time.After(500 * time.Millisecond):
 			return
-		case request.replyToClientChan <- appendEntriesResponse{
-			Data:  response,
-			Error: err,
-		}:
+		case request.replyToClientChan <- appendEntriesResponse{}:
 		}
 	}
 }
