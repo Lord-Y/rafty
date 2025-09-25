@@ -63,6 +63,6 @@ func (m *mockFSM) Restore(io.Reader) error {
 	return m.snapshotErr
 }
 
-func (s *mockFSM) ApplyCommand(cmd []byte) ([]byte, error) {
+func (s *mockFSM) ApplyCommand(log *LogEntry) ([]byte, error) {
 	return nil, nil
 }

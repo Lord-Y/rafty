@@ -336,12 +336,12 @@ func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
 }
 
 // ApplyCommand allow us to apply a command to the state machine.
-func (s *SnapshotState) ApplyCommand(cmd []byte) ([]byte, error) {
-	if cmd == nil {
+func (s *SnapshotState) ApplyCommand(log *rafty.LogEntry) ([]byte, error) {
+	if log.Command == nil {
 		return nil, nil
 	}
 
-	decodedCmd, _ := DecodeCommand(cmd)
+	decodedCmd, _ := DecodeCommand(log.Command)
 	switch decodedCmd.Kind {
 	case CommandSet:
 		return nil, s.userStore.Set([]byte(decodedCmd.Key), []byte(decodedCmd.Value))

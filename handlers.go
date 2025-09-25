@@ -353,9 +353,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 
 			if request.LeaderCommitIndex > r.commitIndex.Load() {
 				r.commitIndex.Store(min(request.LeaderCommitIndex, r.lastLogIndex.Load()))
-				if _, err := r.applyLogs(applyLogs{
-					entries: newEntries,
-				}); err != nil {
+				if _, err := r.applyLogs(applyLogs{entries: newEntries}); err != nil {
 					r.Logger.Error().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).

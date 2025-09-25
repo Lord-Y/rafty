@@ -207,7 +207,7 @@ func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
 	return s.logStore.StoreLogs(logs)
 }
 
-func (s *SnapshotState) ApplyCommand(cmd []byte) ([]byte, error) {
+func (s *SnapshotState) ApplyCommand(log *LogEntry) ([]byte, error) {
 	if s.applyErrTest != nil {
 		return nil, s.applyErrTest
 	}
@@ -217,11 +217,11 @@ func (s *SnapshotState) ApplyCommand(cmd []byte) ([]byte, error) {
 		return nil, fmt.Errorf("test induced error after sleeping %s", s.sleepErr)
 	}
 
-	if cmd == nil {
+	if log.Command == nil {
 		return nil, nil
 	}
 
-	decodedCmd, _ := DecodeCommand(cmd)
+	decodedCmd, _ := DecodeCommand(log.Command)
 	switch decodedCmd.Kind {
 	case CommandSet:
 		return nil, s.userStore.Set([]byte(decodedCmd.Key), []byte(decodedCmd.Value))

@@ -187,7 +187,7 @@ func (r *followerReplication) appendEntries(request *onAppendEntriesRequest) {
 							if request.entries[0].LogType != uint32(LogReplication) {
 								response = nil
 							} else {
-								response, err = r.rafty.fsm.ApplyCommand(request.entries[0].Command)
+								response, err = r.rafty.fsm.ApplyCommand(makeLogEntry(request.entries[0])[0])
 							}
 							if request.replyToClient {
 								select {
@@ -433,7 +433,7 @@ func (r *leader) singleServerAppendEntries(request *onAppendEntriesRequest) {
 	if request.entries[0].LogType != uint32(LogReplication) {
 		response = nil
 	} else {
-		response, err = r.rafty.fsm.ApplyCommand(request.entries[0].Command)
+		response, err = r.rafty.fsm.ApplyCommand(makeLogEntry(request.entries[0])[0])
 	}
 	if request.replyToClient {
 		select {
