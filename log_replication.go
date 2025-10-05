@@ -287,8 +287,6 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 	if response != nil && response.Success && r.matchIndex.Load() != response.LastLogIndex {
 		r.nextIndex.Store(response.LastLogIndex + 1)
 		r.matchIndex.Store(response.LastLogIndex)
-		oldResponse.LastLogIndex = response.LastLogIndex
-		oldResponse.LastLogTerm = response.LastLogTerm
 		if !r.ReadReplica {
 			select {
 			case <-r.rafty.quitCtx.Done():
