@@ -75,9 +75,8 @@ type LogStore interface {
 	GetLogByIndex(index uint64) (*LogEntry, error)
 
 	// GetLogsByRange will return a slice of logs
-	// with peer lastLogIndex and leader lastLogIndex capped
-	// by options.MaxAppendEntries
-	GetLogsByRange(peerLastLogIndex, leaderLastLogIndex, maxAppendEntries uint64) GetLogsByRangeResponse
+	// with min and max index capped by options.MaxAppendEntries
+	GetLogsByRange(minLogIndex, maxLogIndex, maxAppendEntries uint64) GetLogsByRangeResponse
 
 	// DiscardLogs permits to wipe entries with the provided range indexes
 	DiscardLogs(from, to uint64) error

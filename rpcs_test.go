@@ -128,34 +128,6 @@ func TestRpcs_getLeaderResult(t *testing.T) {
 	})
 }
 
-func TestRpcs_membershipChangeResponse(t *testing.T) {
-	assert := assert.New(t)
-	s := basicNodeSetup()
-	defer func() {
-		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-	}()
-	s.State = Follower
-
-	rpcResponse := RPCMembershipChangeResponse{}
-	resp := RPCResponse{
-		TargetPeer: Peer{Address: s.configuration.ServerMembers[0].Address},
-		Response:   rpcResponse,
-		Error:      ErrTimeout,
-	}
-
-	t.Run("error", func(t *testing.T) {
-		s.membershipChangeResponse(resp)
-	})
-
-	t.Run("success", func(t *testing.T) {
-		resp.Error = nil
-		rpcResponse.Success = true
-		resp.Response = rpcResponse
-		s.membershipChangeResponse(resp)
-	})
-}
-
 func TestRpcs_bootstrapCluster(t *testing.T) {
 	assert := assert.New(t)
 

@@ -24,7 +24,6 @@ func (r *follower) onTimeout() {
 	}
 
 	if r.rafty.askForMembership.Load() {
-		r.askForMembership()
 		return
 	}
 
@@ -64,17 +63,3 @@ func (r *follower) onTimeout() {
 // release permit to cancel or gracefully some actions
 // when the node change state
 func (r *follower) release() {}
-
-// askForMembership will contact the leader to be part of
-// the cluster
-func (r *follower) askForMembership() {
-	r.rafty.askForMembershipInProgress.Store(true)
-	r.rafty.sendGetLeaderRequest()
-	select {
-	case <-r.rafty.quitCtx.Done():
-		return
-
-	case <-time.After(5 * time.Second):
-		r.rafty.sendMembershipChangeRequest(Add)
-	}
-}

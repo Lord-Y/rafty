@@ -20,19 +20,6 @@ const (
 	maxRound uint64 = 10
 )
 
-// appendEntriesResponse is used to answer back to the client
-// when fetching or appling log entries
-type appendEntriesResponse struct {
-	Data  []byte
-	Error error
-}
-
-// triggerAppendEntries will be used by triggerAppendEntriesChan
-type triggerAppendEntries struct {
-	command      []byte
-	responseChan chan appendEntriesResponse
-}
-
 // followerReplication hold all requirements that allow the leader to replicate
 // its logs to the current follower
 type followerReplication struct {
@@ -42,9 +29,11 @@ type followerReplication struct {
 	// rafty holds rafty config
 	rafty *Rafty
 
-	// newEntry is used by the leader every times it received
-	// a new log entry
-	newEntryChan chan *onAppendEntriesRequest
+	// newEntry is used by the leader to trigger log replication or hearbeat
+	newEntryChan chan bool
+
+	// notifyLeader is used once nextIndex/matchIndex has updated
+	notifyLeader chan commitChanConfig
 
 	// replicationStopped is used by the leader
 	// to stop ongoing append entries replication
@@ -78,21 +67,6 @@ type followerReplication struct {
 // onAppendEntriesRequest hold all requirements that allow the leader
 // to replicate entries
 type onAppendEntriesRequest struct {
-	// majority represent how many nodes the append entries request
-	// has been successful.
-	// It will then be used with totalMajority var to determine whether
-	// logs must be committed on disk.
-	// It only incremented by voters
-	majority atomic.Uint64
-
-	// quorum is the minimum number to be reached before commit logs
-	// to disk
-	quorum uint64
-
-	// totalFollowers hold the total number of nodes for which the leader has sent
-	// the append entries request
-	totalFollowers uint64
-
 	// totalLogs is the total logs the leader currently have
 	totalLogs uint64
 
@@ -111,36 +85,11 @@ type onAppendEntriesRequest struct {
 	// prevLogTerm is the leader commit index
 	prevLogTerm uint64
 
-	// committed tell us if the log has already been committed on disk
-	committed atomic.Bool
-
-	// leaderVolatileStateUpdated tell us if the leader volatile state has already been updated
-	leaderVolatileStateUpdated atomic.Bool
-
-	// replyToClientChan is a boolean that allow the leader
-	// to reply the client by using replyClientChan var
-	replyToClient bool
-
-	// replyClientChan is used by replyToClientChan
-	replyToClientChan chan appendEntriesResponse
-
-	// replyToForwardedCommand is a boolean that allow the leader
-	// to reply the client by using replyToForwardedCommandChan var
-	replyToForwardedCommand bool
-
-	// replyToForwardedCommandChan is used by replyToForwardedCommand
-	replyToForwardedCommandChan chan<- RPCResponse
-
-	// uuid is used only for debugging.
-	// It helps to differenciate append entries requests
-	uuid string
-
 	// entries are logs to use when
 	// followerReplication.catchup is set to true
 	entries []*raftypb.LogEntry
 
-	// catchup tell us if the follower is currently catching up entries.
-	// It will also be used when a new leader is promoted with term > 1
+	// catchup tell us if the follower is currently catching up entries
 	catchup bool
 
 	// rpcTimeout is the timeout to use when sending append entries
@@ -149,11 +98,6 @@ type onAppendEntriesRequest struct {
 	// membershipChangeInProgress is set to true when membership change is ongoing
 	membershipChangeInProgress *atomic.Bool
 
-	// membershipChangeCommitted is set to true when log config has been replicated
-	// to the majority of servers
-	membershipChangeCommitted atomic.Bool
-
-	// membershipChangeID is the id of the member to take action on.
-	// When filled membershipChangeCommitted can be updated
+	// membershipChangeID is the id of the member to take action on
 	membershipChangeID string
 }

@@ -169,8 +169,8 @@ func (r *rpcManager) SendAppendEntriesRequest(ctx context.Context, in *raftypb.A
 
 	responseChan := make(chan RPCResponse, 1)
 	select {
-	case r.rafty.rpcAppendEntriesRequestChan <- RPCRequest{
-		RPCType:      AppendEntryRequest,
+	case r.rafty.rpcAppendEntriesReplicationRequestChan <- RPCRequest{
+		RPCType:      AppendEntriesReplicationRequest,
 		Request:      in,
 		ResponseChan: responseChan,
 	}:
@@ -235,7 +235,11 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		return nil, ErrClusterNotBootstrapped
 	}
 
-	if in.LogType == uint32(LogCommandReadLeader) {
+	timeout := time.Second
+	var request RPCRequest
+	responseChan := make(chan RPCResponse, 1)
+	switch logKind(in.LogType) {
+	case LogCommandReadLeader:
 		if r.rafty.IsLeader() {
 			response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: in.LogType, Command: in.Command})
 			return &raftypb.ForwardCommandToLeaderResponse{
@@ -247,9 +251,8 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 		}
 
 		return &raftypb.ForwardCommandToLeaderResponse{}, ErrNotLeader
-	}
 
-	if in.LogType == uint32(LogCommandReadStale) {
+	case LogCommandReadStale:
 		response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: in.LogType, Command: in.Command})
 		return &raftypb.ForwardCommandToLeaderResponse{
 			LeaderId:      r.rafty.id,
@@ -257,15 +260,58 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 			Data:          response,
 			Error:         fmt.Sprintf("%v", err),
 		}, err
+
+	case LogConfiguration:
+		if r.rafty.getState() != Leader {
+			return &raftypb.ForwardCommandToLeaderResponse{
+				LeaderId:      r.rafty.id,
+				LeaderAddress: r.rafty.Address.String(),
+			}, ErrNotLeader
+		}
+
+		if in.MembershipTimeout != 0 {
+			timeout = time.Duration(in.MembershipTimeout) * time.Second
+		}
+		decodePeers, err := DecodePeers(in.Command)
+		if err != nil {
+			return nil, err
+		}
+		decodePeers[0].address = getNetAddress(decodePeers[0].Address)
+
+		request = RPCRequest{
+			RPCType: ForwardCommandToLeader,
+			Request: replicateLogConfig{
+				logType:    LogConfiguration,
+				source:     "forward",
+				client:     true,
+				clientChan: responseChan,
+				membershipChange: struct {
+					action MembershipChange
+					member Peer
+				}{
+					member: decodePeers[0],
+					action: MembershipChange(in.MembershipAction),
+				},
+			},
+			ResponseChan: responseChan,
+		}
+
+	default:
+		request = RPCRequest{
+			RPCType: ForwardCommandToLeader,
+			Request: replicateLogConfig{
+				logType:    LogReplication,
+				command:    in.Command,
+				source:     "forward",
+				client:     true,
+				clientChan: responseChan,
+			},
+			ResponseChan: responseChan,
+		}
 	}
 
-	responseChan := make(chan RPCResponse, 1)
 	select {
-	case r.rafty.rpcForwardCommandToLeaderRequestChan <- RPCRequest{
-		RPCType:      ForwardCommandToLeader,
-		Request:      in,
-		ResponseChan: responseChan,
-	}:
+	case r.rafty.rpcAppendEntriesRequestChan <- request:
 
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -287,7 +333,7 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 	case <-r.rafty.quitCtx.Done():
 		return nil, ErrShutdown
 
-	case <-time.After(time.Second):
+	case <-time.After(timeout):
 		return nil, ErrTimeout
 	}
 }
@@ -305,49 +351,6 @@ func (r *rpcManager) SendTimeoutNowRequest(_ context.Context, in *raftypb.Timeou
 		Str("candidateForLeadershipTransfer", fmt.Sprintf("%t", r.rafty.candidateForLeadershipTransfer.Load())).
 		Msg("LeadershipTransfer received")
 	return &raftypb.TimeoutNowResponse{Success: true}, nil
-}
-
-// SendMembershipChangeRequest allow the current leader node received
-// and treat membership requests from other nodes or devops to manage the cluster
-func (r *rpcManager) SendMembershipChangeRequest(ctx context.Context, in *raftypb.MembershipChangeRequest) (*raftypb.MembershipChangeResponse, error) {
-	if r.rafty.getState() == Down || !r.rafty.isRunning.Load() || r.rafty.quitCtx.Err() != nil {
-		return nil, ErrShutdown
-	}
-	if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() {
-		return nil, ErrClusterNotBootstrapped
-	}
-
-	responseChan := make(chan RPCResponse, 1)
-	select {
-	case r.rafty.rpcMembershipChangeRequestChan <- RPCRequest{
-		RPCType:      MembershipChangeRequest,
-		Request:      in,
-		ResponseChan: responseChan,
-	}:
-
-	case <-ctx.Done():
-		return nil, ctx.Err()
-
-	case <-r.rafty.quitCtx.Done():
-		return nil, ErrShutdown
-
-	case <-time.After(500 * time.Millisecond):
-		return nil, ErrTimeout
-	}
-
-	select {
-	case response := <-responseChan:
-		return response.Response.(*raftypb.MembershipChangeResponse), response.Error
-
-	case <-ctx.Done():
-		return nil, ctx.Err()
-
-	case <-r.rafty.quitCtx.Done():
-		return nil, ErrShutdown
-
-	case <-time.After(membershipTimeoutSeconds * time.Second):
-		return nil, ErrTimeout
-	}
 }
 
 // SendBootstrapClusterRequest allow the current node to bootstrap the cluster

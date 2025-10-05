@@ -127,7 +127,7 @@ func TestDrainAppendEntriesRequests(t *testing.T) {
 
 	responseChan := make(chan RPCResponse, 1)
 	request := RPCRequest{
-		RPCType:      AppendEntryRequest,
+		RPCType:      AppendEntriesReplicationRequest,
 		Request:      &raftypb.AppendEntryRequest{},
 		ResponseChan: responseChan,
 	}
@@ -137,7 +137,7 @@ func TestDrainAppendEntriesRequests(t *testing.T) {
 		defer s.wg.Done()
 		for {
 			select {
-			case s.rpcAppendEntriesRequestChan <- request:
+			case s.rpcAppendEntriesReplicationRequestChan <- request:
 			case <-time.After(500 * time.Millisecond):
 				return
 			}
@@ -159,60 +159,6 @@ func TestDrainAppendEntriesRequests(t *testing.T) {
 				if response != nil {
 					assert.Equal(false, response.Success)
 				}
-			case <-time.After(500 * time.Millisecond):
-				return
-			}
-		}
-	}()
-	s.wg.Wait()
-}
-
-func TestDrainMembershipChangeRequests(t *testing.T) {
-	assert := assert.New(t)
-
-	s := basicNodeSetup()
-	defer func() {
-		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-	}()
-	s.currentTerm.Store(1)
-
-	responseChan := make(chan RPCResponse, 1)
-	request := RPCRequest{
-		RPCType: MembershipChangeRequest,
-		Request: RPCMembershipChangeRequest{
-			Id:           s.id,
-			Address:      s.Address.String(),
-			Action:       uint32(Add),
-			LastLogIndex: s.lastLogIndex.Load(),
-			LastLogTerm:  s.lastLogTerm.Load(),
-		},
-		Timeout:      time.Second,
-		ResponseChan: responseChan,
-	}
-	s.wg.Add(3)
-	go func() {
-		defer s.wg.Done()
-		for {
-			select {
-			case s.rpcMembershipChangeRequestChan <- request:
-			case <-time.After(500 * time.Millisecond):
-				return
-			}
-		}
-	}()
-
-	go func() {
-		defer s.wg.Done()
-		time.Sleep(100 * time.Millisecond) // Ensure the request is sent before draining
-		s.drainMembershipChangeRequests()
-	}()
-
-	go func() {
-		defer s.wg.Done()
-		for {
-			select {
-			case <-responseChan:
 			case <-time.After(500 * time.Millisecond):
 				return
 			}

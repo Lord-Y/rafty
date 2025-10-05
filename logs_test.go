@@ -21,6 +21,28 @@ func TestLogs(t *testing.T) {
 	entries := []*raftypb.LogEntry{{Term: 1}}
 	_ = s.logs.appendEntries(entries, false)
 
+	t.Run("string", func(t *testing.T) {
+
+		tests := []logKind{
+			LogNoop,
+			LogConfiguration,
+			LogReplication,
+			LogCommandReadLeader,
+			LogCommandReadStale,
+		}
+		results := []string{
+			"logNoop",
+			"logConfiguration",
+			"logReplication",
+			"logCommandReadLeader",
+			"logCommandReadStale",
+		}
+
+		for k, v := range tests {
+			assert.Equal(v.String() == results[k], true)
+		}
+	})
+
 	t.Run("total", func(t *testing.T) {
 		result := s.logs.total()
 		assert.Equal(result.total, 1)
@@ -176,25 +198,6 @@ func TestLogs(t *testing.T) {
 	})
 
 	s.wg.Wait()
-}
-
-func TestLogs_update_entries_index(t *testing.T) {
-	assert := assert.New(t)
-
-	s := basicNodeSetup()
-	defer func() {
-		assert.Nil(s.logStore.Close())
-		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-	}()
-
-	entry := &raftypb.LogEntry{Term: 1}
-	result := makeLogEntry(entry)
-	protoResult := makeProtobufLogEntries(result)
-	s.updateEntriesIndex(protoResult)
-	assert.Nil(s.logStore.StoreLogs(makeLogEntry(entry)))
-
-	assert.Equal(entry.Term, s.lastLogTerm.Load())
-	assert.Equal(uint64(1), s.lastLogIndex.Load())
 }
 
 func TestLogs_make(t *testing.T) {

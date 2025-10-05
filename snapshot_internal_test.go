@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 )
@@ -32,14 +31,10 @@ func TestSnapshot_internal(t *testing.T) {
 		}()
 
 		for index := range 100 {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(1, LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		assert.Nil(s.logStore.Close())
 
@@ -55,14 +50,10 @@ func TestSnapshot_internal(t *testing.T) {
 		}()
 
 		for index := range 100 {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(1, LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 
 		snaphoName, err := s.takeSnapshot()
@@ -78,31 +69,23 @@ func TestSnapshot_internal(t *testing.T) {
 		}()
 
 		for index := range 100 {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(1, LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 
+		s.currentTerm.Add(1)
 		peers, _ := s.getAllPeers()
 		newbie := Peer{Address: "127.0.0.1:60000", ID: "xyz"}
 		peers = append(peers, newbie)
 		encodedPeers := EncodePeers(peers)
 		assert.NotNil(encodedPeers)
-		entries := []*raftypb.LogEntry{
-			{
-				LogType: uint32(LogConfiguration),
-				Term:    1,
-				Command: encodedPeers,
-			},
-		}
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
-		assert.Nil(s.applyConfigEntry(entries[0]))
+
+		entry := makeNewLogEntry(s.currentTerm.Load(), LogConfiguration, encodedPeers)
+		logs := []*LogEntry{entry}
+		s.storeLogs(logs)
+		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 
 		snaphoName, err := s.takeSnapshot()
 		assert.Nil(err)
@@ -129,15 +112,12 @@ func TestSnapshot_internal(t *testing.T) {
 			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 
+		s.currentTerm.Store(1)
 		for index := range 100 {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 
 		mockSnap := &mockSnapshot{}

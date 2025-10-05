@@ -1,12 +1,7 @@
 package rafty
 
 import (
-	"fmt"
 	"slices"
-	"time"
-
-	"github.com/Lord-Y/rafty/raftypb"
-	"github.com/google/uuid"
 )
 
 // String return a human readable membership state of the raft server
@@ -26,326 +21,65 @@ func (s MembershipChange) String() string {
 	return "add"
 }
 
-// handleSendMembershipChangeRequest allow the current node to manage
-// membership change requests coming from other nodes or devops
-func (r *leader) handleSendMembershipChangeRequest(data RPCRequest) {
-	r.rafty.wg.Add(1)
-	defer r.rafty.wg.Done()
-	start := time.Now()
+// validateSendMembershipChangeRequest will validate membership
+// operation that must be done
+func (r *Rafty) validateSendMembershipChangeRequest(action MembershipChange, member Peer) ([]byte, error) {
 
-	request := data.Request.(*raftypb.MembershipChangeRequest)
-	response := &raftypb.MembershipChangeResponse{}
-	rpcResponse := RPCResponse{
-		Response: response,
-	}
-
-	defer func() {
-		r.membershipChangeInProgress.Store(false)
-		data.ResponseChan <- rpcResponse
-	}()
-
-	response.LeaderAddress = r.rafty.Address.String()
-	response.LeaderId = r.rafty.id
-
-	if r.membershipChangeInProgress.Load() {
-		rpcResponse.Error = ErrMembershipChangeInProgress
-		return
-	}
-	r.membershipChangeInProgress.Store(true)
-	defer r.membershipChangeInProgress.Store(false)
-
-	member := Peer{
-		ID:          request.Id,
-		Address:     request.Address,
-		ReadReplica: request.ReadReplica,
-		address:     getNetAddress(request.Address),
-	}
-
-	follower := &followerReplication{
-		Peer:         member,
-		rafty:        r.rafty,
-		newEntryChan: make(chan *onAppendEntriesRequest, 1),
-	}
-
-	action := MembershipChange(request.Action)
 	switch action {
 	case Add:
-		response.Success, rpcResponse.Error = r.addNode(member, request, follower)
-		if response.Success {
-			response.Success, rpcResponse.Error = r.promoteNode(Promote, member, follower)
-		}
+		return r.addNode(action, member)
 	case Promote:
-		response.Success, rpcResponse.Error = r.promoteNode(action, member, follower)
+		return r.promoteNode(action, member)
 	case Demote:
-		response.Success, rpcResponse.Error = r.demoteNode(action, member)
+		return r.demoteNode(action, member)
 	case Remove, ForceRemove:
-		response.Success, rpcResponse.Error = r.removeNode(action, member)
+		return r.removeNode(action, member)
 	case LeaveOnTerminate:
-		response.Success, rpcResponse.Error = r.removeNode(action, member)
+		return r.removeNode(action, member)
 	}
 
-	r.rafty.Logger.Debug().
-		Str("address", r.rafty.Address.String()).
-		Str("id", r.rafty.id).
-		Str("state", r.rafty.getState().String()).
-		Str("peerAddress", member.Address).
-		Str("peerId", member.ID).
-		Str("success", fmt.Sprintf("%t", response.Success)).
-		Str("action", action.String()).
-		Str("duration", time.Since(start).String()).
-		Msgf("Membership change completed")
+	return nil, ErrUnkown
 }
 
 // addNode will setup configuration to add a new node during membership change
-func (r *leader) addNode(member Peer, req *raftypb.MembershipChangeRequest, followerRepl *followerReplication) (success bool, err error) {
-	r.rafty.wg.Add(1)
-	defer r.rafty.wg.Done()
-
-	currentTerm := r.rafty.currentTerm.Load()
-	peers, _ := r.rafty.getAllPeers()
-
-	action := MembershipChange(req.Action)
+func (r *Rafty) addNode(action MembershipChange, member Peer) ([]byte, error) {
+	peers, _ := r.getAllPeers()
 	nextConfig, _ := r.nextConfiguration(action, peers, member)
-	encodedPeers := EncodePeers(nextConfig)
-	entries := []*raftypb.LogEntry{
-		{
-			LogType:   uint32(LogConfiguration),
-			Timestamp: uint32(time.Now().Unix()),
-			Term:      currentTerm,
-			Command:   encodedPeers,
-		},
-	}
 
-	r.rafty.updateEntriesIndex(entries)
-	request := &onAppendEntriesRequest{
-		totalFollowers:             r.totalFollowers.Load(),
-		quorum:                     uint64(r.rafty.quorum()),
-		term:                       currentTerm,
-		prevLogIndex:               r.rafty.lastLogIndex.Load(),
-		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  r.rafty.lastLogIndex.Load(),
-		uuid:                       uuid.NewString(),
-		commitIndex:                r.rafty.commitIndex.Load(),
-		entries:                    entries,
-		catchup:                    true,
-		rpcTimeout:                 time.Second,
-		membershipChangeInProgress: &r.membershipChangeInProgress,
-		membershipChangeID:         member.ID,
-	}
-
-	buildResponse := &raftypb.AppendEntryResponse{
-		LogNotFound:  true,
-		LastLogIndex: req.LastLogIndex,
-		LastLogTerm:  req.LastLogTerm,
-	}
-
-	if !r.rafty.isPartOfTheCluster(member) {
-		_ = r.rafty.applyConfigEntry(entries[0])
-		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-			panic(err)
-		}
-
-		for _, follower := range r.followerReplication {
-			if r.rafty.getState() == Leader && follower != nil && (!follower.replicationStopped.Load() || r.rafty.isRunning.Load()) {
-				follower.newEntryChan <- request
-			}
-		}
-	}
-
-	if err = followerRepl.catchupNewMember(member, request, buildResponse); err != nil {
-		return
-	}
-	return true, nil
-}
-
-// catchupNewMember is used by the leader to send catchup entries
-// to the new peer.
-// If error is returned, it must retry membership change process.
-// If node nextIndex is great or equal to provided leader nextIndex
-// the node is in sync with the leader
-func (r *followerReplication) catchupNewMember(member Peer, request *onAppendEntriesRequest, response *raftypb.AppendEntryResponse) error {
-	r.rafty.wg.Add(1)
-	defer r.rafty.wg.Done()
-
-	timeout := r.rafty.electionTimeout() * 10
-	membershipTimer := time.NewTicker(timeout)
-	leaderNextIndex := r.rafty.nextIndex.Load()
-	leaderMatchIndex := r.rafty.matchIndex.Load()
-
-	for round := range maxRound {
-		lastContactDate := r.lastContactDate.Load()
-		select {
-		case <-r.rafty.quitCtx.Done():
-			return ErrShutdown
-
-		case <-membershipTimer.C:
-			return ErrMembershipChangeNodeTooSlow
-
-		default:
-			client := r.rafty.connectionManager.getClient(member.Address)
-			if client != nil && r.rafty.getState() == Leader {
-				r.rafty.Logger.Debug().
-					Str("address", r.rafty.Address.String()).
-					Str("id", r.rafty.id).
-					Str("state", r.rafty.getState().String()).
-					Str("term", fmt.Sprintf("%d", request.term)).
-					Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-					Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
-					Str("peerAddress", r.Address).
-					Str("peerId", r.ID).
-					Str("peerNextIndex", fmt.Sprintf("%d", leaderNextIndex)).
-					Str("peerMatchIndex", fmt.Sprintf("%d", leaderMatchIndex)).
-					Str("membershipChange", fmt.Sprintf("%t", request.membershipChangeInProgress.Load())).
-					Str("round", fmt.Sprintf("%d", round)).
-					Msgf("Begin catching up log entries for membership")
-
-				r.sendCatchupAppendEntries(client, request, response)
-			}
-
-			if lastContactDate != r.lastContactDate.Load() {
-				membershipTimer.Reset(timeout)
-			}
-			if leaderNextIndex <= r.nextIndex.Load() && request.membershipChangeCommitted.Load() {
-				return nil
-			}
-		}
-	}
-	return ErrMembershipChangeNodeTooSlow
+	return EncodePeers(nextConfig), nil
 }
 
 // promoteNode will promote node by add new log entry config for replication.
 // The new node will be then added in the replication stream and will receive
 // append entries like other nodes
-func (r *leader) promoteNode(action MembershipChange, member Peer, follower *followerReplication) (success bool, err error) {
-	r.rafty.wg.Add(1)
-	defer r.rafty.wg.Done()
-
-	currentTerm := r.rafty.currentTerm.Load()
-	peers, _ := r.rafty.getPeers()
+func (r *Rafty) promoteNode(action MembershipChange, member Peer) ([]byte, error) {
+	peers, _ := r.getPeers()
 	// add myself, the current leader
 	peers = append(peers, Peer{
-		ID:      r.rafty.id,
-		Address: r.rafty.Address.String(),
+		ID:      r.id,
+		Address: r.Address.String(),
 	})
-
 	nextConfig, _ := r.nextConfiguration(action, peers, member)
-	encodedPeers := EncodePeers(nextConfig)
-	entries := []*raftypb.LogEntry{
-		{
-			LogType:   uint32(LogConfiguration),
-			Timestamp: uint32(time.Now().Unix()),
-			Term:      currentTerm,
-			Command:   encodedPeers,
-		},
-	}
 
-	r.rafty.updateEntriesIndex(entries)
-	request := &onAppendEntriesRequest{
-		totalFollowers:             r.totalFollowers.Load(),
-		quorum:                     uint64(r.rafty.quorum()),
-		term:                       currentTerm,
-		prevLogIndex:               r.rafty.lastLogIndex.Load(),
-		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  r.rafty.lastLogIndex.Load(),
-		uuid:                       uuid.NewString(),
-		commitIndex:                r.rafty.commitIndex.Load(),
-		entries:                    entries,
-		catchup:                    true,
-		rpcTimeout:                 r.rafty.randomRPCTimeout(true),
-		membershipChangeInProgress: &r.membershipChangeInProgress,
-		membershipChangeID:         member.ID,
-	}
-
-	_ = r.rafty.applyConfigEntry(entries[0])
-	if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-		panic(err)
-	}
-
-	for _, follower := range r.followerReplication {
-		if r.isReplicable(follower) {
-			follower.newEntryChan <- request
-		}
-	}
-
-	r.addReplication(follower, false)
-	r.totalFollowers.Add(1)
-	return true, nil
+	return EncodePeers(nextConfig), nil
 }
 
 // demoteNode will demote node by add config into log replication process
 // and will receive append entries like other nodes
-func (r *leader) demoteNode(action MembershipChange, member Peer) (success bool, err error) {
-	r.rafty.wg.Add(1)
-	defer r.rafty.wg.Done()
-
-	currentTerm := r.rafty.currentTerm.Load()
-	peers, _ := r.rafty.getPeers()
+func (r *Rafty) demoteNode(action MembershipChange, member Peer) ([]byte, error) {
+	peers, _ := r.getPeers()
 	// add myself, the current leader
 	peers = append(peers, Peer{
-		ID:      r.rafty.id,
-		Address: r.rafty.Address.String(),
+		ID:      r.id,
+		Address: r.Address.String(),
 	})
 
-	var nextConfig []Peer
-	if nextConfig, err = r.nextConfiguration(action, peers, member); err != nil {
-		return
-	}
-	encodedPeers := EncodePeers(nextConfig)
-	entries := []*raftypb.LogEntry{
-		{
-			LogType:   uint32(LogConfiguration),
-			Timestamp: uint32(time.Now().Unix()),
-			Term:      currentTerm,
-			Command:   encodedPeers,
-		},
+	nextConfig, err := r.nextConfiguration(action, peers, member)
+	if err != nil {
+		return nil, err
 	}
 
-	r.rafty.updateEntriesIndex(entries)
-	request := &onAppendEntriesRequest{
-		totalFollowers:             r.totalFollowers.Load(),
-		quorum:                     uint64(r.rafty.quorum()),
-		term:                       currentTerm,
-		prevLogIndex:               r.rafty.lastLogIndex.Load(),
-		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  r.rafty.lastLogIndex.Load(),
-		uuid:                       uuid.NewString(),
-		commitIndex:                r.rafty.commitIndex.Load(),
-		entries:                    entries,
-		catchup:                    true,
-		rpcTimeout:                 r.rafty.randomRPCTimeout(true),
-		membershipChangeInProgress: &r.membershipChangeInProgress,
-		membershipChangeID:         member.ID,
-	}
-
-	_ = r.rafty.applyConfigEntry(entries[0])
-	if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-		panic(err)
-	}
-
-	request.totalFollowers = r.totalFollowers.Load()
-	for _, follower := range r.followerReplication {
-		if r.isReplicable(follower) {
-			follower.newEntryChan <- request
-		}
-	}
-
-	if index := slices.IndexFunc(nextConfig, func(p Peer) bool {
-		return p.Address == member.Address && p.ID == member.ID
-	}); index != -1 {
-		for _, follower := range r.followerReplication {
-			if follower != nil && follower.ID == member.ID {
-				follower.WaitToBePromoted = nextConfig[index].WaitToBePromoted
-				follower.Decommissioning = nextConfig[index].Decommissioning
-				break
-			}
-		}
-	}
-
-	// if it's myself
-	if member.ID == r.rafty.id && member.Address == r.rafty.Address.String() {
-		go r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
-	}
-	return true, nil
+	return EncodePeers(nextConfig), nil
 }
 
 // removeNode will:
@@ -355,84 +89,25 @@ func (r *leader) demoteNode(action MembershipChange, member Peer) (success bool,
 // - remove node from replication process
 //
 // - if node to remove is the provided node will step down or shutdown
-func (r *leader) removeNode(action MembershipChange, member Peer) (success bool, err error) {
-	r.rafty.wg.Add(1)
-	defer r.rafty.wg.Done()
-
-	currentTerm := r.rafty.currentTerm.Load()
-	peers, _ := r.rafty.getPeers()
+func (r *Rafty) removeNode(action MembershipChange, member Peer) ([]byte, error) {
+	peers, _ := r.getPeers()
 	// add myself, the current leader
 	peers = append(peers, Peer{
-		ID:      r.rafty.id,
-		Address: r.rafty.Address.String(),
+		ID:      r.id,
+		Address: r.Address.String(),
 	})
 
-	var nextConfig []Peer
-	if nextConfig, err = r.nextConfiguration(action, peers, member); err != nil {
-		return
-	}
-	encodedPeers := EncodePeers(nextConfig)
-	entries := []*raftypb.LogEntry{
-		{
-			LogType:   uint32(LogConfiguration),
-			Timestamp: uint32(time.Now().Unix()),
-			Term:      currentTerm,
-			Command:   encodedPeers,
-		},
+	nextConfig, err := r.nextConfiguration(action, peers, member)
+	if err != nil {
+		return nil, err
 	}
 
-	r.rafty.updateEntriesIndex(entries)
-	request := &onAppendEntriesRequest{
-		totalFollowers:             r.totalFollowers.Load(),
-		quorum:                     uint64(r.rafty.quorum()),
-		term:                       currentTerm,
-		prevLogIndex:               r.rafty.lastLogIndex.Load(),
-		prevLogTerm:                r.rafty.lastLogTerm.Load(),
-		totalLogs:                  r.rafty.lastLogIndex.Load(),
-		uuid:                       uuid.NewString(),
-		commitIndex:                r.rafty.commitIndex.Load(),
-		entries:                    entries,
-		catchup:                    true,
-		rpcTimeout:                 r.rafty.randomRPCTimeout(true),
-		membershipChangeInProgress: &r.membershipChangeInProgress,
-		membershipChangeID:         member.ID,
-	}
-
-	_ = r.rafty.applyConfigEntry(entries[0])
-	if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-		panic(err)
-	}
-
-	for _, follower := range r.followerReplication {
-		if action == LeaveOnTerminate && follower != nil && follower.ID == member.ID {
-			continue
-		}
-		if r.isReplicable(follower) {
-			follower.newEntryChan <- request
-		}
-	}
-	r.totalFollowers.Store(r.totalFollowers.Load() - 1)
-	for _, follower := range r.followerReplication {
-		if follower != nil && follower.ID == member.ID {
-			r.stopReplication(follower)
-			break
-		}
-	}
-
-	// if it's myself
-	if !isPartOfTheCluster(nextConfig, member) {
-		if r.rafty.options.ShutdownOnRemove {
-			go r.rafty.stop()
-			return true, nil
-		}
-		go r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
-	}
-	return true, nil
+	return EncodePeers(nextConfig), nil
 }
 
 // nextConfiguration will create the next configuration config based on the action
 // to perform. member is the peer to take action on
-func (r *leader) nextConfiguration(action MembershipChange, current []Peer, member Peer) ([]Peer, error) {
+func (r *Rafty) nextConfiguration(action MembershipChange, current []Peer, member Peer) ([]Peer, error) {
 	switch action {
 	case Add:
 		if index := slices.IndexFunc(current, func(p Peer) bool {
@@ -490,12 +165,12 @@ func (r *leader) nextConfiguration(action MembershipChange, current []Peer, memb
 
 // verifyConfiguration will verify the new configuration by checking if we have
 // enough voters and make sure that any operation won't break the cluster.
-func (r *leader) verifyConfiguration(peers []Peer) bool {
+func (r *Rafty) verifyConfiguration(peers []Peer) bool {
 	var voters int
 	for _, node := range peers {
 		if !node.ReadReplica && !node.WaitToBePromoted && !node.Decommissioning {
 			voters++
 		}
 	}
-	return voters > 1 && voters >= r.rafty.quorum()
+	return voters > 1 && voters >= r.quorum()
 }

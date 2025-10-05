@@ -3,15 +3,42 @@ package rafty
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
 )
+
+// String return a human readable state of the raft server
+func (s logKind) String() string {
+	switch s {
+	case LogConfiguration:
+		return "logConfiguration"
+	case LogReplication:
+		return "logReplication"
+	case LogCommandReadLeader:
+		return "logCommandReadLeader"
+	case LogCommandReadStale:
+		return "logCommandReadStale"
+	}
+	return "logNoop"
+}
 
 // newLogs instantiate rafty with default logs configuration
 func (r *Rafty) newLogs() logs {
 	return logs{
 		rafty: r,
 		log:   nil,
+	}
+}
+
+// makeNewLogEntry will make a new log entry based
+// on the provided parameters
+func makeNewLogEntry(term uint64, logType logKind, command []byte) *LogEntry {
+	return &LogEntry{
+		LogType:   uint32(logType),
+		Timestamp: uint32(time.Now().Unix()),
+		Term:      term,
+		Command:   command,
 	}
 }
 
@@ -259,22 +286,4 @@ func (r *Rafty) applyConfigEntry(entry *raftypb.LogEntry) error {
 	default:
 	}
 	return nil
-}
-
-// updateEntriesIndex will update entries index monotically.
-// lastLogIndex and lastLogTerm will also be updated accordingly
-func (r *Rafty) updateEntriesIndex(entries []*raftypb.LogEntry) {
-	r.wg.Add(1)
-	defer r.wg.Done()
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	lastLogIndex, lastLogTerm := uint64(0), uint64(0)
-	for _, entry := range entries {
-		lastLogIndex = r.lastLogIndex.Load() + 1
-		entry.Index = lastLogIndex
-		lastLogTerm = entry.Term
-		r.lastLogIndex.Store(lastLogIndex)
-		r.lastLogTerm.Store(lastLogTerm)
-	}
 }

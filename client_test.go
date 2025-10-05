@@ -10,6 +10,8 @@ import (
 
 	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestClient_submitCommand(t *testing.T) {
@@ -135,8 +137,10 @@ func TestClient_submitCommand(t *testing.T) {
 
 		go func() {
 			time.Sleep(100 * time.Millisecond)
-			data := <-s.triggerAppendEntriesChan
-			data.responseChan <- appendEntriesResponse{Data: []byte("ok"), Error: nil}
+			data := <-s.rpcAppendEntriesRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.AppendEntryResponse{},
+			}
 		}()
 
 		buffer := new(bytes.Buffer)
@@ -163,7 +167,7 @@ func TestClient_submitCommand(t *testing.T) {
 
 		go func() {
 			time.Sleep(100 * time.Millisecond)
-			<-s.triggerAppendEntriesChan
+			<-s.rpcAppendEntriesRequestChan
 		}()
 
 		buffer := new(bytes.Buffer)
@@ -187,7 +191,7 @@ func TestClient_submitCommand(t *testing.T) {
 		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
 
 		go func() {
-			<-s.triggerAppendEntriesChan
+			<-s.rpcAppendEntriesRequestChan
 			time.Sleep(2 * time.Second)
 		}()
 
@@ -235,7 +239,7 @@ func TestClient_submitCommand(t *testing.T) {
 
 		go func() {
 			time.Sleep(100 * time.Millisecond)
-			<-s.triggerAppendEntriesChan
+			<-s.rpcAppendEntriesRequestChan
 		}()
 
 		buffer := new(bytes.Buffer)
@@ -500,6 +504,152 @@ func TestClient_bootstrapCluster(t *testing.T) {
 	})
 }
 
+func TestClient_addMember(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			time.Sleep(time.Second)
+			s.stopCtx()
+		}()
+
+		assert.ErrorIs(s.AddMember(0, "127.0.0.1:6000", "60", false), ErrTimeout)
+		s.wg.Wait()
+	})
+
+	t.Run("quit_context_done", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		s.wg.Go(func() {
+			for {
+				select {
+				case <-s.rpcAppendEntriesRequestChan:
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		assert.ErrorIs(s.AddMember(0, "127.0.0.1:6000", "60", false), ErrShutdown)
+	})
+
+	t.Run("err_timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcAppendEntriesRequestChan
+			time.Sleep(2 * time.Second)
+		}()
+
+		assert.ErrorIs(s.AddMember(0, "127.0.0.1:6000", "60", false), ErrTimeout)
+	})
+}
+
+func TestClient_promoteMember(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			time.Sleep(time.Second)
+			s.stopCtx()
+		}()
+
+		s.configuration.ServerMembers[0].WaitToBePromoted = true
+		node1 := s.configuration.ServerMembers[0]
+		assert.ErrorIs(s.PromoteMember(0, node1.Address, node1.ID, false), ErrTimeout)
+		s.wg.Wait()
+	})
+
+	t.Run("quit_context_done", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		s.wg.Go(func() {
+			for {
+				select {
+				case <-s.rpcAppendEntriesRequestChan:
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		s.configuration.ServerMembers[0].WaitToBePromoted = true
+		assert.ErrorIs(s.PromoteMember(0, node1.Address, node1.ID, false), ErrShutdown)
+	})
+
+	t.Run("err_timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcAppendEntriesRequestChan
+			time.Sleep(2 * time.Second)
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		s.configuration.ServerMembers[0].WaitToBePromoted = true
+		assert.ErrorIs(s.PromoteMember(0, node1.Address, node1.ID, false), ErrTimeout)
+	})
+}
+
 func TestClient_demoteMember(t *testing.T) {
 	assert := assert.New(t)
 
@@ -521,41 +671,7 @@ func TestClient_demoteMember(t *testing.T) {
 		}()
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrTimeout)
-		s.wg.Wait()
-	})
-
-	t.Run("err_nil", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.fillIDs()
-		s.State = Leader
-		s.isRunning.Store(true)
-		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
-		defer s.stopCtx()
-
-		forgedResponse := RPCResponse{
-			Response: &raftypb.MembershipChangeResponse{Success: true},
-		}
-		s.wg.Go(func() {
-			for {
-				select {
-				case data := <-s.rpcMembershipChangeRequestChan:
-					data.ResponseChan <- forgedResponse
-				case <-time.After(500 * time.Millisecond):
-					return
-				}
-			}
-		})
-
-		node1 := s.configuration.ServerMembers[0]
-		response, err := s.DemoteMember(0, node1.Address, node1.ID, false)
-		assert.NotNil(response)
-		assert.Nil(err)
+		assert.ErrorIs(s.DemoteMember(0, node1.Address, node1.ID, false), ErrTimeout)
 		s.wg.Wait()
 	})
 
@@ -574,7 +690,7 @@ func TestClient_demoteMember(t *testing.T) {
 		s.wg.Go(func() {
 			for {
 				select {
-				case <-s.rpcMembershipChangeRequestChan:
+				case <-s.rpcAppendEntriesRequestChan:
 				case <-time.After(500 * time.Millisecond):
 					return
 				}
@@ -582,9 +698,7 @@ func TestClient_demoteMember(t *testing.T) {
 		})
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrShutdown)
-		s.wg.Wait()
+		assert.ErrorIs(s.DemoteMember(0, node1.Address, node1.ID, false), ErrShutdown)
 	})
 
 	t.Run("err_timeout", func(t *testing.T) {
@@ -594,20 +708,18 @@ func TestClient_demoteMember(t *testing.T) {
 			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
-		s.State = Follower
+		s.State = Leader
 		s.options.BootstrapCluster = true
 		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
 		defer s.stopCtx()
 
 		go func() {
-			<-s.rpcMembershipChangeRequestChan
+			<-s.rpcAppendEntriesRequestChan
 			time.Sleep(2 * time.Second)
 		}()
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.DemoteMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrTimeout)
-		s.wg.Wait()
+		assert.ErrorIs(s.DemoteMember(0, node1.Address, node1.ID, false), ErrTimeout)
 	})
 }
 
@@ -632,42 +744,7 @@ func TestClient_removeMember(t *testing.T) {
 		}()
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrTimeout)
-		s.wg.Wait()
-	})
-
-	t.Run("err_nil", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.fillIDs()
-		s.State = Leader
-		s.isRunning.Store(true)
-		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
-		defer s.stopCtx()
-
-		forgedResponse := RPCResponse{
-			Response: &raftypb.MembershipChangeResponse{Success: true},
-		}
-		s.wg.Go(func() {
-			for {
-				select {
-				case data := <-s.rpcMembershipChangeRequestChan:
-					data.ResponseChan <- forgedResponse
-				case <-time.After(500 * time.Millisecond):
-					return
-				}
-			}
-		})
-
-		node1 := s.configuration.ServerMembers[0]
-		response, err := s.RemoveMember(0, node1.Address, node1.ID, false)
-		assert.NotNil(response)
-		assert.Nil(err)
-		s.wg.Wait()
+		assert.ErrorIs(s.RemoveMember(0, node1.Address, node1.ID, false), ErrTimeout)
 	})
 
 	t.Run("quit_context_done", func(t *testing.T) {
@@ -685,7 +762,7 @@ func TestClient_removeMember(t *testing.T) {
 		s.wg.Go(func() {
 			for {
 				select {
-				case <-s.rpcMembershipChangeRequestChan:
+				case <-s.rpcAppendEntriesRequestChan:
 				case <-time.After(500 * time.Millisecond):
 					return
 				}
@@ -693,9 +770,7 @@ func TestClient_removeMember(t *testing.T) {
 		})
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrShutdown)
-		s.wg.Wait()
+		assert.ErrorIs(s.RemoveMember(0, node1.Address, node1.ID, false), ErrShutdown)
 	})
 
 	t.Run("err_timeout", func(t *testing.T) {
@@ -705,20 +780,17 @@ func TestClient_removeMember(t *testing.T) {
 			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
 		s.fillIDs()
-		s.State = Follower
-		s.options.BootstrapCluster = true
+		s.State = Leader
 		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
 		defer s.stopCtx()
 
 		go func() {
-			<-s.rpcMembershipChangeRequestChan
+			<-s.rpcAppendEntriesRequestChan
 			time.Sleep(2 * time.Second)
 		}()
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.RemoveMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrTimeout)
-		s.wg.Wait()
+		assert.ErrorIs(s.RemoveMember(0, node1.Address, node1.ID, false), ErrTimeout)
 	})
 }
 
@@ -743,8 +815,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		}()
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrTimeout)
+		assert.ErrorIs(s.ForceRemoveMember(0, node1.Address, node1.ID, false), ErrTimeout)
 		s.wg.Wait()
 	})
 
@@ -757,27 +828,40 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		s.fillIDs()
 		s.State = Leader
 		s.isRunning.Store(true)
+
+		s.wg.Go(
+			func() {
+				time.Sleep(100 * time.Millisecond)
+				data := <-s.rpcAppendEntriesRequestChan
+				data.ResponseChan <- RPCResponse{
+					Response: &raftypb.AppendEntryResponse{},
+				}
+			})
+
+		node1 := s.configuration.ServerMembers[0]
+		assert.Nil(s.ForceRemoveMember(0, node1.Address, node1.ID, false), nil)
+		s.wg.Wait()
+	})
+
+	t.Run("err_timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
 		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
 		defer s.stopCtx()
 
-		forgedResponse := RPCResponse{
-			Response: &raftypb.MembershipChangeResponse{Success: true},
-		}
 		s.wg.Go(func() {
-			for {
-				select {
-				case data := <-s.rpcMembershipChangeRequestChan:
-					data.ResponseChan <- forgedResponse
-				case <-time.After(500 * time.Millisecond):
-					return
-				}
-			}
+			time.Sleep(100 * time.Millisecond)
+			<-s.rpcAppendEntriesRequestChan
 		})
 
 		node1 := s.configuration.ServerMembers[0]
-		response, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
-		assert.NotNil(response)
-		assert.Nil(err)
+		assert.ErrorIs(s.ForceRemoveMember(0, node1.Address, node1.ID, false), ErrTimeout)
 		s.wg.Wait()
 	})
 
@@ -796,7 +880,7 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		s.wg.Go(func() {
 			for {
 				select {
-				case <-s.rpcMembershipChangeRequestChan:
+				case <-s.rpcAppendEntriesRequestChan:
 				case <-time.After(500 * time.Millisecond):
 					return
 				}
@@ -804,12 +888,11 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		})
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrShutdown)
+		assert.ErrorIs(s.ForceRemoveMember(0, node1.Address, node1.ID, false), ErrShutdown)
 		s.wg.Wait()
 	})
 
-	t.Run("err_timeout", func(t *testing.T) {
+	t.Run("err_no_leader", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
@@ -822,14 +905,176 @@ func TestClient_forceRemoveMember(t *testing.T) {
 		defer s.stopCtx()
 
 		go func() {
-			<-s.rpcMembershipChangeRequestChan
-			time.Sleep(2 * time.Second)
+			<-s.rpcAppendEntriesRequestChan
+			time.Sleep(5 * time.Second)
 		}()
 
 		node1 := s.configuration.ServerMembers[0]
-		_, err := s.ForceRemoveMember(0, node1.Address, node1.ID, false)
-		assert.ErrorIs(err, ErrTimeout)
+		assert.ErrorIs(s.ForceRemoveMember(0, node1.Address, node1.ID, false), ErrNoLeader)
+	})
+
+	t.Run("err_grpc_unavailable", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.setLeader(leaderMap{address: s.configuration.ServerMembers[0].address.String(), id: s.configuration.ServerMembers[0].ID})
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcAppendEntriesRequestChan
+			time.Sleep(6 * time.Second)
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		assert.Equal(status.Code(s.ForceRemoveMember(0, node1.Address, node1.ID, false)), codes.Unavailable)
+	})
+}
+
+func TestClient_leaveOnTerminateMember(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("timeout_first", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			time.Sleep(time.Second)
+			s.stopCtx()
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		assert.ErrorIs(s.LeaveOnTerminateMember(0, node1.Address, node1.ID, false), ErrTimeout)
 		s.wg.Wait()
+	})
+
+	t.Run("err_nil", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+
+		s.wg.Go(
+			func() {
+				time.Sleep(100 * time.Millisecond)
+				data := <-s.rpcAppendEntriesRequestChan
+				data.ResponseChan <- RPCResponse{
+					Response: &raftypb.AppendEntryResponse{},
+				}
+			})
+
+		node1 := s.configuration.ServerMembers[0]
+		assert.Nil(s.LeaveOnTerminateMember(0, node1.Address, node1.ID, false), nil)
+		s.wg.Wait()
+	})
+
+	t.Run("err_timeout", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		s.wg.Go(func() {
+			time.Sleep(100 * time.Millisecond)
+			<-s.rpcAppendEntriesRequestChan
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		assert.ErrorIs(s.LeaveOnTerminateMember(0, node1.Address, node1.ID, false), ErrTimeout)
+		s.wg.Wait()
+	})
+
+	t.Run("quit_context_done", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Leader
+		s.isRunning.Store(true)
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		s.wg.Go(func() {
+			for {
+				select {
+				case <-s.rpcAppendEntriesRequestChan:
+				case <-time.After(500 * time.Millisecond):
+					return
+				}
+			}
+		})
+
+		node1 := s.configuration.ServerMembers[0]
+		assert.ErrorIs(s.LeaveOnTerminateMember(0, node1.Address, node1.ID, false), ErrShutdown)
+		s.wg.Wait()
+	})
+
+	t.Run("err_no_leader", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcAppendEntriesRequestChan
+			time.Sleep(5 * time.Second)
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		assert.ErrorIs(s.LeaveOnTerminateMember(0, node1.Address, node1.ID, false), ErrNoLeader)
+	})
+
+	t.Run("err_grpc_unavailable", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.fillIDs()
+		s.State = Follower
+		s.options.BootstrapCluster = true
+		s.setLeader(leaderMap{address: s.configuration.ServerMembers[0].address.String(), id: s.configuration.ServerMembers[0].ID})
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		defer s.stopCtx()
+
+		go func() {
+			<-s.rpcAppendEntriesRequestChan
+			time.Sleep(6 * time.Second)
+		}()
+
+		node1 := s.configuration.ServerMembers[0]
+		assert.Equal(status.Code(s.LeaveOnTerminateMember(0, node1.Address, node1.ID, false)), codes.Unavailable)
 	})
 }
 

@@ -478,7 +478,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		rpcm := rpcManager{rafty: s}
 
 		go func() {
-			data := <-s.rpcAppendEntriesRequestChan
+			data := <-s.rpcAppendEntriesReplicationRequestChan
 			data.ResponseChan <- RPCResponse{
 				Response: &raftypb.AppendEntryResponse{Success: false},
 			}
@@ -501,7 +501,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		defer cancel()
 
 		go func() {
-			<-s.rpcAppendEntriesRequestChan
+			<-s.rpcAppendEntriesReplicationRequestChan
 		}()
 
 		go func() {
@@ -524,7 +524,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		rpcm := rpcManager{rafty: s}
 
 		go func() {
-			<-s.rpcAppendEntriesRequestChan
+			<-s.rpcAppendEntriesReplicationRequestChan
 		}()
 
 		go func() {
@@ -547,7 +547,7 @@ func TestRaftypb_SendAppendEntriesRequest(t *testing.T) {
 		rpcm := rpcManager{rafty: s}
 
 		go func() {
-			<-s.rpcAppendEntriesRequestChan
+			<-s.rpcAppendEntriesReplicationRequestChan
 			time.Sleep(time.Second)
 		}()
 
@@ -723,6 +723,72 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		assert.Nil(err)
 	})
 
+	t.Run("log_configuration_not_leader", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		encodedPeer := EncodePeers([]Peer{{Address: "127.0.0.1:6000", ID: "60"}})
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: encodedPeer, LogType: uint32(LogConfiguration), MembershipTimeout: 1}
+
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.ErrorIs(err, ErrNotLeader)
+	})
+
+	t.Run("log_configuration_decoding_err", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.State = Leader
+		rpcm := rpcManager{rafty: s}
+
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: []byte("a=b"), LogType: uint32(LogConfiguration), MembershipTimeout: 1}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			data := <-s.rpcAppendEntriesRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.ForwardCommandToLeaderResponse{},
+			}
+		}()
+
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Error(err)
+	})
+
+	t.Run("log_configuration_success", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.State = Leader
+		rpcm := rpcManager{rafty: s}
+
+		encodedPeer := EncodePeers([]Peer{{Address: "127.0.0.1:6000", ID: "60"}})
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: encodedPeer, LogType: uint32(LogConfiguration), MembershipTimeout: 1}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			data := <-s.rpcAppendEntriesRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.ForwardCommandToLeaderResponse{},
+			}
+		}()
+
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Nil(err)
+	})
+
 	t.Run("context_done_first", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
@@ -813,7 +879,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
-			data := <-s.rpcForwardCommandToLeaderRequestChan
+			data := <-s.rpcAppendEntriesRequestChan
 			data.ResponseChan <- RPCResponse{
 				Response: &raftypb.ForwardCommandToLeaderResponse{},
 			}
@@ -843,7 +909,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		defer cancel()
 
 		go func() {
-			<-s.rpcForwardCommandToLeaderRequestChan
+			<-s.rpcAppendEntriesRequestChan
 		}()
 
 		go func() {
@@ -872,7 +938,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
-			<-s.rpcForwardCommandToLeaderRequestChan
+			<-s.rpcAppendEntriesRequestChan
 		}()
 
 		go func() {
@@ -901,7 +967,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes()}
 
 		go func() {
-			<-s.rpcForwardCommandToLeaderRequestChan
+			<-s.rpcAppendEntriesRequestChan
 			time.Sleep(time.Second)
 		}()
 
@@ -926,182 +992,6 @@ func TestRaftypb_SendTimeoutNowRequest(t *testing.T) {
 		response, err := rpcm.SendTimeoutNowRequest(context.Background(), request)
 		assert.Equal(nil, err)
 		assert.Equal(true, response.Success)
-	})
-}
-
-func TestRaftypb_SendMembershipChangeRequest(t *testing.T) {
-	assert := assert.New(t)
-	request := &raftypb.MembershipChangeRequest{}
-
-	t.Run("down", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.State = Down
-		rpcm := rpcManager{rafty: s}
-
-		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.Equal(ErrShutdown, err)
-	})
-
-	t.Run("bootstrap_cluster", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		s.options.BootstrapCluster = true
-		rpcm := rpcManager{rafty: s}
-
-		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.Equal(ErrClusterNotBootstrapped, err)
-	})
-
-	t.Run("context_done_first", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		rpcm := rpcManager{rafty: s}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			cancel()
-		}()
-
-		_, err := rpcm.SendMembershipChangeRequest(ctx, request)
-		assert.Error(err)
-	})
-
-	t.Run("quit_context_first", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		rpcm := rpcManager{rafty: s}
-
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			s.stopCtx()
-		}()
-		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.Error(err)
-	})
-
-	t.Run("timeout_first", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		rpcm := rpcManager{rafty: s}
-
-		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.Error(err)
-	})
-
-	t.Run("up", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		rpcm := rpcManager{rafty: s}
-
-		go func() {
-			data := <-s.rpcMembershipChangeRequestChan
-			data.ResponseChan <- RPCResponse{
-				Response: &raftypb.MembershipChangeResponse{},
-			}
-		}()
-
-		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.Nil(err)
-	})
-
-	t.Run("context_done_second", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		rpcm := rpcManager{rafty: s}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		go func() {
-			<-s.rpcMembershipChangeRequestChan
-		}()
-
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			cancel()
-		}()
-
-		_, err := rpcm.SendMembershipChangeRequest(ctx, request)
-		assert.Error(err)
-	})
-
-	t.Run("quit_context_second", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		rpcm := rpcManager{rafty: s}
-
-		go func() {
-			<-s.rpcMembershipChangeRequestChan
-		}()
-
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			s.stopCtx()
-		}()
-
-		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.Error(err)
-	})
-
-	t.Run("timeout_second", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Follower
-		rpcm := rpcManager{rafty: s}
-
-		go func() {
-			<-s.rpcMembershipChangeRequestChan
-			time.Sleep(time.Second)
-		}()
-
-		_, err := rpcm.SendMembershipChangeRequest(context.Background(), request)
-		assert.Error(err)
 	})
 }
 

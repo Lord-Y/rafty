@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Lord-Y/rafty/raftypb"
-	"github.com/google/uuid"
 	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -26,24 +25,24 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
-		followers, totalFollowers := s.getPeers()
+		followers, _ := s.getPeers()
 
-		entries := []*raftypb.LogEntry{{Term: 1}}
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		s.currentTerm.Store(1)
+		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
+		logs := []*LogEntry{entry}
+		s.storeLogs(logs)
+		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
+		entries := makeProtobufLogEntry(entry)
 
 		id := 0
 		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
 		currentTerm := s.currentTerm.Add(1)
 
 		oldRequest := &onAppendEntriesRequest{
-			totalFollowers:             uint64(totalFollowers),
-			quorum:                     uint64(s.quorum()),
 			term:                       currentTerm,
 			prevLogIndex:               s.lastLogIndex.Load(),
 			prevLogTerm:                s.lastLogTerm.Load(),
 			totalLogs:                  s.lastLogIndex.Load(),
-			uuid:                       uuid.NewString(),
 			commitIndex:                s.commitIndex.Load(),
 			entries:                    entries,
 			catchup:                    true,
@@ -60,7 +59,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+			newEntryChan: make(chan bool),
 		}
 		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
 		s.wg.Wait()
@@ -74,24 +73,24 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
-		followers, totalFollowers := s.getPeers()
+		followers, _ := s.getPeers()
 
-		entries := []*raftypb.LogEntry{{Term: 1}}
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		s.currentTerm.Store(1)
+		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
+		logs := []*LogEntry{entry}
+		s.storeLogs(logs)
+		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
+		entries := makeProtobufLogEntry(entry)
 
 		id := 0
 		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
 		currentTerm := s.currentTerm.Add(1)
 
 		oldRequest := &onAppendEntriesRequest{
-			totalFollowers:             uint64(totalFollowers),
-			quorum:                     uint64(s.quorum()),
 			term:                       currentTerm,
 			prevLogIndex:               s.lastLogIndex.Load(),
 			prevLogTerm:                s.lastLogTerm.Load(),
 			totalLogs:                  s.lastLogIndex.Load(),
-			uuid:                       uuid.NewString(),
 			commitIndex:                s.commitIndex.Load(),
 			entries:                    entries,
 			catchup:                    true,
@@ -108,7 +107,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+			newEntryChan: make(chan bool),
 		}
 		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
 		s.wg.Wait()
@@ -122,33 +121,29 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		}()
 		s.isRunning.Store(true)
 		s.State = Leader
-		followers, totalFollowers := s.getPeers()
+		followers, _ := s.getPeers()
 		s.options.MaxAppendEntries = 64
+		s.currentTerm.Store(1)
 
 		max := 100
 		var entries []*raftypb.LogEntry
 		for index := range max {
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
+			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
+			entries = append(entries, makeProtobufLogEntry(entry)...)
 		}
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
 
 		id := 0
 		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
 		currentTerm := s.currentTerm.Add(1)
 
 		oldRequest := &onAppendEntriesRequest{
-			totalFollowers:             uint64(totalFollowers),
-			quorum:                     uint64(s.quorum()),
 			term:                       currentTerm,
 			prevLogIndex:               s.lastLogIndex.Load(),
 			prevLogTerm:                s.lastLogTerm.Load(),
 			totalLogs:                  s.lastLogIndex.Load(),
-			uuid:                       uuid.NewString(),
 			commitIndex:                s.commitIndex.Load(),
 			entries:                    entries,
 			catchup:                    true,
@@ -165,193 +160,67 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+			newEntryChan: make(chan bool),
 		}
 		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
 		s.wg.Wait()
 	})
 }
 
-func TestLogReplication_singleServerCluster(t *testing.T) {
+func TestLogReplication_catchupNewMember(t *testing.T) {
 	assert := assert.New(t)
 
-	t.Run("single_server_append_entries_quit_context", func(t *testing.T) {
-		s := singleServerClusterSetup("")
+	t.Run("shutdown", func(t *testing.T) {
+		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
 			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
-		s.isRunning.Store(true)
+		s.fillIDs()
 		s.State = Leader
-		s.options.IsSingleServerCluster = true
+		s.isRunning.Store(true)
+
 		state := leader{rafty: s}
-		currentTerm := s.currentTerm.Add(1)
-		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		state.rafty.currentTerm.Store(1)
+		member := Peer{ID: "newbie", Address: "127.0.0.1:60000"}
+
+		currentTerm := s.currentTerm.Load()
+		peers, _ := s.getAllPeers()
+
+		peers = append(peers, member)
+		action := Add
+		nextConfig, _ := s.nextConfiguration(action, peers, member)
+		encodedPeers := EncodePeers(nextConfig)
+
+		entry := makeNewLogEntry(currentTerm, LogConfiguration, encodedPeers)
+		s.storeLogs([]*LogEntry{entry})
+		previousLogIndex, previousTerm := s.getPreviousLogIndexAndTerm()
+
+		request := &onAppendEntriesRequest{
+			term:               currentTerm,
+			prevLogIndex:       previousLogIndex,
+			prevLogTerm:        previousTerm,
+			commitIndex:        s.commitIndex.Load(),
+			catchup:            true,
+			rpcTimeout:         time.Second,
+			membershipChangeID: member.ID,
+		}
+
+		follower := &followerReplication{
+			Peer:         member,
+			rafty:        s,
+			newEntryChan: make(chan bool),
+			notifyLeader: state.commitChan,
+		}
+
+		buildResponse := &raftypb.AppendEntryResponse{
+			LogNotFound: true,
+		}
+
+		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Millisecond)
 		s.stopCtx()
 
-		entries := []*raftypb.LogEntry{
-			{
-				LogType:   uint32(LogNoop),
-				Timestamp: uint32(time.Now().Unix()),
-				Term:      currentTerm,
-				Command:   nil,
-			},
-		}
-
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
-		request := &onAppendEntriesRequest{
-			term:                       currentTerm,
-			prevLogIndex:               s.lastLogIndex.Load(),
-			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  s.lastLogIndex.Load(),
-			uuid:                       uuid.NewString(),
-			commitIndex:                s.commitIndex.Load(),
-			entries:                    entries,
-			membershipChangeInProgress: &atomic.Bool{},
-			replyToClient:              true,
-			replyToClientChan:          make(chan appendEntriesResponse), // use unbuffered chan on purpose to make test fail
-		}
-
-		state.singleServerAppendEntries(request)
-		select {
-		case <-request.replyToClientChan:
-			t.Error("Should not receive any response")
-		default:
-			// expected
-		}
-	})
-
-	t.Run("single_server_append_timeout", func(t *testing.T) {
-		s := singleServerClusterSetup("")
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Leader
-		state := leader{rafty: s}
-		currentTerm := s.currentTerm.Add(1)
-		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
-
-		entries := []*raftypb.LogEntry{
-			{
-				LogType:   uint32(LogNoop),
-				Timestamp: uint32(time.Now().Unix()),
-				Term:      currentTerm,
-				Command:   nil,
-			},
-		}
-
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
-		request := &onAppendEntriesRequest{
-			term:                       currentTerm,
-			prevLogIndex:               s.lastLogIndex.Load(),
-			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  s.lastLogIndex.Load(),
-			uuid:                       uuid.NewString(),
-			commitIndex:                s.commitIndex.Load(),
-			entries:                    entries,
-			membershipChangeInProgress: &atomic.Bool{},
-			replyToClient:              true,
-			replyToClientChan:          make(chan appendEntriesResponse), // must be unbuffered
-		}
-
-		start := time.Now()
-		state.singleServerAppendEntries(request)
-		elapsed := time.Since(start)
-
-		if elapsed < 500*time.Millisecond {
-			t.Errorf("expected at least 500ms got %v", elapsed)
-		}
-
-		select {
-		case <-request.replyToClientChan:
-			t.Error("Should not receive any response")
-		default:
-			// expected
-		}
-	})
-
-	t.Run("reply_to_chan", func(t *testing.T) {
-		s := singleServerClusterSetup("")
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.isRunning.Store(true)
-		s.State = Leader
-		state := leader{rafty: s}
-		currentTerm := s.currentTerm.Add(1)
-
-		entries := []*raftypb.LogEntry{
-			{
-				LogType:   uint32(LogNoop),
-				Timestamp: uint32(time.Now().Unix()),
-				Term:      currentTerm,
-				Command:   nil,
-			},
-		}
-
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
-		request := &onAppendEntriesRequest{
-			term:                       currentTerm,
-			prevLogIndex:               s.lastLogIndex.Load(),
-			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  s.lastLogIndex.Load(),
-			uuid:                       uuid.NewString(),
-			commitIndex:                s.commitIndex.Load(),
-			entries:                    entries,
-			membershipChangeInProgress: &atomic.Bool{},
-			replyToClient:              true,
-			replyToClientChan:          make(chan appendEntriesResponse, 1),
-		}
-
-		state.singleServerAppendEntries(request)
-		data := <-request.replyToClientChan
-		assert.Nil(data.Error)
-	})
-
-	t.Run("singleServerAppendEntries_panic", func(t *testing.T) {
-		s := singleServerClusterSetup("")
-
-		s.isRunning.Store(true)
-		s.State = Leader
-		state := leader{rafty: s}
-		currentTerm := s.currentTerm.Add(1)
-
-		entries := []*raftypb.LogEntry{
-			{
-				LogType:   uint32(LogNoop),
-				Timestamp: uint32(time.Now().Unix()),
-				Term:      currentTerm,
-				Command:   nil,
-			},
-		}
-
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
-		assert.Nil(s.logStore.Close())
-		request := &onAppendEntriesRequest{
-			term:                       currentTerm,
-			prevLogIndex:               s.lastLogIndex.Load(),
-			prevLogTerm:                s.lastLogTerm.Load(),
-			totalLogs:                  s.lastLogIndex.Load(),
-			uuid:                       uuid.NewString(),
-			commitIndex:                s.commitIndex.Load(),
-			entries:                    entries,
-			membershipChangeInProgress: &atomic.Bool{},
-			replyToClient:              true,
-			replyToClientChan:          make(chan appendEntriesResponse, 1),
-		}
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Println("Recovered. Error:\n", r)
-			}
-		}()
-		state.singleServerAppendEntries(request)
+		assert.ErrorIs(follower.catchupNewMember(member, request, buildResponse), ErrShutdown)
 	})
 }
 
@@ -368,9 +237,11 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s.State = Leader
 		followers, _ := s.getPeers()
 
-		entries := []*raftypb.LogEntry{{Term: 1}}
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		s.currentTerm.Store(1)
+		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
+		logs := []*LogEntry{entry}
+		s.storeLogs(logs)
+		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 
 		id := 0
 		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
@@ -378,7 +249,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+			newEntryChan: make(chan bool),
 		}
 		followerRepl.sendSnapshotInProgress.Store(true)
 		followerRepl.sendInstallSnapshot(client)
@@ -397,9 +268,11 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s.State = Leader
 		followers, _ := s.getPeers()
 
-		entries := []*raftypb.LogEntry{{Term: 1}}
-		s.updateEntriesIndex(entries)
-		assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+		s.currentTerm.Store(1)
+		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
+		logs := []*LogEntry{entry}
+		s.storeLogs(logs)
+		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 
 		id := 0
 		client := s.connectionManager.getClient(s.configuration.ServerMembers[id].address.String())
@@ -407,7 +280,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+			newEntryChan: make(chan bool),
 		}
 		followerRepl.sendInstallSnapshot(client)
 		s.wg.Wait()
@@ -425,17 +298,14 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s.State = Leader
 		s.options.MaxAppendEntries = 64
 		followers, _ := s.getPeers()
+		s.currentTerm.Store(1)
 
 		max := 100
 		for index := range max {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		_, err := s.takeSnapshot()
 		assert.Nil(err)
@@ -446,7 +316,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+			newEntryChan: make(chan bool),
 		}
 		followerRepl.sendInstallSnapshot(client)
 		s.wg.Wait()
@@ -464,17 +334,14 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s.State = Leader
 		s.options.MaxAppendEntries = 64
 		followers, _ := s.getPeers()
+		s.currentTerm.Store(1)
 
 		max := 100
 		for index := range max {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		_, err := s.takeSnapshot()
 		assert.Nil(err)
@@ -487,7 +354,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+			newEntryChan: make(chan bool),
 		}
 		followerRepl.sendInstallSnapshot(mockClient)
 		s.wg.Wait()
@@ -507,17 +374,14 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s.State = Leader
 		s.options.MaxAppendEntries = 64
 		followers, _ := s.getPeers()
+		s.currentTerm.Store(1)
 
 		max := 100
 		for index := range max {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		_, err := s.takeSnapshot()
 		assert.Nil(err)
@@ -525,12 +389,12 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		id := 0
 		mockClient := new(MockRaftyClientTestify)
 		mockClient.On("SendInstallSnapshotRequest", mock.Anything, mock.Anything, mock.Anything).
-			Return(&raftypb.InstallSnapshotResponse{Success: false, Term: 1}, nil)
+			Return(&raftypb.InstallSnapshotResponse{Success: false, Term: 2}, nil)
 
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
+			newEntryChan: make(chan bool),
 		}
 		followerRepl.sendInstallSnapshot(mockClient)
 		s.wg.Wait()
