@@ -478,9 +478,6 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 		}
 
 		for _, follower := range r.followerReplication {
-			if config.membershipChange.action == LeaveOnTerminate && follower != nil && follower.ID == config.membershipChange.member.ID {
-				continue
-			}
 			if r.isReplicable(follower) {
 				follower.newEntryChan <- false
 			}
