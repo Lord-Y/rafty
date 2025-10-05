@@ -59,10 +59,10 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 		}
 	}
 
-	leader := r.getLeader()
-	if leader == (leaderMap{}) {
+	if !r.waitForLeader() {
 		return nil, ErrNoLeader
 	}
+	leader := r.getLeader()
 
 	if client := r.connectionManager.getClient(leader.address); client != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*timeout)
