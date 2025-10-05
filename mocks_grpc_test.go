@@ -60,12 +60,6 @@ func (m *MockRaftyClientTestify) SendTimeoutNowRequest(ctx context.Context, req 
 	return resp, args.Error(1)
 }
 
-func (m *MockRaftyClientTestify) SendMembershipChangeRequest(ctx context.Context, req *raftypb.MembershipChangeRequest, opts ...grpc.CallOption) (*raftypb.MembershipChangeResponse, error) {
-	args := m.Called(ctx, req, opts)
-	resp, _ := args.Get(0).(*raftypb.MembershipChangeResponse)
-	return resp, args.Error(1)
-}
-
 func (m *MockRaftyClientTestify) SendBootstrapClusterRequest(ctx context.Context, req *raftypb.BootstrapClusterRequest, opts ...grpc.CallOption) (*raftypb.BootstrapClusterResponse, error) {
 	args := m.Called(ctx, req, opts)
 	resp, _ := args.Get(0).(*raftypb.BootstrapClusterResponse)

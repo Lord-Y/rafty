@@ -32,8 +32,6 @@ const (
 
 	// maxAppendEntries will hold how much append entries the leader will send to the follower at once
 	maxAppendEntries uint64 = 1000
-
-	membershipTimeoutSeconds = 10
 )
 
 // InitialPeer holds address of the peer
@@ -192,15 +190,11 @@ type Rafty struct {
 	// rpcVoteRequestChan will be used to handle rpc call
 	rpcVoteRequestChan chan RPCRequest
 
-	// rpcSendAppendEntriesRequestChan will be used to handle rpc call
+	// rpcAppendEntriesRequestChan is used by the leader to append entries
 	rpcAppendEntriesRequestChan chan RPCRequest
 
-	// triggerAppendEntriesChan is the chan that will trigger append entries
-	// without waiting leader hearbeat append entries
-	triggerAppendEntriesChan chan triggerAppendEntries
-
-	// rpcForwardCommandToLeaderRequestChan will be used to handle rpc client call to leader
-	rpcForwardCommandToLeaderRequestChan chan RPCRequest
+	// rpcAppendEntriesReplicationRequestChan is used by the followers to handle rpc call
+	rpcAppendEntriesReplicationRequestChan chan RPCRequest
 
 	// rpcAskNodeIDChan will be used to handle rpc call
 	rpcAskNodeIDChan chan RPCResponse
@@ -208,14 +202,8 @@ type Rafty struct {
 	// rpcClientGetLeaderChan will be used to handle rpc call
 	rpcClientGetLeaderChan chan RPCResponse
 
-	// rpcMembershipChangeRequestChan will be used by the leader to handle rpc call from followers
-	rpcMembershipChangeRequestChan chan RPCRequest
-
 	// rpcInstallSnapshotRequestChan will be used to install/restore snapshot
 	rpcInstallSnapshotRequestChan chan RPCRequest
-
-	// rpcMembershipChangeChan will be used to handle rpc call from the leader
-	rpcMembershipChangeChan chan RPCResponse
 
 	// rpcBootstrapClusterRequestChan will be used by the nodes when bootstrap cluster
 	// is needed
@@ -378,6 +366,9 @@ type Rafty struct {
 	// removal command to be safely be removed from the cluster.
 	// DON'T confuse it with daitToBePromoted flag
 	decommissioning atomic.Bool
+
+	// membershipChangeInProgress is set to true by the leader when membership change is ongoing
+	membershipChangeInProgress atomic.Bool
 
 	// askForMembership is an helper when set to true will make the current node
 	// to ask for membership in order to be part of the cluster

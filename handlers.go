@@ -189,6 +189,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	currentTerm := r.currentTerm.Load()
 	lastLogIndex := r.lastLogIndex.Load()
 	lastLogTerm := r.lastLogTerm.Load()
+	commitIndex := r.commitIndex.Load()
 	response := &raftypb.AppendEntryResponse{
 		Term:         currentTerm,
 		LastLogIndex: lastLogIndex,
@@ -229,17 +230,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 			return
 		}
 
-		if request.Term > currentTerm {
-			r.Logger.Warn().
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderId).
-				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
-				Msgf("My term is lower than peer")
-		}
 		r.switchState(Follower, stepDown, true, request.Term)
 	}
 
@@ -255,8 +245,11 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	r.leaderLastContactDate.Store(time.Now())
 	r.timer.Reset(r.heartbeatTimeout())
 
-	if (request.PrevLogIndex != lastLogIndex || request.PrevLogTerm != lastLogTerm) && !request.Catchup {
+	previousLogIndex, previousLogTerm := r.getPreviousLogIndexAndTerm()
+	if (request.PrevLogIndex != previousLogIndex || request.PrevLogTerm != previousLogTerm) && !request.Catchup {
 		response.LogNotFound = true
+		response.LastLogIndex = lastLogIndex
+		response.LastLogTerm = lastLogTerm
 		data.ResponseChan <- rpcResponse
 
 		if r.getState() != Down {
@@ -265,6 +258,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("id", r.id).
 				Str("state", r.getState().String()).
 				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("previousLogIndex", fmt.Sprintf("%d", previousLogIndex)).
+				Str("previousLogTerm", fmt.Sprintf("%d", previousLogTerm)).
 				Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
 				Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
 				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
@@ -279,21 +274,22 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		return
 	}
 
-	if !request.Heartbeat {
+	if request.Catchup {
 		var newEntries []*raftypb.LogEntry
 		for index, entry := range request.Entries {
 			r.Logger.Trace().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("term", fmt.Sprintf("%d", request.Term)).
 				Str("leaderAddress", request.LeaderAddress).
 				Str("leaderId", request.LeaderId).
 				Str("leaderCommitIndex", fmt.Sprintf("%d", request.LeaderCommitIndex)).
 				Str("leaderPrevLogIndex", fmt.Sprintf("%d", request.PrevLogIndex)).
+				Str("leaderPrevLogTerm", fmt.Sprintf("%d", request.PrevLogTerm)).
 				Str("leaderNewTotalLogs", fmt.Sprintf("%d", len(request.Entries))).
 				Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
-				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
+				Str("commitIndex", fmt.Sprintf("%d", commitIndex)).
 				Str("loopIndex", fmt.Sprintf("%d", index)).
 				Str("entryIndex", fmt.Sprintf("%d", entry.Index)).
 				Msgf("debug data received append entries")
@@ -303,27 +299,25 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				break
 			}
 
-			if lastLogIndex > 0 {
-				if entry.Term != lastLogTerm {
-					if err := r.logStore.DiscardLogs(entry.Index, lastLogIndex); err != nil {
-						r.Logger.Error().Err(err).
-							Str("address", r.Address.String()).
-							Str("id", r.id).
-							Str("state", r.getState().String()).
-							Str("term", fmt.Sprintf("%d", currentTerm)).
-							Str("rangeFrom", fmt.Sprintf("%d", entry.Index)).
-							Str("rangeTo", fmt.Sprintf("%d", lastLogIndex)).
-							Str("leaderAddress", request.LeaderAddress).
-							Str("leaderId", request.LeaderId).
-							Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
-							Msgf("Fail to remove conflicting log from range")
-						data.ResponseChan <- rpcResponse
-						return
-					}
-
-					newEntries = request.Entries[index:]
-					break
+			if lastLogIndex > 0 && entry.Term != lastLogTerm {
+				if err := r.logStore.DiscardLogs(entry.Index, lastLogIndex); err != nil {
+					r.Logger.Error().Err(err).
+						Str("address", r.Address.String()).
+						Str("id", r.id).
+						Str("state", r.getState().String()).
+						Str("term", fmt.Sprintf("%d", request.Term)).
+						Str("rangeFrom", fmt.Sprintf("%d", entry.Index)).
+						Str("rangeTo", fmt.Sprintf("%d", lastLogIndex)).
+						Str("leaderAddress", request.LeaderAddress).
+						Str("leaderId", request.LeaderId).
+						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
+						Msgf("Fail to remove conflicting log from range")
+					data.ResponseChan <- rpcResponse
+					return
 				}
+
+				newEntries = request.Entries[index:]
+				break
 			}
 		}
 
@@ -332,15 +326,17 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				panic(err)
 			}
 
-			r.lastLogIndex.Store(newEntries[lenEntries-1].Index)
-			r.lastLogTerm.Store(newEntries[lenEntries-1].Term)
+			lastLogIndex = newEntries[lenEntries-1].Index
+			lastLogTerm = newEntries[lenEntries-1].Term
+			r.lastLogIndex.Store(lastLogIndex)
+			r.lastLogTerm.Store(lastLogTerm)
 			for index := range newEntries {
 				if err := r.applyConfigEntry(newEntries[index]); err != nil {
 					r.Logger.Warn().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).
 						Str("state", r.getState().String()).
-						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("term", fmt.Sprintf("%d", request.Term)).
 						Str("leaderAddress", request.LeaderAddress).
 						Str("leaderId", request.LeaderId).
 						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
@@ -351,14 +347,14 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				panic(err)
 			}
 
-			if request.LeaderCommitIndex > r.commitIndex.Load() {
-				r.commitIndex.Store(min(request.LeaderCommitIndex, r.lastLogIndex.Load()))
+			if request.LeaderCommitIndex > commitIndex {
+				r.commitIndex.Store(min(request.LeaderCommitIndex, lastLogIndex))
 				if _, err := r.applyLogs(applyLogs{entries: newEntries}); err != nil {
 					r.Logger.Error().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).
 						Str("state", r.getState().String()).
-						Str("term", fmt.Sprintf("%d", currentTerm)).
+						Str("term", fmt.Sprintf("%d", request.Term)).
 						Str("leaderAddress", request.LeaderAddress).
 						Str("leaderId", request.LeaderId).
 						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
@@ -370,15 +366,15 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("address", r.Address.String()).
 				Str("id", r.id).
 				Str("state", r.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
+				Str("term", fmt.Sprintf("%d", request.Term)).
 				Str("leaderAddress", request.LeaderAddress).
 				Str("leaderId", request.LeaderId).
 				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 				Str("leaderCommitIndex", fmt.Sprintf("%d", request.LeaderCommitIndex)).
 				Str("leaderPrevLogIndex", fmt.Sprintf("%d", request.PrevLogIndex)).
 				Str("commitIndex", fmt.Sprintf("%d", r.commitIndex.Load())).
-				Str("lastLogIndex", fmt.Sprintf("%d", r.lastLogIndex.Load())).
-				Str("lastLogTerm", fmt.Sprintf("%d", r.lastLogTerm.Load())).
+				Str("lastLogIndex", fmt.Sprintf("%d", lastLogIndex)).
+				Str("lastLogTerm", fmt.Sprintf("%d", lastLogTerm)).
 				Str("lastApplied", fmt.Sprintf("%d", r.lastApplied.Load())).
 				Str("lastAppliedConfigIndex", fmt.Sprintf("%d", r.lastAppliedConfigIndex.Load())).
 				Str("lastAppliedConfigTerm", fmt.Sprintf("%d", r.lastAppliedConfigTerm.Load())).
@@ -389,6 +385,9 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 			}
 		}
 	}
+
+	response.LastLogIndex = lastLogIndex
+	response.LastLogTerm = lastLogTerm
 	response.Term = request.Term
 	response.Success = true
 	data.ResponseChan <- rpcResponse

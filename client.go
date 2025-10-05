@@ -7,7 +7,8 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
-// SubmitCommand allow clients to submit command to the leader
+// SubmitCommand allow clients to submit command to the leader.
+// Forwarded command will be multiplied by 5
 func (r *Rafty) SubmitCommand(timeout time.Duration, logKind logKind, command []byte) ([]byte, error) {
 	if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
 		return nil, ErrClusterNotBootstrapped
@@ -15,6 +16,7 @@ func (r *Rafty) SubmitCommand(timeout time.Duration, logKind logKind, command []
 	if timeout == 0 {
 		timeout = time.Second
 	}
+
 	switch logKind {
 	case LogReplication:
 		return r.submitCommandWrite(timeout, command)
@@ -29,17 +31,25 @@ func (r *Rafty) SubmitCommand(timeout time.Duration, logKind logKind, command []
 // submitCommandWrite is used to submit a command that will be written to the log and replicated to the followers
 func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byte, error) {
 	if r.getState() == Leader {
-		responseChan := make(chan appendEntriesResponse, 1)
+		responseChan := make(chan RPCResponse, 1)
 		select {
-		case r.triggerAppendEntriesChan <- triggerAppendEntries{command: command, responseChan: responseChan}:
+		case r.rpcAppendEntriesRequestChan <- RPCRequest{
+			RPCType: AppendEntriesRequest,
+			Request: replicateLogConfig{
+				logType:    LogReplication,
+				command:    command,
+				client:     true,
+				clientChan: responseChan,
+			},
+			ResponseChan: responseChan,
+		}:
 		case <-time.After(timeout):
 			return nil, ErrTimeout
 		}
 
-		// answer back to the client
 		select {
 		case response := <-responseChan:
-			return response.Data, response.Error
+			return nil, response.Error
 
 		case <-r.quitCtx.Done():
 			return nil, ErrShutdown
@@ -55,11 +65,12 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 	}
 
 	if client := r.connectionManager.getClient(leader.address); client != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*timeout)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*timeout)
 		defer cancel()
 		response, err := client.ForwardCommandToLeader(
 			ctx,
 			&raftypb.ForwardCommandToLeaderRequest{
+				LogType: uint32(LogReplication),
 				Command: command,
 			},
 		)
@@ -80,33 +91,32 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 // submitCommandReadLeader is used to submit a command that will be read from the state machine on the leader.
 // This command will not be written to the log and replicated to the followers
 func (r *Rafty) submitCommandReadLeader(timeout time.Duration, command []byte) ([]byte, error) {
-	if r.getState() == Leader {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		done := make(chan struct{}, 1)
-		var (
-			response []byte
-			err      error
-		)
-		go func() {
-			response, err = r.fsm.ApplyCommand(&LogEntry{LogType: uint32(LogCommandReadLeader), Command: command})
-			done <- struct{}{}
-		}()
-
-		// answer back to the client
-		select {
-		case <-done:
-			return response, err
-
-		case <-r.quitCtx.Done():
-			return nil, ErrShutdown
-
-		case <-ctx.Done():
-			return nil, ErrTimeout
-		}
+	if r.getState() != Leader {
+		return nil, ErrNoLeader
 	}
 
-	return nil, ErrNoLeader
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	done := make(chan struct{}, 1)
+	var (
+		response []byte
+		err      error
+	)
+	go func() {
+		response, err = r.fsm.ApplyCommand(&LogEntry{LogType: uint32(LogCommandReadLeader), Command: command})
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-done:
+		return response, err
+
+	case <-r.quitCtx.Done():
+		return nil, ErrShutdown
+
+	case <-ctx.Done():
+		return nil, ErrTimeout
+	}
 }
 
 // submitCommandReadStale is used to submit a command that will be read from the state machine on any node.
@@ -185,8 +195,29 @@ func (r *Rafty) BootstrapCluster(timeout time.Duration) error {
 	}
 }
 
-// DemoteMember is used by the current node to demote the provided member the cluster. An error will be returned if any
-func (r *Rafty) DemoteMember(timeout time.Duration, address, id string, readReplica bool) (*raftypb.MembershipChangeResponse, error) {
+// AddMember is used by the current node to add the provided member the cluster.
+// An error will be returned if any
+func (r *Rafty) AddMember(timeout time.Duration, address, id string, readReplica bool) error {
+	if timeout == 0 {
+		timeout = time.Second
+	}
+
+	return r.manageMembers(timeout, Add, address, id, readReplica)
+}
+
+// PromoteMember is used by the current node to promote the provided member the cluster.
+// An error will be returned if any
+func (r *Rafty) PromoteMember(timeout time.Duration, address, id string, readReplica bool) error {
+	if timeout == 0 {
+		timeout = time.Second
+	}
+
+	return r.manageMembers(timeout, Promote, address, id, readReplica)
+}
+
+// DemoteMember is used by the current node to demote the provided member the cluster.
+// An error will be returned if any
+func (r *Rafty) DemoteMember(timeout time.Duration, address, id string, readReplica bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
@@ -194,8 +225,9 @@ func (r *Rafty) DemoteMember(timeout time.Duration, address, id string, readRepl
 	return r.manageMembers(timeout, Demote, address, id, readReplica)
 }
 
-// RemoveMember is used by the current node to remove the provided member the cluster. An error will be returned if any
-func (r *Rafty) RemoveMember(timeout time.Duration, address, id string, readReplica bool) (*raftypb.MembershipChangeResponse, error) {
+// RemoveMember is used by the current node to remove the provided member the cluster.
+// An error will be returned if any
+func (r *Rafty) RemoveMember(timeout time.Duration, address, id string, readReplica bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
@@ -203,8 +235,9 @@ func (r *Rafty) RemoveMember(timeout time.Duration, address, id string, readRepl
 	return r.manageMembers(timeout, Remove, address, id, readReplica)
 }
 
-// ForceRemoveMember is used by the current node to force remove the provided member the cluster. An error will be returned if any
-func (r *Rafty) ForceRemoveMember(timeout time.Duration, address, id string, readReplica bool) (*raftypb.MembershipChangeResponse, error) {
+// ForceRemoveMember is used by the current node to force remove the provided member the cluster.
+// An error will be returned if any
+func (r *Rafty) ForceRemoveMember(timeout time.Duration, address, id string, readReplica bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
@@ -212,35 +245,90 @@ func (r *Rafty) ForceRemoveMember(timeout time.Duration, address, id string, rea
 	return r.manageMembers(timeout, ForceRemove, address, id, readReplica)
 }
 
+// LeaveOnTerminateMember is used by the current node to remove itself from the cluster the cluster.
+// An error will be returned if any
+func (r *Rafty) LeaveOnTerminateMember(timeout time.Duration, address, id string, readReplica bool) error {
+	if timeout == 0 {
+		timeout = time.Second
+	}
+
+	return r.manageMembers(timeout, LeaveOnTerminate, address, id, readReplica)
+}
+
 // manageMembers is a private func that handle all membership changes
-func (r *Rafty) manageMembers(timeout time.Duration, action MembershipChange, address, id string, readReplica bool) (*raftypb.MembershipChangeResponse, error) {
-	responseChan := make(chan RPCResponse, 1)
-
-	select {
-	case r.rpcMembershipChangeRequestChan <- RPCRequest{
-		RPCType: MembershipChangeRequest,
-		Request: &raftypb.MembershipChangeRequest{
-			Id:          id,
-			Address:     address,
-			ReadReplica: readReplica,
-			Action:      uint32(action),
-		},
-		ResponseChan: responseChan,
-	}:
-	case <-time.After(timeout):
-		return nil, ErrTimeout
+func (r *Rafty) manageMembers(timeout time.Duration, action MembershipChange, address, id string, readReplica bool) error {
+	member := Peer{
+		ID:          id,
+		Address:     address,
+		ReadReplica: readReplica,
+		address:     getNetAddress(address),
 	}
 
-	select {
-	case response := <-responseChan:
-		return response.Response.(*raftypb.MembershipChangeResponse), response.Error
+	if r.getState() == Leader {
+		responseChan := make(chan RPCResponse, 1)
 
-	case <-r.quitCtx.Done():
-		return nil, ErrShutdown
+		select {
+		case r.rpcAppendEntriesRequestChan <- RPCRequest{
+			RPCType: AppendEntriesRequest,
+			Request: replicateLogConfig{
+				logType:    LogConfiguration,
+				client:     true,
+				clientChan: responseChan,
+				membershipChange: struct {
+					action MembershipChange
+					member Peer
+				}{
+					member: member,
+					action: action,
+				},
+			},
+			ResponseChan: responseChan,
+		}:
+		case <-time.After(timeout):
+			return ErrTimeout
+		}
 
-	case <-time.After(timeout):
-		return nil, ErrTimeout
+		select {
+		case response := <-responseChan:
+			return response.Error
+
+		case <-r.quitCtx.Done():
+			return ErrShutdown
+
+		case <-time.After(timeout):
+			return ErrTimeout
+		}
 	}
+
+	leader := r.getLeader()
+	if leader == (leaderMap{}) {
+		return ErrNoLeader
+	}
+
+	if client := r.connectionManager.getClient(leader.address); client != nil {
+		// we encode only the member when we need to forward the command.
+		// on target server it will be decoded and the right list will be submitted.
+		// Normally, membership changes shouldn't be forwarded but we support it
+		encodePeer := EncodePeers([]Peer{member})
+		ctx, cancel := context.WithTimeout(context.Background(), 5*timeout)
+		defer cancel()
+		if _, err := client.ForwardCommandToLeader(ctx, &raftypb.ForwardCommandToLeaderRequest{
+			LogType:           uint32(LogConfiguration),
+			MembershipAction:  uint32(action),
+			MembershipTimeout: uint32(4 * timeout),
+			Command:           encodePeer,
+		}); err != nil {
+			r.Logger.Error().Err(err).
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("leaderAddress", leader.address).
+				Str("leaderId", leader.id).
+				Msgf("Fail to forward command to leader")
+			return err
+		}
+		return nil
+	}
+	return ErrClient
 }
 
 // Status return the current status of the node

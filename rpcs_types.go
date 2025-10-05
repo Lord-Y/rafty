@@ -18,18 +18,17 @@ const (
 	// VoteRequest is used during Vote request
 	VoteRequest
 
-	// AppendEntryRequest is used during append entry request
-	AppendEntryRequest
+	// AppendEntriesRequest is used by the leader to replicate logs to followers
+	AppendEntriesRequest
+
+	// AppendEntriesReplicationRequest is used during append entries request on follower side
+	AppendEntriesReplicationRequest
 
 	// ForwardCommandToLeader is used to forward command to leader
 	ForwardCommandToLeader
 
 	// TimeoutNow is used during leadership transfer
 	TimeoutNowRequest
-
-	// MembershipChangeRequest is used during membership changes
-	// by a new node that wants to be part of the cluster
-	MembershipChangeRequest
 
 	// BootstrapClusterRequest is used to bootstrap the cluster
 	BootstrapClusterRequest

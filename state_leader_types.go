@@ -14,6 +14,9 @@ type leader struct {
 	// mu is used to ensure lock concurrency
 	mu sync.Mutex
 
+	// murw is used to ensure r/w lock concurrency
+	murw sync.RWMutex
+
 	// leaseTimer is how long the leader will still be the leader.
 	// If the quorum of voters is unreachable, the it will step down as follower
 	leaseTimer *time.Ticker
@@ -51,14 +54,112 @@ type leader struct {
 	// When leadershipTransferTimer times out, the leadership transfer will be stopped
 	leadershipTransferInProgress atomic.Bool
 
-	// membershipChangeInProgress is set to true when membership change is ongoing
-	membershipChangeInProgress atomic.Bool
+	// commitChan is the leader commit chan used by followers
+	// to indicate that their nextIndex/matchIndex has been updated
+	commitChan chan commitChanConfig
 
-	// singleServerNewEntryChan is used by the leader every times it received
-	// a new log entry
-	singleServerNewEntryChan chan *onAppendEntriesRequest
+	// commitIndexWatcher is the map built by replicateLogs
+	// with the index of the that need to be replicated and
+	// its related informations
+	commitIndexWatcher map[uint64]*indexWatcher
+}
 
-	// singleServerReplicationStopped is used by the leader
-	// to stop ongoing append entries replication
-	singleServerReplicationStopped atomic.Bool
+// replicateLogConfig is a struct holding all requirements
+// to replicate logs
+type replicateLogConfig struct {
+	// heartbeat is a boolean indicating to it's use to keep leadership
+	heartbeat bool
+
+	// logKind represent the kind of the log
+	logType logKind
+
+	// command is the data to be replicated if not nil
+	command []byte
+
+	// source indicated if it's a submitCommand or a forwarded one
+	source string
+
+	// clientChan is a boolean that allow the leader
+	// to reply the client by using clientChan var
+	client bool
+
+	// clientChan is used by client var
+	clientChan chan<- RPCResponse
+
+	// membershipChange hold requirements related to membership changes
+	membershipChange struct {
+		// action is the membership change action to perform
+		action MembershipChange
+
+		// member is only used during membership change
+		member Peer
+	}
+}
+
+// indexWatcher is a struct holding informations about
+// the entry index we need to watch for
+type indexWatcher struct {
+	// majority represent how many nodes the append entries request
+	// has been successful.
+	// It will then be used with totalMajority var to determine whether
+	// logs must be committed on disk.
+	// It only incremented by voters
+	majority atomic.Uint64
+
+	// quorum is the minimum number to be reached before commit logs
+	// to disk
+	quorum uint64
+
+	// totalFollowers hold the total number of nodes for which the leader has sent
+	// the append entries request
+	totalFollowers uint64
+
+	// committed tell if the log entry has been committed
+	// as the quorum as been reach.
+	// When set to true, it's ready to be removed from commitIndexWatcher
+	committed atomic.Bool
+
+	// term is the term of the entry
+	term uint64
+
+	// logKind represent the kind of the log
+	logType logKind
+
+	// uuid is used only for debugging.
+	// It helps to differenciate append entries requests
+	uuid string
+
+	// logs are entries that need to be replicated and applied to the fsm
+	logs []*LogEntry
+
+	// membershipChange hold requirements related to membership changes
+	membershipChange struct {
+		// action is the membership change action to perform
+		action MembershipChange
+
+		// member is only used during membership change
+		member Peer
+	}
+
+	// source indicated if it's a submitCommand or a forwarded one
+	source string
+
+	// clientChan is a boolean that allow the leader
+	// to reply the client by using clientChan var
+	client bool
+
+	// clientChan is used by client var
+	clientChan chan<- RPCResponse
+}
+
+// commitChanConfig holds requirements to use
+// once follower updated its nextIndex / matchIndex.
+// We use this informations in order to avoid looping
+// over follower list and find requirements
+type commitChanConfig struct {
+	// id is the follower id
+	id string
+
+	// matchIndex is the index of the highest log entry known to be replicated on server initialized to 0, increases monotically
+	matchIndex uint64
 }

@@ -76,21 +76,9 @@ func (r *Rafty) runAsReadReplica() {
 			state.onTimeout()
 
 		// handle append entries from the leader
-		case data, ok := <-r.rpcAppendEntriesRequestChan:
+		case data, ok := <-r.rpcAppendEntriesReplicationRequestChan:
 			if ok {
 				r.handleSendAppendEntriesRequest(data)
-			}
-
-		// handle membership change response from leader
-		case data, ok := <-r.rpcMembershipChangeChan:
-			if ok {
-				r.membershipChangeResponse(data)
-			}
-
-		// handle membership sent when current node is NOT the leader
-		case data, ok := <-r.rpcMembershipChangeRequestChan:
-			if ok {
-				r.rpcMembershipNotLeader(data)
 			}
 
 		// handle install snapshot
@@ -138,21 +126,9 @@ func (r *Rafty) runAsFollower() {
 			}
 
 		// handle append entries from the leader
-		case data, ok := <-r.rpcAppendEntriesRequestChan:
+		case data, ok := <-r.rpcAppendEntriesReplicationRequestChan:
 			if ok {
 				r.handleSendAppendEntriesRequest(data)
-			}
-
-		// handle membership change response from leader
-		case data, ok := <-r.rpcMembershipChangeChan:
-			if ok {
-				r.membershipChangeResponse(data)
-			}
-
-		// handle membership sent when current node is NOT the leader
-		case data, ok := <-r.rpcMembershipChangeRequestChan:
-			if ok {
-				r.rpcMembershipNotLeader(data)
 			}
 
 		// handle install snapshot
@@ -213,15 +189,9 @@ func (r *Rafty) runAsCandidate() {
 			}
 
 		// handle append entries from the leader
-		case data, ok := <-r.rpcAppendEntriesRequestChan:
+		case data, ok := <-r.rpcAppendEntriesReplicationRequestChan:
 			if ok {
 				r.handleSendAppendEntriesRequest(data)
-			}
-
-		// handle membership sent when current node is NOT the leader
-		case data, ok := <-r.rpcMembershipChangeRequestChan:
-			if ok {
-				r.rpcMembershipNotLeader(data)
 			}
 
 		// handle install snapshot
@@ -249,7 +219,6 @@ func (r *Rafty) runAsLeader() {
 			r.drainPreVoteRequests()
 			r.drainVoteRequests()
 			r.drainAppendEntriesRequests()
-			r.drainMembershipChangeRequests()
 			r.drainInstallSnapshotRequests()
 			return
 
@@ -273,29 +242,16 @@ func (r *Rafty) runAsLeader() {
 				r.handleSendVoteRequest(data)
 			}
 
-		// handle append entries from the leader
+		// handle append entries on leader side
 		case data, ok := <-r.rpcAppendEntriesRequestChan:
 			if ok {
+				state.replicateLog(data.Request.(replicateLogConfig))
+			}
+
+		// handle append entries on follower side
+		case data, ok := <-r.rpcAppendEntriesReplicationRequestChan:
+			if ok {
 				r.handleSendAppendEntriesRequest(data)
-			}
-
-		// this chan is used by clients to apply commands on the leader
-		case data, ok := <-r.triggerAppendEntriesChan:
-			if ok {
-				state.handleAppendEntriesFromClients("trigger", data)
-			}
-
-		// commands sent by clients to Follower nodes will be forwarded to the leader
-		// to later apply commands
-		case data, ok := <-r.rpcForwardCommandToLeaderRequestChan:
-			if ok {
-				state.handleAppendEntriesFromClients("forwardCommand", data)
-			}
-
-		// handle membership sent by follower nodes to the leader
-		case data, ok := <-r.rpcMembershipChangeRequestChan:
-			if ok {
-				state.handleSendMembershipChangeRequest(data)
 			}
 
 		// handle install snapshot

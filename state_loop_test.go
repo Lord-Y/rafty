@@ -27,18 +27,6 @@ func TestStateLoop_runAsReadReplica(t *testing.T) {
 	s.State = ReadReplica
 	s.timer = time.NewTicker(s.randomElectionTimeout())
 
-	t.Run("membership", func(t *testing.T) {
-		go s.runAsReadReplica()
-		responseChan := make(chan RPCResponse, 1)
-		s.rpcMembershipChangeRequestChan <- RPCRequest{
-			RPCType:      MembershipChangeRequest,
-			Request:      &raftypb.MembershipChangeRequest{Id: "newnode", Address: "127.0.0.1:60000", Action: uint32(Add)},
-			ResponseChan: responseChan,
-		}
-		data := <-responseChan
-		assert.Equal(ErrNotLeader, data.Error)
-	})
-
 	t.Run("installSnapshot", func(t *testing.T) {
 		s.currentTerm.Store(2)
 		go s.runAsReadReplica()
@@ -67,19 +55,6 @@ func TestStateLoop_runAsFollower(t *testing.T) {
 	s.State = Follower
 	s.timer = time.NewTicker(s.randomElectionTimeout())
 
-	t.Run("membership", func(t *testing.T) {
-		s.askForMembershipInProgress.Store(true) // done this on purpose
-		go s.runAsFollower()
-		responseChan := make(chan RPCResponse, 1)
-		s.rpcMembershipChangeRequestChan <- RPCRequest{
-			RPCType:      MembershipChangeRequest,
-			Request:      &raftypb.MembershipChangeRequest{Id: "newnode", Address: "127.0.0.1:60000", Action: uint32(Add)},
-			ResponseChan: responseChan,
-		}
-		data := <-responseChan
-		assert.Equal(ErrNotLeader, data.Error)
-	})
-
 	t.Run("installSnapshot", func(t *testing.T) {
 		s.currentTerm.Store(2)
 		go s.runAsFollower()
@@ -107,19 +82,6 @@ func TestStateLoop_runAsCandidate(t *testing.T) {
 	s.isRunning.Store(true)
 	s.State = Candidate
 	s.timer = time.NewTicker(s.randomElectionTimeout())
-
-	t.Run("membership", func(t *testing.T) {
-		s.askForMembershipInProgress.Store(true) // done this on purpose
-		go s.runAsCandidate()
-		responseChan := make(chan RPCResponse, 1)
-		s.rpcMembershipChangeRequestChan <- RPCRequest{
-			RPCType:      MembershipChangeRequest,
-			Request:      &raftypb.MembershipChangeRequest{Id: "newnode", Address: "127.0.0.1:60000", Action: uint32(Add)},
-			ResponseChan: responseChan,
-		}
-		data := <-responseChan
-		assert.Equal(ErrNotLeader, data.Error)
-	})
 
 	t.Run("installSnapshot", func(t *testing.T) {
 		s.currentTerm.Store(2)
@@ -184,8 +146,8 @@ func TestStateLoop_runAsLeader(t *testing.T) {
 		id := 1
 		go s.runAsLeader()
 		responseChan := make(chan RPCResponse, 1)
-		s.rpcAppendEntriesRequestChan <- RPCRequest{
-			RPCType: AppendEntryRequest,
+		s.rpcAppendEntriesReplicationRequestChan <- RPCRequest{
+			RPCType: AppendEntriesReplicationRequest,
 			Request: &raftypb.AppendEntryRequest{
 				LeaderId:      s.configuration.ServerMembers[id].ID,
 				LeaderAddress: s.configuration.ServerMembers[id].address.String(),
@@ -261,14 +223,10 @@ func TestStateLoop_snapshotLoop(t *testing.T) {
 		s.options.SnapshotInterval = 2 * time.Second
 
 		for index := range 100 {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		go s.snapshotLoop()
 		time.Sleep(3 * time.Second)
@@ -292,14 +250,10 @@ func TestStateLoop_snapshotLoop(t *testing.T) {
 
 		snapshotTestHook = func() error { return errors.New("test error") }
 		for index := range 100 {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		go s.snapshotLoop()
 		time.Sleep(3 * time.Second)

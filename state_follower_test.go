@@ -1,7 +1,6 @@
 package rafty
 
 import (
-	"context"
 	"os"
 	"testing"
 	"time"
@@ -49,11 +48,5 @@ func TestStateFollower(t *testing.T) {
 		state.rafty.askForMembershipInProgress.Store(true)
 		defer state.rafty.askForMembershipInProgress.Store(true)
 		state.onTimeout()
-	})
-
-	t.Run("membership_stop", func(t *testing.T) {
-		s.quitCtx, s.stopCtx = context.WithTimeout(context.Background(), time.Second)
-		defer s.stopCtx()
-		state.askForMembership()
 	})
 }

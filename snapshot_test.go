@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 )
@@ -420,14 +419,10 @@ func TestSSnapshot(t *testing.T) {
 
 		max := 100
 		for index := range max {
-			var entries []*raftypb.LogEntry
-			entries = append(entries, &raftypb.LogEntry{
-				Term:    1,
-				Command: []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)),
-			})
-
-			s.updateEntriesIndex(entries)
-			assert.Nil(s.logStore.StoreLogs(makeLogEntries(entries)))
+			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 
 		_, err := s.takeSnapshot()

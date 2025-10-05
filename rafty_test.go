@@ -9,11 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Lord-Y/rafty/raftypb"
 	"github.com/jackc/fake"
 	"github.com/stretchr/testify/assert"
 	bolt "go.etcd.io/bbolt"
-	"google.golang.org/grpc"
 )
 
 func TestRafty_newRafty(t *testing.T) {
@@ -199,17 +197,11 @@ func TestRafty_restore(t *testing.T) {
 		assert.NotNil(encodedPeers)
 		s.options.BootstrapCluster = true
 
-		entry := &raftypb.LogEntry{
-			LogType: uint32(LogConfiguration),
-			Index:   1,
-			Term:    1,
-			Command: encodedPeers,
-		}
-		entries := makeLogEntry(entry)
-		protoEntries := makeProtobufLogEntries(entries)
-		s.updateEntriesIndex(protoEntries)
-		assert.Nil(s.logStore.StoreLogs(entries))
-		assert.Nil(s.applyConfigEntry(entry))
+		entry := makeNewLogEntry(s.currentTerm.Load(), LogConfiguration, encodedPeers)
+		logs := []*LogEntry{entry}
+		s.storeLogs(logs)
+		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
+
 		assert.Nil(s.clusterStore.StoreMetadata(s.buildMetadata()))
 		metadata, err := s.clusterStore.GetMetadata()
 		assert.Nil(err)
@@ -253,65 +245,6 @@ func TestRafty_restore(t *testing.T) {
 		_, err = NewRafty(s.Address, s.id, options, store, store, fsm, nil)
 		assert.Error(err)
 		assert.Nil(store.Close())
-	})
-}
-
-func TestRafty_stop(t *testing.T) {
-	assert := assert.New(t)
-
-	t.Run("force_timeout", func(t *testing.T) {
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		s.fillIDs()
-		s.State = Leader
-		s.isRunning.Store(true)
-		state := leader{rafty: s}
-		state.rafty.currentTerm.Store(1)
-		member := Peer{
-			ID:      s.configuration.ServerMembers[0].ID,
-			Address: s.configuration.ServerMembers[0].Address,
-		}
-		follower1 := &followerReplication{
-			Peer: Peer{
-				ID:      s.configuration.ServerMembers[0].ID,
-				Address: s.configuration.ServerMembers[0].Address,
-			},
-			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
-		}
-		follower2 := &followerReplication{
-			Peer: Peer{
-				ID:      s.configuration.ServerMembers[1].ID,
-				Address: s.configuration.ServerMembers[1].Address,
-			},
-			rafty:        s,
-			newEntryChan: make(chan *onAppendEntriesRequest, 1),
-		}
-		state.followerReplication = make(map[string]*followerReplication)
-		state.followerReplication[s.configuration.ServerMembers[0].ID] = follower1
-		state.followerReplication[s.configuration.ServerMembers[1].ID] = follower2
-
-		s.options.ForceStopTimeout = time.Second
-		s.grpcServer = grpc.NewServer(grpc.KeepaliveEnforcementPolicy(kaep), grpc.KeepaliveParams(kasp))
-		rpcManager := rpcManager{
-			rafty: s,
-		}
-		raftypb.RegisterRaftyServer(s.grpcServer, &rpcManager)
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			s.stop()
-		}()
-		go func() {
-			time.Sleep(2 * time.Second)
-			follower1.replicationStopped.Store(true)
-		}()
-
-		_, err := state.removeNode(LeaveOnTerminate, member)
-		assert.Nil(err)
-		s.wg.Wait()
 	})
 }
 
@@ -471,9 +404,11 @@ func TestRafty_start3Nodes_PrevoteDisabled(t *testing.T) {
 
 func TestRafty_start3Nodes_membership(t *testing.T) {
 	cc := clusterConfig{
-		t:           t,
-		testName:    "3_nodes_membership",
-		clusterSize: 3,
+		t:                t,
+		testName:         "3_nodes_membership",
+		clusterSize:      3,
+		electionTimeout:  2000,
+		heartbeatTimeout: 1000,
 		// runTestInParallel: true,
 		portStartRange: 39000,
 	}

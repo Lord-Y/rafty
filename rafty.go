@@ -99,17 +99,14 @@ No checks will be done when this flag is set so it must be set with cautious.
 // with server address and its id
 func NewRafty(address net.TCPAddr, id string, options Options, logStore LogStore, clusterStore ClusterStore, fsm StateMachine, snapshot SnapshotStore) (*Rafty, error) {
 	r := &Rafty{
-		rpcPreVoteRequestChan:                make(chan RPCRequest),
-		rpcVoteRequestChan:                   make(chan RPCRequest),
-		rpcAppendEntriesRequestChan:          make(chan RPCRequest),
-		triggerAppendEntriesChan:             make(chan triggerAppendEntries),
-		rpcForwardCommandToLeaderRequestChan: make(chan RPCRequest),
-		rpcAskNodeIDChan:                     make(chan RPCResponse),
-		rpcClientGetLeaderChan:               make(chan RPCResponse),
-		rpcMembershipChangeRequestChan:       make(chan RPCRequest),
-		rpcMembershipChangeChan:              make(chan RPCResponse),
-		rpcBootstrapClusterRequestChan:       make(chan RPCRequest),
-		rpcInstallSnapshotRequestChan:        make(chan RPCRequest),
+		rpcPreVoteRequestChan:                  make(chan RPCRequest),
+		rpcVoteRequestChan:                     make(chan RPCRequest),
+		rpcAppendEntriesRequestChan:            make(chan RPCRequest),
+		rpcAppendEntriesReplicationRequestChan: make(chan RPCRequest),
+		rpcAskNodeIDChan:                       make(chan RPCResponse),
+		rpcClientGetLeaderChan:                 make(chan RPCResponse),
+		rpcBootstrapClusterRequestChan:         make(chan RPCRequest),
+		rpcInstallSnapshotRequestChan:          make(chan RPCRequest),
 	}
 	r.Address = address
 	r.id = id
@@ -318,7 +315,7 @@ func (r *Rafty) Stop() {
 // stop permits to stop the gRPC server and Rafty with the provided configuration
 func (r *Rafty) stop() {
 	if r.options.LeaveOnTerminate && r.waitForLeader() {
-		r.sendMembershipChangeLeaveOnTerminate()
+		_ = r.LeaveOnTerminateMember(5, r.Address.String(), r.id, r.options.ReadReplica)
 	}
 	r.isRunning.Store(false)
 	r.stopCtx()
@@ -461,4 +458,45 @@ func (r *Rafty) restore(result []byte) error {
 		r.configuration.ServerMembers = append(r.configuration.ServerMembers, Peer{Address: server.Address})
 	}
 	return nil
+}
+
+// storeLogs will store logs to the long term storage.
+// If we cannot store them, the current node will step down
+// as follower
+func (r *Rafty) storeLogs(entries []*LogEntry) {
+	currentTerm := r.currentTerm.Load()
+	lastLogIndex := r.lastLogIndex.Load()
+
+	for _, entry := range entries {
+		lastLogIndex += 1
+		entry.Index = lastLogIndex
+		entry.Term = currentTerm
+	}
+
+	if err := r.logStore.StoreLogs(entries); err != nil {
+		r.switchState(Follower, stepDown, true, currentTerm)
+	}
+
+	r.lastLogIndex.Store(lastLogIndex)
+	r.lastLogTerm.Store(currentTerm)
+}
+
+// getPreviousLogIndexAndTerm will return the previous index and term
+// of last committed log
+func (r *Rafty) getPreviousLogIndexAndTerm() (uint64, uint64) {
+	if r.lastLogIndex.Load() == 0 {
+		return 0, 0
+	}
+
+	// if equal to last snapshot
+	if r.nextIndex.Load()-1 == r.lastIncludedIndex.Load() {
+		return r.lastIncludedIndex.Load(), r.lastIncludedTerm.Load()
+	}
+
+	result, err := r.logStore.GetLogByIndex(r.lastLogIndex.Load())
+	if err != nil {
+		return 0, 0
+	}
+
+	return result.Index, result.Term
 }
