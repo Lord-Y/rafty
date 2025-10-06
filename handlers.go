@@ -57,6 +57,14 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 		r.currentTerm.Store(request.CurrentTerm)
 		r.setVotedFor(request.CandidateId, request.CurrentTerm)
 
+		response.CurrentTerm = request.CurrentTerm
+		response.Granted = true
+		data.ResponseChan <- rpcResponse
+		r.switchState(Follower, stepDown, true, request.CurrentTerm)
+		if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
+			panic(err)
+		}
+
 		r.Logger.Trace().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
@@ -66,14 +74,6 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 			Str("peerId", request.CandidateId).
 			Str("peerTerm", fmt.Sprintf("%d", request.CurrentTerm)).
 			Msgf("Vote granted to peer")
-
-		r.switchState(Follower, stepDown, true, request.CurrentTerm)
-		if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-			panic(err)
-		}
-		response.CurrentTerm = request.CurrentTerm
-		response.Granted = true
-		data.ResponseChan <- rpcResponse
 		return
 	}
 
@@ -95,6 +95,8 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 
 	if votedFor != request.CandidateId && votedForTerm == request.CurrentTerm {
 		response.CurrentTerm = currentTerm
+		data.ResponseChan <- rpcResponse
+
 		r.Logger.Trace().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
@@ -104,8 +106,6 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 			Str("peerId", request.CandidateId).
 			Str("peerTerm", fmt.Sprintf("%d", request.CurrentTerm)).
 			Msgf("Vote request rejected to peer because I already voted")
-
-		data.ResponseChan <- rpcResponse
 		return
 	}
 
@@ -122,6 +122,12 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 			r.setVotedFor(request.CandidateId, request.CurrentTerm)
 			response.CurrentTerm = request.CurrentTerm
 			response.Granted = true
+			r.switchState(Follower, stepDown, false, request.CurrentTerm)
+			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
+				panic(err)
+			}
+			data.ResponseChan <- rpcResponse
+
 			r.Logger.Trace().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
@@ -131,16 +137,12 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 				Str("peerId", request.CandidateId).
 				Str("peerTerm", fmt.Sprintf("%d", request.CurrentTerm)).
 				Msgf("Vote granted to peer")
-
-			r.switchState(Follower, stepDown, false, request.CurrentTerm)
-			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-				panic(err)
-			}
-			data.ResponseChan <- rpcResponse
 			return
 		}
 
 		response.CurrentTerm = currentTerm
+		data.ResponseChan <- rpcResponse
+
 		r.Logger.Trace().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
@@ -152,12 +154,19 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 			Str("peerTerm", fmt.Sprintf("%d", request.CurrentTerm)).
 			Str("peerLastLogIndex", fmt.Sprintf("%d", request.LastLogIndex)).
 			Msgf("Vote request rejected to peer because of lastLogIndex")
-
-		data.ResponseChan <- rpcResponse
 		return
 	}
 
 	r.setVotedFor(request.CandidateId, request.CurrentTerm)
+	r.switchState(Follower, stepDown, false, request.CurrentTerm)
+	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
+		panic(err)
+	}
+
+	response.CurrentTerm = request.CurrentTerm
+	response.Granted = true
+	data.ResponseChan <- rpcResponse
+
 	r.Logger.Trace().
 		Str("address", r.Address.String()).
 		Str("id", r.id).
@@ -167,15 +176,6 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 		Str("peerId", request.CandidateId).
 		Str("peerTerm", fmt.Sprintf("%d", request.CurrentTerm)).
 		Msgf("Vote granted to peer")
-
-	r.switchState(Follower, stepDown, false, request.CurrentTerm)
-	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-		panic(err)
-	}
-
-	response.CurrentTerm = request.CurrentTerm
-	response.Granted = true
-	data.ResponseChan <- rpcResponse
 }
 
 // handleSendAppendEntriesRequest allow the current node to manage
@@ -292,6 +292,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("commitIndex", fmt.Sprintf("%d", commitIndex)).
 				Str("loopIndex", fmt.Sprintf("%d", index)).
 				Str("entryIndex", fmt.Sprintf("%d", entry.Index)).
+				Str("lastApplied", fmt.Sprintf("%d", r.lastApplied.Load())).
 				Msgf("debug data received append entries")
 
 			if entry.Index > lastLogIndex {
@@ -301,6 +302,7 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 
 			if lastLogIndex > 0 && entry.Term != lastLogTerm {
 				if err := r.logStore.DiscardLogs(entry.Index, lastLogIndex); err != nil {
+					data.ResponseChan <- rpcResponse
 					r.Logger.Error().Err(err).
 						Str("address", r.Address.String()).
 						Str("id", r.id).
@@ -312,7 +314,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 						Str("leaderId", request.LeaderId).
 						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
 						Msgf("Fail to remove conflicting log from range")
-					data.ResponseChan <- rpcResponse
 					return
 				}
 
@@ -362,6 +363,10 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				}
 			}
 
+			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
+				panic(err)
+			}
+
 			r.Logger.Debug().
 				Str("address", r.Address.String()).
 				Str("id", r.id).
@@ -379,10 +384,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				Str("lastAppliedConfigIndex", fmt.Sprintf("%d", r.lastAppliedConfigIndex.Load())).
 				Str("lastAppliedConfigTerm", fmt.Sprintf("%d", r.lastAppliedConfigTerm.Load())).
 				Msgf("Node state index updated")
-
-			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-				panic(err)
-			}
 		}
 	}
 
