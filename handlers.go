@@ -348,19 +348,20 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				panic(err)
 			}
 
+			if _, err := r.applyLogs(applyLogs{entries: newEntries}); err != nil {
+				r.Logger.Error().Err(err).
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Str("term", fmt.Sprintf("%d", request.Term)).
+					Str("leaderAddress", request.LeaderAddress).
+					Str("leaderId", request.LeaderId).
+					Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
+					Msgf("Fail to apply log entries to the fsm")
+			}
+
 			if request.LeaderCommitIndex > commitIndex {
 				r.commitIndex.Store(min(request.LeaderCommitIndex, lastLogIndex))
-				if _, err := r.applyLogs(applyLogs{entries: newEntries}); err != nil {
-					r.Logger.Error().Err(err).
-						Str("address", r.Address.String()).
-						Str("id", r.id).
-						Str("state", r.getState().String()).
-						Str("term", fmt.Sprintf("%d", request.Term)).
-						Str("leaderAddress", request.LeaderAddress).
-						Str("leaderId", request.LeaderId).
-						Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
-						Msgf("Fail to apply log entries to the fsm")
-				}
 			}
 
 			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {

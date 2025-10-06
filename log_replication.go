@@ -46,11 +46,6 @@ func (r *followerReplication) startStopFollowerReplication() {
 			case <-r.rafty.quitCtx.Done():
 				return
 			case <-time.After(backoff(replicationRetryTimeout, r.failures.Load(), replicationMaxRetry)):
-				// fmt.Println("RESETTED", r.ID, r.failures.Load())
-				// if r.failures.Load() > replicationMaxRetry*2 {
-				// 	// reset failures as the node may be back
-				// 	r.failures.Store(0)
-				// }
 			}
 		}
 
@@ -99,6 +94,7 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 	// That will reduce network traffic
 	if r.rafty.matchIndex.Load() == 0 || !heartbeat {
 		r.catchup.Store(true)
+		defer r.catchup.Store(false)
 		response = r.rafty.logStore.GetLogsByRange(previousLogIndex, r.nextIndex.Load(), r.rafty.options.MaxAppendEntries)
 	}
 
@@ -287,6 +283,8 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 	if response != nil && response.Success && r.matchIndex.Load() != response.LastLogIndex {
 		r.nextIndex.Store(response.LastLogIndex + 1)
 		r.matchIndex.Store(response.LastLogIndex)
+		oldResponse.LastLogIndex = response.LastLogIndex
+		oldResponse.LastLogTerm = response.LastLogTerm
 		if !r.ReadReplica {
 			select {
 			case <-r.rafty.quitCtx.Done():
