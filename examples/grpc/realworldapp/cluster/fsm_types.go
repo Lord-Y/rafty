@@ -1,0 +1,60 @@
+package cluster
+
+import "github.com/Lord-Y/rafty"
+
+// fsmState is a struct holding a set of configs required for fsm
+type fsmState struct {
+	// LogStore is the store holding the data
+	logStore rafty.LogStore
+
+	// memoryStore is only for user land management
+	memoryStore memoryStore
+}
+
+// commandKind represent the command that will be applied to the state machine
+// It can be only be Get, Set, Delete
+type commandKind uint32
+
+const (
+	// kvCommandGet command allow us to fetch data from kv fsm store
+	kvCommandGet commandKind = iota
+
+	// kvCommandSet command allow us to write data from kv fsm store
+	kvCommandSet
+
+	// kvCommandDelete command allow us to delete data from kv fsm store
+	kvCommandDelete
+
+	// kvCommandGet command allow us to fetch data from users fsm store
+	userCommandGet
+
+	// userCommandSet command allow us to write data from users fsm store
+	userCommandSet
+
+	// userCommandDelete command allow us to delete data from users fsm store
+	userCommandDelete
+)
+
+// kvCommand is the struct to use to interact with cluster kv data
+type kvCommand struct {
+	// Kind represent the set of commands: get, set, del
+	Kind commandKind
+
+	// Key is the name of the key
+	Key string
+
+	// Value is the value associated to the key
+	Value string
+}
+
+// userCommand is the struct to use to interact with cluster data
+type userCommand struct {
+	// Kind represent the set of commands: get, set, del
+	Kind commandKind
+
+	// Key is the name of the key
+	Key string
+
+	// Value is the value associated to the key
+	Value string
+}
