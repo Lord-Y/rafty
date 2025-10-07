@@ -9,7 +9,7 @@ import (
 
 // SubmitCommand allow clients to submit command to the leader.
 // Forwarded command will be multiplied by 5
-func (r *Rafty) SubmitCommand(timeout time.Duration, logKind logKind, command []byte) ([]byte, error) {
+func (r *Rafty) SubmitCommand(timeout time.Duration, logKind LogKind, command []byte) ([]byte, error) {
 	if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
 		return nil, ErrClusterNotBootstrapped
 	}

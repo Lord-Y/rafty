@@ -4,14 +4,14 @@ import (
 	"github.com/Lord-Y/rafty/raftypb"
 )
 
-// logKind represent the kind of the log
-type logKind uint8
+// LogKind represent the kind of the log
+type LogKind uint8
 
 const (
 	// logNoop is a log type used only by the leader
 	// to keep the log index and term in sync with followers
 	// when stepping up as leader
-	LogNoop logKind = iota
+	LogNoop LogKind = iota
 
 	// logConfiguration is a log type used between nodes
 	// when configuration need to change

@@ -80,7 +80,7 @@ func (in *LogInMemory) GetLastConfiguration() (*LogEntry, error) {
 	keys := slices.Sorted(maps.Keys(in.logs))
 	slices.Reverse(keys)
 	for index := range keys {
-		if val, ok := in.logs[uint64(index)]; ok && logKind(val.LogType) == LogConfiguration {
+		if val, ok := in.logs[uint64(index)]; ok && LogKind(val.LogType) == LogConfiguration {
 			return val, nil
 		}
 	}

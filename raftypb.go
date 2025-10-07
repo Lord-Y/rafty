@@ -238,7 +238,7 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 	timeout := time.Second
 	var request RPCRequest
 	responseChan := make(chan RPCResponse, 1)
-	switch logKind(in.LogType) {
+	switch LogKind(in.LogType) {
 	case LogCommandReadLeader:
 		if r.rafty.IsLeader() {
 			response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: in.LogType, Command: in.Command})
