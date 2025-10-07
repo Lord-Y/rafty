@@ -91,32 +91,37 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 // submitCommandReadLeader is used to submit a command that will be read from the state machine on the leader.
 // This command will not be written to the log and replicated to the followers
 func (r *Rafty) submitCommandReadLeader(timeout time.Duration, command []byte) ([]byte, error) {
-	if r.getState() != Leader {
+	if r.getState() == Leader {
+		return r.fsm.ApplyCommand(&LogEntry{LogType: uint32(LogCommandReadLeader), Command: command})
+	}
+
+	if !r.waitForLeader() {
 		return nil, ErrNoLeader
 	}
+	leader := r.getLeader()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	done := make(chan struct{}, 1)
-	var (
-		response []byte
-		err      error
-	)
-	go func() {
-		response, err = r.fsm.ApplyCommand(&LogEntry{LogType: uint32(LogCommandReadLeader), Command: command})
-		done <- struct{}{}
-	}()
-
-	select {
-	case <-done:
-		return response, err
-
-	case <-r.quitCtx.Done():
-		return nil, ErrShutdown
-
-	case <-ctx.Done():
-		return nil, ErrTimeout
+	if client := r.connectionManager.getClient(leader.address); client != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*timeout)
+		defer cancel()
+		response, err := client.ForwardCommandToLeader(
+			ctx,
+			&raftypb.ForwardCommandToLeaderRequest{
+				LogType: uint32(LogCommandReadLeader),
+				Command: command,
+			},
+		)
+		if err != nil {
+			r.Logger.Error().Err(err).
+				Str("address", r.Address.String()).
+				Str("id", r.id).
+				Str("leaderAddress", leader.address).
+				Str("leaderId", leader.id).
+				Msgf("Fail to forward command to leader")
+			return nil, err
+		}
+		return response.Data, err
 	}
+	return nil, ErrClient
 }
 
 // submitCommandReadStale is used to submit a command that will be read from the state machine on any node.
@@ -134,7 +139,6 @@ func (r *Rafty) submitCommandReadStale(timeout time.Duration, command []byte) ([
 		done <- struct{}{}
 	}()
 
-	// answer back to the client
 	select {
 	case <-done:
 		return response, err
