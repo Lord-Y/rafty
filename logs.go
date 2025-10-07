@@ -9,7 +9,7 @@ import (
 )
 
 // String return a human readable state of the raft server
-func (s logKind) String() string {
+func (s LogKind) String() string {
 	switch s {
 	case LogConfiguration:
 		return "logConfiguration"
@@ -33,7 +33,7 @@ func (r *Rafty) newLogs() logs {
 
 // makeNewLogEntry will make a new log entry based
 // on the provided parameters
-func makeNewLogEntry(term uint64, logType logKind, command []byte) *LogEntry {
+func makeNewLogEntry(term uint64, logType LogKind, command []byte) *LogEntry {
 	return &LogEntry{
 		LogType:   uint32(logType),
 		Timestamp: uint32(time.Now().Unix()),

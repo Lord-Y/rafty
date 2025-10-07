@@ -23,7 +23,7 @@ func TestLogs(t *testing.T) {
 
 	t.Run("string", func(t *testing.T) {
 
-		tests := []logKind{
+		tests := []LogKind{
 			LogNoop,
 			LogConfiguration,
 			LogReplication,

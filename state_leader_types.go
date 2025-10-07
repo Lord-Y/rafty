@@ -70,8 +70,8 @@ type replicateLogConfig struct {
 	// heartbeat is a boolean indicating to it's use to keep leadership
 	heartbeat bool
 
-	// logKind represent the kind of the log
-	logType logKind
+	// logType represent the kind of the log
+	logType LogKind
 
 	// command is the data to be replicated if not nil
 	command []byte
@@ -122,8 +122,8 @@ type indexWatcher struct {
 	// term is the term of the entry
 	term uint64
 
-	// logKind represent the kind of the log
-	logType logKind
+	// LogKind represent the kind of the log
+	logType LogKind
 
 	// uuid is used only for debugging.
 	// It helps to differenciate append entries requests
