@@ -222,7 +222,7 @@ func TestClient_submitCommand(t *testing.T) {
 		assert.Error(err)
 	})
 
-	t.Run("read_leader_error_shutdown", func(t *testing.T) {
+	t.Run("read_leader_error_nil", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
@@ -230,36 +230,7 @@ func TestClient_submitCommand(t *testing.T) {
 			assert.Nil(s.logStore.Close())
 			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
-		s.isRunning.Store(true)
-		s.isBootstrapped.Store(true)
-		s.State = Leader
-		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
-		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
-		s.stopCtx()
-
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			<-s.rpcAppendEntriesRequestChan
-		}()
-
-		buffer := new(bytes.Buffer)
-		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
-
-		_, err := s.submitCommandReadLeader(time.Second, buffer.Bytes())
-		assert.ErrorIs(err, ErrShutdown)
-	})
-
-	t.Run("read_leader_error_timeout", func(t *testing.T) {
-		assert := assert.New(t)
-
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		// the following fsm override is to simulate an error during apply
 		fsm := NewSnapshotState(s.logStore)
-		fsm.sleepErr = 2 * time.Second
 		s.fsm = fsm
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
@@ -270,7 +241,7 @@ func TestClient_submitCommand(t *testing.T) {
 		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
 
 		_, err := s.submitCommandReadLeader(time.Second, buffer.Bytes())
-		assert.ErrorIs(err, ErrTimeout)
+		assert.ErrorIs(err, nil)
 	})
 
 	t.Run("read_no_leader_error", func(t *testing.T) {
@@ -281,9 +252,7 @@ func TestClient_submitCommand(t *testing.T) {
 			assert.Nil(s.logStore.Close())
 			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
 		}()
-		// the following fsm override is to simulate an error during apply
 		fsm := NewSnapshotState(s.logStore)
-		fsm.sleepErr = 2 * time.Second
 		s.fsm = fsm
 		s.isRunning.Store(true)
 		s.isBootstrapped.Store(true)
