@@ -10,6 +10,27 @@ import (
 	"github.com/Lord-Y/rafty"
 )
 
+// String return a human readable state of the raft server
+func (s commandKind) String() string {
+	switch s {
+	case kvCommandGetAll:
+		return "kvCommandGetAll"
+	case kvCommandSet:
+		return "kvCommandSet"
+	case kvCommandDelete:
+		return "kvCommandDelete"
+	case userCommandGetAll:
+		return "userCommandGetAll"
+	case userCommandGet:
+		return "userCommandGet"
+	case userCommandSet:
+		return "userCommandSet"
+	case userCommandDelete:
+		return "userCommandDelete"
+	}
+	return "kvCommandGet"
+}
+
 // newFSMState will return new fsm state
 func newFSMState(logStore rafty.LogStore) *fsmState {
 	return &fsmState{
@@ -111,10 +132,10 @@ func (f *fsmState) ApplyCommand(log *rafty.LogEntry) ([]byte, error) {
 	}
 
 	switch kind {
-	case userCommandSet, userCommandGet, userCommandDelete:
+	case userCommandSet, userCommandGet, userCommandGetAll, userCommandDelete:
 		return f.userApplyCommand(log)
 
-	case kvCommandSet, kvCommandGet, kvCommandDelete:
+	case kvCommandSet, kvCommandGet, kvCommandGetAll, kvCommandDelete:
 		return f.kvApplyCommand(log)
 	}
 

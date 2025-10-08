@@ -3,6 +3,7 @@ package cluster
 import (
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"io"
 
 	"github.com/Lord-Y/rafty"
@@ -67,6 +68,13 @@ func kvDecodeCommand(data []byte) (kvCommand, error) {
 func (f *fsmState) kvApplyCommand(log *rafty.LogEntry) ([]byte, error) {
 	decodedCmd, _ := kvDecodeCommand(log.Command)
 
+	if rafty.LogKind(log.LogType) == rafty.LogCommandReadLeader {
+		if decodedCmd.Kind == kvCommandGetAll {
+			return f.memoryStore.usersEncoded()
+		}
+		return f.memoryStore.kvGet([]byte(decodedCmd.Key))
+	}
+
 	switch decodedCmd.Kind {
 	case kvCommandSet:
 		return nil, f.memoryStore.kvSet([]byte(decodedCmd.Key), []byte(decodedCmd.Value))
@@ -83,4 +91,47 @@ func (f *fsmState) kvApplyCommand(log *rafty.LogEntry) ([]byte, error) {
 	}
 
 	return nil, nil
+}
+
+// unmarshalBinaryWithChecksumKVCommand permit to decode data in binary format
+// by validating its checksum before moving further
+func unmarshalBinaryWithChecksumKVCommand(data []byte) (userCommand, error) {
+	if len(data) < 4 {
+		return userCommand{}, rafty.ErrChecksumDataTooShort
+	}
+
+	body := data[:len(data)-4]
+	checksum := binary.LittleEndian.Uint32(data[len(data)-4:])
+
+	if crc32.ChecksumIEEE(body) != checksum {
+		return userCommand{}, rafty.ErrChecksumMistmatch
+	}
+
+	return userDecodeCommand(body)
+}
+
+// kvsDecoded decodes binary data with checksum
+func kvsDecoded(data []byte) ([]userCommand, error) {
+	var cmds []userCommand
+	buffer := bytes.NewBuffer(data)
+
+	for buffer.Len() > 0 {
+		var length uint32
+		if err := binary.Read(buffer, binary.LittleEndian, &length); err != nil {
+			return nil, err
+		}
+
+		// Read first 4 bytes to get entry size
+		record := make([]byte, length)
+		if _, err := io.ReadFull(buffer, record); err != nil {
+			return nil, err
+		}
+
+		cmd, err := unmarshalBinaryWithChecksumKVCommand(record)
+		if err != nil {
+			return nil, err
+		}
+		cmds = append(cmds, cmd)
+	}
+	return cmds, nil
 }

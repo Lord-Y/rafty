@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/Lord-Y/rafty"
@@ -34,12 +33,24 @@ func (cc *Cluster) createKV(c *gin.Context) {
 func (cc *Cluster) fetchKV(c *gin.Context) {
 	data := KV{Key: c.Params.ByName("name")}
 
-	result, err := cc.fsm.memoryStore.kvGet([]byte(data.Key))
+	if cc.rafty.IsLeader() {
+		result, err := cc.fsm.memoryStore.kvGet([]byte(data.Key))
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": rafty.ErrKeyNotFound.Error()})
+			return
+		}
+		data.Value = string(result)
+
+		c.JSON(http.StatusOK, data)
+		return
+	}
+
+	result, err := cc.submitCommandKVRead(kvCommandGet, &data)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": rafty.ErrKeyNotFound.Error()})
 		return
 	}
-	data.Value = string(result)
+	data.Value = string(result.([]byte))
 
 	c.JSON(http.StatusOK, data)
 }
@@ -68,24 +79,41 @@ func (cc *Cluster) deleteKV(c *gin.Context) {
 func (cc *Cluster) fetchKVs(c *gin.Context) {
 	var data []*KV
 
-	result, err := cc.fsm.memoryStore.kvGetAll()
+	if cc.rafty.IsLeader() {
+		result, err := cc.fsm.memoryStore.kvGetAll()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if result == nil {
+			data = []*KV{}
+		} else {
+			data = result
+		}
+
+		c.JSON(http.StatusOK, data)
+		return
+	}
+
+	result, err := cc.submitCommandUserRead(userCommandGetAll, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	if result == nil {
 		data = []*KV{}
 	} else {
-		for _, v := range result {
-			var kv KV
-			if err := json.Unmarshal(v, &kv); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
+		cmds, err := kvsDecoded(result)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		for _, v := range cmds {
 			data = append(data, &KV{
-				Key:   string(kv.Key),
-				Value: string(kv.Value),
+				Key:   v.Key,
+				Value: v.Value,
 			})
 		}
 	}

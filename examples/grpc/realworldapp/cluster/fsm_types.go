@@ -19,6 +19,9 @@ const (
 	// kvCommandGet command allow us to fetch data from kv fsm store
 	kvCommandGet commandKind = iota
 
+	// kvCommandGetAll command allow us to fetch all data from kv fsm store
+	kvCommandGetAll
+
 	// kvCommandSet command allow us to write data from kv fsm store
 	kvCommandSet
 
@@ -27,6 +30,9 @@ const (
 
 	// kvCommandGet command allow us to fetch data from users fsm store
 	userCommandGet
+
+	// userCommandGetAll command allow us to fetch all data from users fsm store
+	userCommandGetAll
 
 	// userCommandSet command allow us to write data from users fsm store
 	userCommandSet
