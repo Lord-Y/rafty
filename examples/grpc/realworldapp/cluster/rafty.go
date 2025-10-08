@@ -8,13 +8,11 @@ import (
 
 func (c *Cluster) newRafty() (*rafty.Rafty, error) {
 	options := rafty.Options{
-		// Logger:             c.Logger,
+		Logger:             c.Logger,
 		DataDir:            c.dataDir,
 		MinimumClusterSize: 3,
 		InitialPeers:       c.buildPeers(),
-		// ElectionTimeout:    2000,
-		// HeartbeatTimeout:   1000,
-		SnapshotInterval: 30 * time.Second,
+		SnapshotInterval:   30 * time.Second,
 	}
 
 	store, err := c.buildStore()
