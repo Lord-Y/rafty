@@ -22,7 +22,7 @@ go run main.go server --http-port 15082 --grpc-port 15052 --member 127.0.0.1:150
 Let's see the result:
 ```bash
 # POST
-curl 127.0.0.1:15082/api/v1/user -d "firstname=key1&lastname=value2"
+i=1 && curl 127.0.0.1:15081/api/v1/user -d "firstname=key$i&lastname=value$i"
 # result:
 {"message":"OK"}
 
@@ -37,6 +37,18 @@ key=1 && for i in 80 81 82; do echo $i && curl "127.0.0.1:150$i/api/v1/user/key$
 
 82
 {"firstname":"key1","lastname":"value1"}
+
+# GET ALL
+for i in 80 81 82; do echo $i && curl "127.0.0.1:150$i/api/v1/users" && echo -e "\n";done
+# result:
+80
+[{"firstname":"key1","lastname":"value1"}]
+
+81
+[{"firstname":"key1","lastname":"value1"}]
+
+82
+[{"firstname":"key1","lastname":"value1"}]
 
 # DELETE
 i=1 && curl -XDELETE "127.0.0.1:15081/api/v1/user/key$i"
@@ -63,6 +75,18 @@ key=1 && for i in 80 81 82; do echo $i && curl "127.0.0.1:150$i/api/v1/kv/key$ke
 
 82
 {"key":"key1","value":"value1"}
+
+# GET ALL
+for i in 80 81 82; do echo $i && curl "127.0.0.1:150$i/api/v1/kvs" && echo -e "\n";done
+# result:
+80
+[{"key":"key1","value":"value1"}]
+
+81
+[{"key":"key1","value":"value1"}]
+
+82
+[{"key":"key1","value":"value1"}]
 
 # DELETE
 i=1 && curl -XDELETE "127.0.0.1:15081/api/v1/kv/key$i"

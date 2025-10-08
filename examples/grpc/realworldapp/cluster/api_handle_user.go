@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/Lord-Y/rafty"
@@ -34,7 +33,19 @@ func (cc *Cluster) createUser(c *gin.Context) {
 func (cc *Cluster) fetchUser(c *gin.Context) {
 	data := User{Firstname: c.Params.ByName("name")}
 
-	result, err := cc.fsm.memoryStore.usersGet([]byte(data.Firstname))
+	if cc.rafty.IsLeader() {
+		result, err := cc.fsm.memoryStore.usersGet([]byte(data.Firstname))
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": rafty.ErrKeyNotFound.Error()})
+			return
+		}
+		data.Lastname = string(result)
+
+		c.JSON(http.StatusOK, data)
+		return
+	}
+
+	result, err := cc.submitCommandUserRead(userCommandGet, &data)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": rafty.ErrKeyNotFound.Error()})
 		return
@@ -68,24 +79,41 @@ func (cc *Cluster) deleteUser(c *gin.Context) {
 func (cc *Cluster) fetchUsers(c *gin.Context) {
 	var data []*User
 
-	result, err := cc.fsm.memoryStore.usersGetAll()
+	if cc.rafty.IsLeader() {
+		result, err := cc.fsm.memoryStore.usersGetAll()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if result == nil {
+			data = []*User{}
+		} else {
+			data = result
+		}
+
+		c.JSON(http.StatusOK, data)
+		return
+	}
+
+	result, err := cc.submitCommandUserRead(userCommandGetAll, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-
 	if result == nil {
 		data = []*User{}
 	} else {
-		for _, v := range result {
-			var user User
-			if err := json.Unmarshal(v, &user); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
+		cmds, err := usersDecoded(result)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		for _, v := range cmds {
 			data = append(data, &User{
-				Firstname: string(user.Firstname),
-				Lastname:  string(user.Lastname),
+				Firstname: v.Key,
+				Lastname:  v.Value,
 			})
 		}
 	}

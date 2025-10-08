@@ -20,6 +20,22 @@ func (c *Cluster) submitCommandUserWrite(kind commandKind, data *User) error {
 	return nil
 }
 
+// submitCommandUserRead will send a read command to the leader
+func (c *Cluster) submitCommandUserRead(kind commandKind, data *User) ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	if kind == userCommandGetAll {
+		if err := userEncodeCommand(userCommand{Kind: kind}, buffer); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := userEncodeCommand(userCommand{Kind: kind, Key: data.Firstname}, buffer); err != nil {
+			return nil, err
+		}
+	}
+
+	return c.rafty.SubmitCommand(time.Second, rafty.LogCommandReadLeader, buffer.Bytes())
+}
+
 // submitCommandKVWrite will send a write command to the leader
 func (c *Cluster) submitCommandKVWrite(kind commandKind, data *KV) error {
 	buffer := new(bytes.Buffer)
@@ -31,4 +47,14 @@ func (c *Cluster) submitCommandKVWrite(kind commandKind, data *KV) error {
 		return err
 	}
 	return nil
+}
+
+// submitCommandUserRead will send a read command to the leader
+func (c *Cluster) submitCommandKVRead(kind commandKind, data *KV) (any, error) {
+	buffer := new(bytes.Buffer)
+	if err := kvEncodeCommand(kvCommand{Kind: kind, Key: data.Key}, buffer); err != nil {
+		return nil, err
+	}
+
+	return c.rafty.SubmitCommand(time.Second, rafty.LogCommandReadLeader, buffer.Bytes())
 }

@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"bytes"
+
 	"github.com/Lord-Y/rafty"
 )
 
@@ -48,7 +50,7 @@ func (m *memoryStore) kvDelete(key []byte) {
 
 // kvGetAll will fetch all kv from the k/v store.
 // An error will be returned if the any
-func (m *memoryStore) kvGetAll() (u [][]byte, err error) {
+func (m *memoryStore) kvGetAll() (z []*KV, err error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -56,8 +58,39 @@ func (m *memoryStore) kvGetAll() (u [][]byte, err error) {
 		return nil, nil
 	}
 
-	for _, v := range m.kv {
-		u = append(u, v)
+	for k, v := range m.kv {
+		z = append(z, &KV{Key: k, Value: string(v)})
 	}
 	return
+}
+
+// kvsEncoded will fetch all users from the kv store.
+// kv will be binary encoded when command is forwarded
+// to the leader.
+// An error will be returned if the any
+func (m *memoryStore) kvsEncoded() (u []byte, err error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if len(m.kv) == 0 {
+		return nil, nil
+	}
+
+	bufferChecksum := new(bytes.Buffer)
+	for k, v := range m.kv {
+		buffer := new(bytes.Buffer)
+		data := KV{
+			Key:   string(k),
+			Value: string(v),
+		}
+
+		if err := kvEncodeCommand(kvCommand{Kind: kvCommandGetAll, Key: data.Key, Value: data.Value}, buffer); err != nil {
+			return nil, err
+		}
+
+		if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
+			return nil, err
+		}
+	}
+	return bufferChecksum.Bytes(), nil
 }

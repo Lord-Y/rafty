@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"bytes"
+
 	"github.com/Lord-Y/rafty"
 )
 
@@ -48,7 +50,7 @@ func (m *memoryStore) usersDelete(key []byte) {
 
 // usersGetAll will fetch all users from the users store.
 // An error will be returned if the any
-func (m *memoryStore) usersGetAll() (u [][]byte, err error) {
+func (m *memoryStore) usersGetAll() (z []*User, err error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -56,8 +58,39 @@ func (m *memoryStore) usersGetAll() (u [][]byte, err error) {
 		return nil, nil
 	}
 
-	for _, v := range m.users {
-		u = append(u, v)
+	for k, v := range m.users {
+		z = append(z, &User{Firstname: k, Lastname: string(v)})
 	}
 	return
+}
+
+// usersEncoded will fetch all users from the users store.
+// users will be binary encoded when command is forwarded
+// to the leader.
+// An error will be returned if the any
+func (m *memoryStore) usersEncoded() (u []byte, err error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if len(m.users) == 0 {
+		return nil, nil
+	}
+
+	bufferChecksum := new(bytes.Buffer)
+	for k, v := range m.users {
+		buffer := new(bytes.Buffer)
+		data := User{
+			Firstname: string(k),
+			Lastname:  string(v),
+		}
+
+		if err := userEncodeCommand(userCommand{Kind: userCommandGetAll, Key: data.Firstname, Value: data.Lastname}, buffer); err != nil {
+			return nil, err
+		}
+
+		if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
+			return nil, err
+		}
+	}
+	return bufferChecksum.Bytes(), nil
 }
