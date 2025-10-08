@@ -119,7 +119,7 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 
 	if response.CurrentTerm > response.RequesterTerm {
 		r.rafty.currentTerm.Store(response.CurrentTerm)
-		r.rafty.switchState(Follower, stepDown, false, response.CurrentTerm)
+		r.rafty.switchState(Follower, stepDown, true, response.CurrentTerm)
 		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 			panic(err)
 		}
@@ -223,7 +223,7 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 			Msgf("Peer has higher term than me")
 
 		r.rafty.currentTerm.Store(response.CurrentTerm)
-		r.rafty.switchState(Follower, stepDown, false, response.CurrentTerm)
+		r.rafty.switchState(Follower, stepDown, true, response.CurrentTerm)
 		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
 			panic(err)
 		}
