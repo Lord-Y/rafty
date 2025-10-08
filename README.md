@@ -51,6 +51,10 @@ Here is a list of the supported features of `rafty`:
   - [x] InstallSnapshot RPC call
 - [x] Prometheus metrics
 
+## Real world app
+
+See [real world app](https://github.com/Lord-Y/rafty/tree/main/examples/grpc/realworldapp) as implentation example.
+
 ## References
 
 - https://github.com/logcabin/logcabin
