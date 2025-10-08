@@ -89,7 +89,6 @@ func (f *fsmState) Snapshot(snapshotWriter io.Writer) error {
 
 // Restore allow us to restore a snapshot
 func (f *fsmState) Restore(snapshotReader io.Reader) error {
-	var logs []*rafty.LogEntry
 	reader := bufio.NewReader(snapshotReader)
 
 	for {
@@ -111,9 +110,8 @@ func (f *fsmState) Restore(snapshotReader io.Reader) error {
 		if err != nil {
 			return err
 		}
-
-		if data != nil {
-			logs = append(logs, data)
+		if _, err := f.ApplyCommand(data); err != nil {
+			return err
 		}
 	}
 
@@ -122,7 +120,7 @@ func (f *fsmState) Restore(snapshotReader io.Reader) error {
 
 // ApplyCommand allow us to apply a command to the state machine.
 func (f *fsmState) ApplyCommand(log *rafty.LogEntry) ([]byte, error) {
-	if log.Command == nil {
+	if log.Command == nil || rafty.LogKind(log.LogType) == rafty.LogNoop {
 		return nil, nil
 	}
 
