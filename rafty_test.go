@@ -104,7 +104,8 @@ func TestRafty_newRafty(t *testing.T) {
 				store, err := NewBoltStorage(storeOptions)
 				assert.Nil(err)
 				fsm := NewSnapshotState(store)
-				r, err := NewRafty(address, tc.id, options, store, store, fsm, nil)
+				snapshot := NewSnapshot(options.DataDir, 3)
+				r, err := NewRafty(address, tc.id, options, store, store, fsm, snapshot)
 				assert.Nil(err)
 				assert.Equal(tc.TimeMultiplierExpected, r.options.TimeMultiplier)
 				assert.Equal(tc.MinimumClusterSizeExpected, r.options.MinimumClusterSize)
@@ -282,6 +283,89 @@ func TestRafty_built_metadata(t *testing.T) {
 	s.lastApplied.Store(1)
 
 	assert.NotNil(s.buildMetadata())
+}
+
+func TestRafty_storeLogs(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+	}()
+	s.currentTerm.Store(1)
+	s.lastApplied.Store(1)
+	s.State = Leader
+
+	assert.Nil(s.logStore.Close())
+	entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
+	logs := []*LogEntry{entry}
+	s.storeLogs(logs)
+	assert.Equal(s.State, Follower)
+}
+
+func TestRafty_getPreviousLogIndexAndTerm(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("zero", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+
+		index, term := s.getPreviousLogIndexAndTerm()
+		assert.Equal(uint64(0), index)
+		assert.Equal(uint64(0), term)
+	})
+
+	t.Run("next_index", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.nextIndex.Store(2)
+		s.lastLogIndex.Store(2)
+		s.lastIncludedIndex.Store(1)
+		s.lastIncludedTerm.Store(1)
+
+		index, term := s.getPreviousLogIndexAndTerm()
+		assert.Equal(s.lastIncludedIndex.Load(), index)
+		assert.Equal(s.lastIncludedTerm.Load(), term)
+	})
+
+	t.Run("error_zero", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.nextIndex.Store(2)
+		s.lastLogIndex.Store(50)
+		s.lastLogTerm.Store(1)
+
+		index, term := s.getPreviousLogIndexAndTerm()
+		assert.Equal(uint64(0), index)
+		assert.Equal(uint64(0), term)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+
+		s.currentTerm.Store(1)
+		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
+		logs := []*LogEntry{entry}
+		s.storeLogs(logs)
+		s.nextIndex.Store(2)
+
+		index, term := s.getPreviousLogIndexAndTerm()
+		assert.Equal(s.lastLogIndex.Load(), index)
+		assert.Equal(s.currentTerm.Load(), term)
+	})
 }
 
 func TestRafty_start3Nodes_normal(t *testing.T) {
