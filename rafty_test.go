@@ -197,10 +197,14 @@ func TestRafty_restore(t *testing.T) {
 		assert.NotNil(encodedPeers)
 		s.options.BootstrapCluster = true
 
-		entry := makeNewLogEntry(s.currentTerm.Load(), LogConfiguration, encodedPeers)
-		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
-		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
+		for index := range 100 {
+			entry := makeNewLogEntry(1, LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
+			logs := []*LogEntry{entry}
+			s.storeLogs(logs)
+			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
+		}
+		_, err := s.takeSnapshot()
+		assert.Nil(err)
 
 		assert.Nil(s.clusterStore.StoreMetadata(s.buildMetadata()))
 		metadata, err := s.clusterStore.GetMetadata()

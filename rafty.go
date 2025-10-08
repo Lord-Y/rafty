@@ -451,6 +451,21 @@ func (r *Rafty) restore(result []byte) error {
 		if len(data.Configuration.ServerMembers) > 0 {
 			r.configuration.ServerMembers = data.Configuration.ServerMembers
 		}
+
+		snapshots := r.snapshot.List()
+		if len(snapshots) > 0 {
+			metadata := snapshots[0]
+			_, file, err := r.snapshot.PrepareSnapshotReader(metadata.SnapshotName)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				_ = file.Close()
+			}()
+			if err := r.fsm.Restore(file); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 
