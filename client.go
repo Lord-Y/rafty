@@ -348,8 +348,13 @@ func (r *Rafty) Leader() (bool, string, string) {
 	}
 }
 
-// IsRunning return a boolean tell if the node is running
+// IsRunning return a boolean if the node is running
 // and ready to perform its duty
 func (r *Rafty) IsRunning() bool {
 	return r.isRunning.Load()
+}
+
+// AskForMembership return a boolean if the node is must ask for membership
+func (r *Rafty) AskForMembership() bool {
+	return r.askForMembership.Load()
 }
