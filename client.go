@@ -22,8 +22,6 @@ func (r *Rafty) SubmitCommand(timeout time.Duration, logKind LogKind, command []
 		return r.submitCommandWrite(timeout, command)
 	case LogCommandReadLeader:
 		return r.submitCommandReadLeader(timeout, command)
-	case LogCommandReadStale:
-		return r.submitCommandReadStale(timeout, command)
 	}
 	return nil, ErrLogCommandNotAllowed
 }
@@ -122,33 +120,6 @@ func (r *Rafty) submitCommandReadLeader(timeout time.Duration, command []byte) (
 		return response.Data, err
 	}
 	return nil, ErrClient
-}
-
-// submitCommandReadStale is used to submit a command that will be read from the state machine on any node.
-// This command will not be written to the log and replicated to the followers
-func (r *Rafty) submitCommandReadStale(timeout time.Duration, command []byte) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	done := make(chan struct{}, 1)
-	var (
-		response []byte
-		err      error
-	)
-	go func() {
-		response, err = r.fsm.ApplyCommand(&LogEntry{LogType: uint32(LogCommandReadStale), Command: command})
-		done <- struct{}{}
-	}()
-
-	select {
-	case <-done:
-		return response, err
-
-	case <-r.quitCtx.Done():
-		return nil, ErrShutdown
-
-	case <-ctx.Done():
-		return nil, ErrTimeout
-	}
 }
 
 // applyLogs apply the provided logs to the state machine

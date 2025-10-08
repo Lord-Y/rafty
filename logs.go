@@ -17,8 +17,6 @@ func (s LogKind) String() string {
 		return "logReplication"
 	case LogCommandReadLeader:
 		return "logCommandReadLeader"
-	case LogCommandReadStale:
-		return "logCommandReadStale"
 	}
 	return "logNoop"
 }
