@@ -1081,3 +1081,14 @@ func TestClient_isRunning(t *testing.T) {
 	}()
 	assert.Equal(false, s.IsRunning())
 }
+
+func TestClient_askForMembership(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+	}()
+	assert.Equal(false, s.AskForMembership())
+}
