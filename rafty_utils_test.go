@@ -430,14 +430,6 @@ func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup) {
 						Msgf("Failed to submit commmand to node")
 					cc.assert.Error(err)
 				}
-
-				if _, err := node.SubmitCommand(0, LogCommandReadStale, bufferRead.Bytes()); err != nil {
-					node.Logger.Error().Err(err).
-						Str("node", fmt.Sprintf("%d", i)).
-						Str("logType", "LogCommandReadStale").
-						Msgf("Failed to submit commmand to node")
-					cc.assert.Error(err)
-				}
 			})
 		})
 	}

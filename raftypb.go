@@ -252,15 +252,6 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 
 		return &raftypb.ForwardCommandToLeaderResponse{}, ErrNotLeader
 
-	case LogCommandReadStale:
-		response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: in.LogType, Command: in.Command})
-		return &raftypb.ForwardCommandToLeaderResponse{
-			LeaderId:      r.rafty.id,
-			LeaderAddress: r.rafty.Address.String(),
-			Data:          response,
-			Error:         fmt.Sprintf("%v", err),
-		}, err
-
 	case LogConfiguration:
 		if r.rafty.getState() != Leader {
 			return &raftypb.ForwardCommandToLeaderResponse{

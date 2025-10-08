@@ -23,10 +23,6 @@ const (
 
 	// logCommanRead is a log type use by clients to fetch data from the leader
 	LogCommandReadLeader
-
-	// logCommandReadStale is a log type use by clients to fetch data from any nodes.
-	// if the current node is not a leader you may fetch outdated data
-	LogCommandReadStale
 )
 
 // logs hold all requirements to manipulate logs
