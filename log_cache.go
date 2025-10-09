@@ -2,6 +2,8 @@ package rafty
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 )
 
@@ -136,6 +138,20 @@ func (lc *LogCache) DiscardLogs(minIndex, maxIndex uint64) error {
 	lc.mu.Unlock()
 
 	return lc.logStore.DiscardLogs(minIndex, maxIndex)
+}
+
+// CompactLogs permits to wipe all entries lower than the provided index
+func (lc *LogCache) CompactLogs(index uint64) error {
+	lc.mu.Lock()
+	keys := slices.Sorted(maps.Keys(lc.logs))
+	for key := range keys {
+		if uint64(key) < index {
+			delete(lc.logs, fmt.Sprintf("%d", index))
+		}
+	}
+	lc.mu.Unlock()
+
+	return lc.logStore.CompactLogs(index)
 }
 
 // FirstIndex return data from cache when exist otherwise

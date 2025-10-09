@@ -206,6 +206,46 @@ func TestLogCache(t *testing.T) {
 		assert.Nil(cacheStore.DiscardLogs(0, 100))
 	})
 
+	t.Run("cache_compact_logs", func(t *testing.T) {
+		boltOptions := BoltOptions{
+			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_compact_logs"),
+			Options: bbolt.DefaultOptions,
+		}
+
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+		}()
+		store, err := NewBoltStorage(boltOptions)
+		assert.Nil(err)
+
+		cacheOptions := LogCacheOptions{
+			LogStore:     store,
+			CacheOnWrite: true,
+		}
+		cacheStore := NewLogCache(cacheOptions)
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+			assert.Nil(cacheStore.Close())
+		}()
+
+		max := uint64(100)
+		key := max - 1
+		assert.Nil(cacheStore.CompactLogs(max))
+
+		var logs []*LogEntry
+		for index := range max {
+			logs = append(logs, &LogEntry{
+				Index: index,
+				Term:  1,
+			})
+		}
+
+		assert.Nil(cacheStore.StoreLogs(logs))
+		assert.Nil(cacheStore.CompactLogs(key))
+		_, err = cacheStore.GetLogByIndex(key)
+		assert.Nil(err)
+	})
+
 	t.Run("cache_first_index_last_index", func(t *testing.T) {
 		boltOptions := BoltOptions{
 			DataDir: filepath.Join(os.TempDir(), "rafty_test", "cache_first_index_last_index"),

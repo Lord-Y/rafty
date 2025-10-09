@@ -102,6 +102,20 @@ func (in *LogInMemory) DiscardLogs(minIndex, maxIndex uint64) error {
 	return nil
 }
 
+// CompactLogs permits to wipe all entries lower than the provided index
+func (in *LogInMemory) CompactLogs(index uint64) error {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+
+	keys := slices.Sorted(maps.Keys(in.logs))
+	for key := range keys {
+		if uint64(key) < index {
+			delete(in.logs, uint64(key))
+		}
+	}
+	return nil
+}
+
 // FirstIndex return fist index from in memory
 func (in *LogInMemory) FirstIndex() (uint64, error) {
 	in.mu.RLock()
