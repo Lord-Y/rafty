@@ -29,7 +29,7 @@ type SnapshotConfig struct {
 	maxSnapshots int
 }
 
-// SnapshotMetadata hold the snapshot metadata
+// SnapshotMetadata holds the snapshot metadata
 type SnapshotMetadata struct {
 	// LastIncludedIndex is the last index included in the snapshot
 	LastIncludedIndex uint64 `json:"lastIncludedIndex"`
@@ -37,7 +37,7 @@ type SnapshotMetadata struct {
 	// LastIncludedTerm is the term of LastIncludedIndex
 	LastIncludedTerm uint64 `json:"lastIncludedTerm"`
 
-	// Configuration hold server members
+	// Configuration holds server members
 	Configuration Configuration `json:"configuration"`
 
 	// LastAppliedConfig is the index of the highest log entry configuration applied to the current raft server
@@ -70,7 +70,7 @@ type SnapshotStore interface {
 	List() []*SnapshotMetadata
 }
 
-// SnapshotManager allow us to manage snapshots
+// SnapshotManager allows us to manage snapshots
 type SnapshotManager struct {
 	io.ReadWriteSeeker
 

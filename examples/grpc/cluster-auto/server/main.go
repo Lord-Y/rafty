@@ -183,18 +183,18 @@ func main() {
 	go cc.startCluster()
 }
 
-// userLogInMemory hold the requirements related to user data
-type userLogInMemory struct {
-	// mu hold locking mecanism
+// userLogsInMemory holds the requirements related to user data
+type userLogsInMemory struct {
+	// mu holds locking mecanism
 	mu sync.RWMutex
 
 	// userStore map holds a map of the log entries
 	userStore map[uint64]*rafty.LogEntry
 
-	// metadata map holds the a map of metadata store
+	// metadata map holds a map of metadata store
 	metadata map[string][]byte
 
-	// kv map holds the a map of k/v store
+	// kv map holds a map of k/v store
 	kv map[string][]byte
 }
 
@@ -206,7 +206,7 @@ type SnapshotState struct {
 	logStore rafty.LogStore
 
 	// userStore is only for user land management
-	userStore userLogInMemory
+	userStore userLogsInMemory
 }
 
 // CommandKind represent the command that will be applied to the state machine
@@ -214,13 +214,13 @@ type SnapshotState struct {
 type CommandKind uint32
 
 const (
-	// commandGet command allow us to fetch data from the cluster
+	// commandGet command allows us to fetch data from the cluster
 	CommandGet CommandKind = iota
 
-	// CommandSet command allow us to write data from the cluster
+	// CommandSet command allows us to write data from the cluster
 	CommandSet
 
-	// CommandDelete command allow us to delete data from the cluster
+	// CommandDelete command allows us to delete data from the cluster
 	CommandDelete
 )
 
@@ -291,12 +291,12 @@ func DecodeCommand(data []byte) (Command, error) {
 	return cmd, nil
 }
 
-// NewSnapshotState return a SnapshotState that allow us to
+// NewSnapshotState return a SnapshotState that allows us to
 // take or restore snapshots
 func NewSnapshotState(logStore rafty.LogStore) *SnapshotState {
 	return &SnapshotState{
 		logStore: logStore,
-		userStore: userLogInMemory{
+		userStore: userLogsInMemory{
 			userStore: make(map[uint64]*rafty.LogEntry),
 			metadata:  make(map[string][]byte),
 			kv:        make(map[string][]byte),
@@ -304,7 +304,7 @@ func NewSnapshotState(logStore rafty.LogStore) *SnapshotState {
 	}
 }
 
-// Snapshot allow us to take snapshots
+// Snapshot allows us to take snapshots
 func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
 	var err error
 	firstIndex, err := s.logStore.FirstIndex()
@@ -343,7 +343,7 @@ func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
 	return nil
 }
 
-// Restore allow us to restore a snapshot
+// Restore allows us to restore a snapshot
 func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
 	var logs []*rafty.LogEntry
 	reader := bufio.NewReader(snapshotReader)
@@ -376,7 +376,7 @@ func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
 	return s.logStore.StoreLogs(logs)
 }
 
-// ApplyCommand allow us to apply a command to the state machine.
+// ApplyCommand allows us to apply a command to the state machine.
 func (s *SnapshotState) ApplyCommand(log *rafty.LogEntry) ([]byte, error) {
 	if log.Command == nil {
 		return nil, nil
@@ -402,7 +402,7 @@ func (s *SnapshotState) ApplyCommand(log *rafty.LogEntry) ([]byte, error) {
 
 // Set will add key/value to the k/v store.
 // An error will be returned if necessary
-func (in *userLogInMemory) Set(key, value []byte) error {
+func (in *userLogsInMemory) Set(key, value []byte) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
@@ -412,7 +412,7 @@ func (in *userLogInMemory) Set(key, value []byte) error {
 
 // Get will fetch provided key from the k/v store.
 // An error will be returned if the key is not found
-func (in *userLogInMemory) Get(key []byte) ([]byte, error) {
+func (in *userLogsInMemory) Get(key []byte) ([]byte, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
@@ -424,7 +424,7 @@ func (in *userLogInMemory) Get(key []byte) ([]byte, error) {
 
 // Set will add key/value to the k/v store.
 // An error will be returned if necessary
-func (in *userLogInMemory) SetUint64(key, value []byte) error {
+func (in *userLogsInMemory) SetUint64(key, value []byte) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
@@ -434,7 +434,7 @@ func (in *userLogInMemory) SetUint64(key, value []byte) error {
 
 // Get will fetch provided key from the k/v store.
 // An error will be returned if the key is not found
-func (in *userLogInMemory) GetUint64(key []byte) uint64 {
+func (in *userLogsInMemory) GetUint64(key []byte) uint64 {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 

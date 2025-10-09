@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// NewSnapshot will return the snapshot config that allow us to
+// NewSnapshot will return the snapshot config that allows us to
 // manage snapshots
 func NewSnapshot(dataDir string, maxSnapshots int) *SnapshotConfig {
 	if maxSnapshots == 0 {

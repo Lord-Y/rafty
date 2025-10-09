@@ -30,7 +30,7 @@ const (
 	// If no leader, a new election campaign will be started
 	heartbeatTimeout int = 500
 
-	// maxAppendEntries will hold how much append entries the leader will send to the follower at once
+	// maxAppendEntries will holds how much append entries the leader will send to the follower at once
 	maxAppendEntries uint64 = 1000
 )
 
@@ -62,7 +62,7 @@ type rpcManager struct {
 	rafty *Rafty
 }
 
-// Options hold config that will be modified by users
+// Options holds config that will be modified by users
 type Options struct {
 	// logSource is only use during unit testing running in parallel in order to
 	// better debug logs
@@ -96,7 +96,7 @@ type Options struct {
 	// all members of the cluster will be contacted before any other tasks
 	MinimumClusterSize uint64
 
-	// MaxAppendEntries will hold how much append entries the leader will send to the follower at once
+	// MaxAppendEntries will holds how much append entries the leader will send to the follower at once
 	MaxAppendEntries uint64
 
 	// DataDir is the default data directory that will be used to store all data on the disk. It's required
@@ -106,10 +106,10 @@ type Options struct {
 	// This kind of node won't participate into any election campaign
 	ReadReplica bool
 
-	// Peers hold the list of the peers
+	// Peers holds the list of the peers
 	InitialPeers []InitialPeer
 
-	// PrevoteDisabled is a boolean the allow us to directly start
+	// PrevoteDisabled is a boolean the allows us to directly start
 	// vote election without pre vote step
 	PrevoteDisabled bool
 
@@ -176,7 +176,7 @@ type Rafty struct {
 	// grpc listener
 	listener net.Listener
 
-	// grpcServer hold requirements for grpc server
+	// grpcServer holds requirements for grpc server
 	grpcServer *grpc.Server
 
 	// timer is used during the election campaign or heartbeat.
@@ -215,7 +215,7 @@ type Rafty struct {
 	// leaderCount is only related to rpc call GetLeader
 	leaderCount atomic.Uint64
 
-	// leader hold informations about the leader
+	// leader holds informations about the leader
 	leader sync.Map
 
 	// leaderLastContactDate is the last date we heard the leader
@@ -299,7 +299,7 @@ type Rafty struct {
 	// initialized to 0, increases monotically
 	matchIndex atomic.Uint64
 
-	// logs allow us to manipulate logs
+	// logs allows us to manipulate logs
 	logs logs
 
 	// logStore is long term storage backend only for raft logs.
@@ -327,7 +327,7 @@ type Rafty struct {
 	// Users must use their own buckets with stateMachine when use ApplyCommand.
 	clusterStore ClusterStore
 
-	// snapshot hold the configuration to manage snapshots
+	// snapshot holds the configuration to manage snapshots
 	snapshot SnapshotStore
 
 	// lastIncludedIndex is the index included in the last snapshot
@@ -340,7 +340,7 @@ type Rafty struct {
 	// to interact with the raft cluster
 	fsm StateMachine
 
-	// configuration hold server members found on disk
+	// configuration holds server members found on disk
 	// If empty, it will be equal to Peers list
 	//
 	// When a new member has been found into Peers list and not on disk
@@ -351,10 +351,10 @@ type Rafty struct {
 	// so a cluster membership will be initiated in order to add it
 	configuration Configuration
 
-	// connectionManager hold connections for all members
+	// connectionManager holds connections for all members
 	connectionManager connectionManager
 
-	// storage hold requirements to store/restore logs and metadata
+	// storage holds requirements to store/restore logs and metadata
 	storage storage
 
 	// waitToBePromoted is an helper when set to true will prevent current
@@ -389,7 +389,7 @@ type Rafty struct {
 	// while waiting. Once boostrapped, it will switched back to initial election timeout
 	isBootstrapped atomic.Bool
 
-	// metrics hold all prometheus metrics for rafty
+	// metrics holds all prometheus metrics for rafty
 	metrics *metrics
 }
 

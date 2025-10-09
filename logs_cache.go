@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// NewLogsCache allow us to configure the cache with the provided store option
+// NewLogsCache allows us to configure the cache with the provided store option
 func NewLogsCache(options LogsCacheOptions) *LogsCache {
 	var ttl time.Duration
 	if options.TTL == 0 {

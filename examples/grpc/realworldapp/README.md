@@ -1,6 +1,6 @@
 # realworldapp
 
-This is a basic implementation of `rafty` with an `api` that allow us to `CRUD` users.
+This is a basic implementation of `rafty` with an `api` that allows us to `CRUD` users.
 
 ## Start the cluster
 

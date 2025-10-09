@@ -77,7 +77,7 @@ func (f *fsmState) userApplyCommand(log *rafty.LogEntry) ([]byte, error) {
 
 	switch decodedCmd.Kind {
 	case userCommandSet:
-		return nil, f.memoryStore.usersSet([]byte(decodedCmd.Key), []byte(decodedCmd.Value))
+		return nil, f.memoryStore.usersSet(log, []byte(decodedCmd.Key), []byte(decodedCmd.Value))
 
 	case userCommandGet:
 		value, err := f.memoryStore.usersGet([]byte(decodedCmd.Key))

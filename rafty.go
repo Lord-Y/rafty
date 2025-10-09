@@ -372,7 +372,7 @@ func (r *Rafty) checkNodeIDs() bool {
 	return false
 }
 
-// startClusterWithMinimumSize allow us to reach minimum cluster size
+// startClusterWithMinimumSize allows us to reach minimum cluster size
 // before doing anything else
 func (r *Rafty) startClusterWithMinimumSize() {
 	timer := time.NewTicker(5 * time.Second)
@@ -428,7 +428,7 @@ func (r *Rafty) buildMetadata() []byte {
 	return result
 }
 
-// restore allow us to restore last applied configuration
+// restore allows us to restore last applied configuration
 // and many other requirements
 func (r *Rafty) restore(result []byte) error {
 	if len(result) > 0 {
