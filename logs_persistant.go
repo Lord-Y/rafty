@@ -8,7 +8,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// NewBoltStorage allow us to configure bolt storage with the provided options
+// NewBoltStorage allows us to configure bolt storage with the provided options
 func NewBoltStorage(options BoltOptions) (*BoltStore, error) {
 	var (
 		db  *bolt.DB

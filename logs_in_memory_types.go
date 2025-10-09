@@ -4,9 +4,9 @@ import (
 	"sync"
 )
 
-// LogsInMemory hold the requirements related to in memory rafty data
+// LogsInMemory holds the requirements related to in memory rafty data
 type LogsInMemory struct {
-	// mu hold locking mecanism
+	// mu holds locking mecanism
 	mu sync.RWMutex
 
 	// logs map holds a map of the log entries

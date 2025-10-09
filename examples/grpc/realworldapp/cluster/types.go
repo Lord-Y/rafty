@@ -10,7 +10,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// Cluster hold all required configuration to start the instance
+// Cluster holds all required configuration to start the instance
 type Cluster struct {
 	Logger *zerolog.Logger
 
@@ -37,27 +37,37 @@ type Cluster struct {
 
 	quit chan os.Signal
 
-	// fsm hold requirements to manipulate store
+	// fsm holds requirements to manipulate store
 	fsm *fsmState
 
-	// rafty hold rafty cluster config
+	// rafty holds rafty cluster config
 	rafty *rafty.Rafty
 
-	// apiServer hold the config of the HTTP API server
+	// apiServer holds the config of the HTTP API server
 	apiServer *http.Server
 }
 
-// memoryStore hold the requirements related to user data
+// data holds informations about the decoded command and its log index.
+// this index is used to know what entry to drop or override
+type data struct {
+	// index is the index of the log entry
+	index uint64
+
+	// value is the value of the command
+	value []byte
+}
+
+// memoryStore holds the requirements related to user data
 type memoryStore struct {
-	// mu hold locking mecanism
+	// mu holds locking mecanism
 	mu sync.RWMutex
 
 	// logs map holds a map of the log entries
 	logs map[uint64]*rafty.LogEntry
 
-	// kv map holds the a map of k/v store
-	kv map[string][]byte
+	// kv map holds a map of decoded k/v store
+	kv map[string]data
 
-	// users map holds the a map of users store
-	users map[string][]byte
+	// users map holds a map of decoded users store
+	users map[string]data
 }

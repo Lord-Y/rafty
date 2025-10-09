@@ -20,10 +20,10 @@ type connectionManager struct {
 	// mu is used to ensure lock concurrency
 	mu sync.Mutex
 
-	// connections hold gprc server connection for all clients
+	// connections holds gprc server connection for all clients
 	connections map[string]*grpc.ClientConn
 
-	// clients hold gprc rafty client for all clients
+	// clients holds gprc rafty client for all clients
 	clients map[string]raftypb.RaftyClient
 
 	// Logger expose zerolog so it can be override

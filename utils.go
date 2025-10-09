@@ -284,7 +284,7 @@ func isPartOfTheCluster(list []Peer, member Peer) bool {
 	return true
 }
 
-// waitForLeader is an helper that allow us to wait and find
+// waitForLeader is an helper that allows us to wait and find
 // the leader before. It's actually used when we need to send LeaveOnTerminate
 // to fully remove itself from the cluster.
 // It can also be used for other purposes

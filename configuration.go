@@ -4,7 +4,7 @@ import (
 	"net"
 )
 
-// Peer hold configuration needed by a peer node
+// Peer holds configuration needed by a peer node
 type Peer struct {
 	// Address is the address of a peer node, must be just the ip or ip:port
 	Address string `json:"address"`
@@ -31,8 +31,8 @@ type Peer struct {
 	Decommissioning bool `json:"decommissioning"`
 }
 
-// Configuration hold configuration related to current server
+// Configuration holds configuration related to current server
 type Configuration struct {
-	// ServerMembers hold all current members of the cluster
+	// ServerMembers holds all current members of the cluster
 	ServerMembers []Peer `json:"serverMembers"`
 }

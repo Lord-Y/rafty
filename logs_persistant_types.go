@@ -20,7 +20,7 @@ type BoltOptions struct {
 	// DataDir is the default data directory that will be used to store all data on the disk. It's required
 	DataDir string
 
-	// Options hold all bolt options
+	// Options holds all bolt options
 	Options *bolt.Options
 }
 
@@ -33,7 +33,7 @@ type BoltStore struct {
 	db *bolt.DB
 }
 
-// ClusterStore is an interface that allow us to store and retrieve
+// ClusterStore is an interface that allows us to store and retrieve
 // data only for cluster related purpose
 type ClusterStore interface {
 	// Close permits to close the store
@@ -59,7 +59,7 @@ type ClusterStore interface {
 	GetUint64(key []byte) uint64
 }
 
-// LogStore is an interface that allow us to store and retrieve
+// LogStore is an interface that allows us to store and retrieve
 // raft logs from memory
 type LogStore interface {
 	// Close permits to close the store

@@ -20,7 +20,7 @@ const (
 	maxRound uint64 = 10
 )
 
-// followerReplication hold all requirements that allow the leader to replicate
+// followerReplication holds all requirements that allow the leader to replicate
 // its logs to the current follower
 type followerReplication struct {
 	// peer holds peer informations
@@ -64,7 +64,7 @@ type followerReplication struct {
 	sendSnapshotInProgress atomic.Bool
 }
 
-// onAppendEntriesRequest hold all requirements that allow the leader
+// onAppendEntriesRequest holds all requirements that allow the leader
 // to replicate entries
 type onAppendEntriesRequest struct {
 	// totalLogs is the total logs the leader currently have

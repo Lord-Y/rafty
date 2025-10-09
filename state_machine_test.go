@@ -11,18 +11,18 @@ import (
 	"time"
 )
 
-// userLogsInMemory hold the requirements related to user data
+// userLogsInMemory holds the requirements related to user data
 type userLogsInMemory struct {
-	// mu hold locking mecanism
+	// mu holds locking mecanism
 	mu sync.RWMutex
 
 	// userStore map holds a map of the log entries
 	userStore map[uint64]*LogEntry
 
-	// metadata map holds the a map of metadata store
+	// metadata map holds a map of metadata store
 	metadata map[string][]byte
 
-	// kv map holds the a map of k/v store
+	// kv map holds a map of k/v store
 	kv map[string][]byte
 }
 
@@ -45,13 +45,13 @@ type SnapshotState struct {
 type CommandKind uint32
 
 const (
-	// commandGet command allow us to fetch data from the cluster
+	// commandGet command allows us to fetch data from the cluster
 	CommandGet CommandKind = iota
 
-	// CommandSet command allow us to write data from the cluster
+	// CommandSet command allows us to write data from the cluster
 	CommandSet
 
-	// CommandDelete command allow us to delete data from the cluster
+	// CommandDelete command allows us to delete data from the cluster
 	CommandDelete
 )
 
@@ -122,7 +122,7 @@ func DecodeCommand(data []byte) (Command, error) {
 	return cmd, nil
 }
 
-// NewSnapshotState return a SnapshotState that allow us to
+// NewSnapshotState return a SnapshotState that allows us to
 // take or restore snapshots
 func NewSnapshotState(logStore LogStore) *SnapshotState {
 	return &SnapshotState{
@@ -135,7 +135,7 @@ func NewSnapshotState(logStore LogStore) *SnapshotState {
 	}
 }
 
-// Snapshot allow us to take snapshots
+// Snapshot allows us to take snapshots
 func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
 	var err error
 	firstIndex, err := s.logStore.FirstIndex()
@@ -174,7 +174,7 @@ func (s *SnapshotState) Snapshot(snapshotWriter io.Writer) error {
 	return nil
 }
 
-// Restore allow us to restore a snapshot
+// Restore allows us to restore a snapshot
 func (s *SnapshotState) Restore(snapshotReader io.Reader) error {
 	var logs []*LogEntry
 	reader := bufio.NewReader(snapshotReader)

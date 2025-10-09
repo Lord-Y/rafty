@@ -4,8 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"io"
+	"maps"
+	"slices"
 
 	"github.com/Lord-Y/rafty"
 )
@@ -37,8 +38,8 @@ func newFSMState(logStore rafty.LogStore) *fsmState {
 		logStore: logStore,
 		memoryStore: memoryStore{
 			logs:  make(map[uint64]*rafty.LogEntry),
-			users: make(map[string][]byte),
-			kv:    make(map[string][]byte),
+			users: make(map[string]data),
+			kv:    make(map[string]data),
 		},
 	}
 }
@@ -48,46 +49,30 @@ func newSnapshot(datadir string, maxSnapshot int) rafty.SnapshotStore {
 	return rafty.NewSnapshot(datadir, maxSnapshot)
 }
 
-// Snapshot allow us to take snapshots
+// Snapshot allows us to take snapshots
 func (f *fsmState) Snapshot(snapshotWriter io.Writer) error {
-	var err error
-	firstIndex, err := f.logStore.FirstIndex()
-	if err != nil && !errors.Is(err, rafty.ErrKeyNotFound) {
-		return err
-	}
+	f.memoryStore.mu.RLock()
+	defer f.memoryStore.mu.RUnlock()
 
-	lastIndex, err := f.logStore.LastIndex()
-	if err != nil && !errors.Is(err, rafty.ErrKeyNotFound) {
-		return err
-	}
-
-	if firstIndex != lastIndex {
-		// 64 here will do nothing except telling us a snapshot is needed
-		// which we are building
-		response := f.logStore.GetLogsByRange(firstIndex, lastIndex, 64)
-		if response.Err != nil {
+	keys := slices.Sorted(maps.Keys(f.memoryStore.logs))
+	for key := range keys {
+		var err error
+		buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
+		if err = rafty.MarshalBinary(f.memoryStore.logs[keys[key]], buffer); err != nil {
 			return err
 		}
-		for _, logEntry := range response.Logs {
-			var err error
-			buffer, bufferChecksum := new(bytes.Buffer), new(bytes.Buffer)
-			if err = rafty.MarshalBinary(logEntry, buffer); err != nil {
-				return err
-			}
-			if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
-				return err
-			}
-			// writting data to the file handler
-			if _, err = snapshotWriter.Write(bufferChecksum.Bytes()); err != nil {
-				return err
-			}
+		if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
+			return err
 		}
-		return nil
+		// writting data to the file handler
+		if _, err = snapshotWriter.Write(bufferChecksum.Bytes()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-// Restore allow us to restore a snapshot
+// Restore allows us to restore a snapshot
 func (f *fsmState) Restore(snapshotReader io.Reader) error {
 	reader := bufio.NewReader(snapshotReader)
 
@@ -118,10 +103,10 @@ func (f *fsmState) Restore(snapshotReader io.Reader) error {
 	return nil
 }
 
-// ApplyCommand allow us to apply a command to the state machine.
+// ApplyCommand allows us to apply a command to the state machine.
 func (f *fsmState) ApplyCommand(log *rafty.LogEntry) ([]byte, error) {
-	if log.Command == nil || rafty.LogKind(log.LogType) == rafty.LogNoop {
-		return nil, nil
+	if rafty.LogKind(log.LogType) == rafty.LogNoop || rafty.LogKind(log.LogType) == rafty.LogConfiguration {
+		return f.memoryStore.logsApplyCommand(log)
 	}
 
 	kind, err := decodeCommand(log.Command)
@@ -138,48 +123,4 @@ func (f *fsmState) ApplyCommand(log *rafty.LogEntry) ([]byte, error) {
 	}
 
 	return nil, nil
-}
-
-// Set will add key/value to the k/v store.
-// An error will be returned if necessary
-func (m *memoryStore) Set(key, value []byte) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.kv[string(key)] = value
-	return nil
-}
-
-// Get will fetch provided key from the k/v store.
-// An error will be returned if the key is not found
-func (m *memoryStore) Get(key []byte) ([]byte, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if val, ok := m.kv[string(key)]; ok {
-		return val, nil
-	}
-	return nil, rafty.ErrKeyNotFound
-}
-
-// Set will add key/value to the k/v store.
-// An error will be returned if necessary
-func (m *memoryStore) SetUint64(key, value []byte) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.kv[string(key)] = value
-	return nil
-}
-
-// Get will fetch provided key from the k/v store.
-// An error will be returned if the key is not found
-func (m *memoryStore) GetUint64(key []byte) uint64 {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if val, ok := m.kv[string(key)]; ok {
-		return rafty.DecodeUint64ToBytes(val)
-	}
-	return 0
 }

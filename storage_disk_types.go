@@ -31,7 +31,7 @@ type metadata struct {
 	// to the current raft server
 	LastAppliedConfigTerm uint64 `json:"lastAppliedConfigTerm"`
 
-	// Configuration hold server members
+	// Configuration holds server members
 	Configuration Configuration `json:"configuration"`
 
 	// LastIncludedIndex is the index included in the last snapshot
@@ -41,21 +41,21 @@ type metadata struct {
 	LastIncludedTerm uint64 `json:"lastIncludedTerm"`
 }
 
-// metaFile hold all requirements to manage file metadata
+// metaFile holds all requirements to manage file metadata
 type metaFile struct {
 	rafty        *Rafty
 	fullFilename string
 	file         *os.File
 }
 
-// dataFile hold all requirements to manage file data
+// dataFile holds all requirements to manage file data
 type dataFile struct {
 	rafty        *Rafty
 	fullFilename string
 	file         *os.File
 }
 
-// storage hold both metaFile and dataFile
+// storage holds both metaFile and dataFile
 type storage struct {
 	metadata metaFile
 	data     dataFile

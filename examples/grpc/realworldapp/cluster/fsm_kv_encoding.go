@@ -77,7 +77,7 @@ func (f *fsmState) kvApplyCommand(log *rafty.LogEntry) ([]byte, error) {
 
 	switch decodedCmd.Kind {
 	case kvCommandSet:
-		return nil, f.memoryStore.kvSet([]byte(decodedCmd.Key), []byte(decodedCmd.Value))
+		return nil, f.memoryStore.kvSet(log, []byte(decodedCmd.Key), []byte(decodedCmd.Value))
 
 	case kvCommandGet:
 		value, err := f.memoryStore.kvGet([]byte(decodedCmd.Key))

@@ -14,7 +14,7 @@ func Server() *cli.Command {
 
 	return &cli.Command{
 		Name:  "server",
-		Usage: "Allow us to start instance",
+		Usage: "allows us to start instance",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "host",

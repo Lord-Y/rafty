@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// leader hold all requirements by a node in leader state
+// leader holds all requirements by a node in leader state
 type leader struct {
 	// rafty holds rafty config
 	rafty *Rafty
@@ -24,7 +24,7 @@ type leader struct {
 	// leaseDuration is used to set leaseTimer ticker
 	leaseDuration time.Duration
 
-	// followerReplication hold all requirements that will
+	// followerReplication holds all requirements that will
 	// be used by the leader to replicate append entries
 	followerReplication map[string]*followerReplication
 
@@ -86,7 +86,7 @@ type replicateLogConfig struct {
 	// clientChan is used by client var
 	clientChan chan<- RPCResponse
 
-	// membershipChange hold requirements related to membership changes
+	// membershipChange holds requirements related to membership changes
 	membershipChange struct {
 		// action is the membership change action to perform
 		action MembershipChange
@@ -110,7 +110,7 @@ type indexWatcher struct {
 	// to disk
 	quorum uint64
 
-	// totalFollowers hold the total number of nodes for which the leader has sent
+	// totalFollowers holds the total number of nodes for which the leader has sent
 	// the append entries request
 	totalFollowers uint64
 
@@ -132,7 +132,7 @@ type indexWatcher struct {
 	// logs are entries that need to be replicated and applied to the fsm
 	logs []*LogEntry
 
-	// membershipChange hold requirements related to membership changes
+	// membershipChange holds requirements related to membership changes
 	membershipChange struct {
 		// action is the membership change action to perform
 		action MembershipChange

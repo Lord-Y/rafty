@@ -16,28 +16,28 @@ type fsmState struct {
 type commandKind uint32
 
 const (
-	// kvCommandGet command allow us to fetch data from kv fsm store
+	// kvCommandGet command allows us to fetch data from kv fsm store
 	kvCommandGet commandKind = iota
 
-	// kvCommandGetAll command allow us to fetch all data from kv fsm store
+	// kvCommandGetAll command allows us to fetch all data from kv fsm store
 	kvCommandGetAll
 
-	// kvCommandSet command allow us to write data from kv fsm store
+	// kvCommandSet command allows us to write data from kv fsm store
 	kvCommandSet
 
-	// kvCommandDelete command allow us to delete data from kv fsm store
+	// kvCommandDelete command allows us to delete data from kv fsm store
 	kvCommandDelete
 
-	// kvCommandGet command allow us to fetch data from users fsm store
+	// kvCommandGet command allows us to fetch data from users fsm store
 	userCommandGet
 
-	// userCommandGetAll command allow us to fetch all data from users fsm store
+	// userCommandGetAll command allows us to fetch all data from users fsm store
 	userCommandGetAll
 
-	// userCommandSet command allow us to write data from users fsm store
+	// userCommandSet command allows us to write data from users fsm store
 	userCommandSet
 
-	// userCommandDelete command allow us to delete data from users fsm store
+	// userCommandDelete command allows us to delete data from users fsm store
 	userCommandDelete
 )
 

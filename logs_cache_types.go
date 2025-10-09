@@ -14,10 +14,10 @@ type cacheItem struct {
 	data any
 }
 
-// LogsCacheOptions hold all cache options that will be later
+// LogsCacheOptions holds all cache options that will be later
 // used by LogsCache
 type LogsCacheOptions struct {
-	// LogStore hold the long term storage data related to raft logs
+	// LogStore holds the long term storage data related to raft logs
 	LogStore LogStore
 
 	// CacheOnWrite when set to true will put every write
@@ -29,9 +29,9 @@ type LogsCacheOptions struct {
 	TTL time.Duration
 }
 
-// LogsCache hold the requirements related to caching rafty data
+// LogsCache holds the requirements related to caching rafty data
 type LogsCache struct {
-	// mu hold locking mecanism
+	// mu holds locking mecanism
 	mu sync.RWMutex
 
 	// logs map holds a map of the log entries
@@ -41,7 +41,7 @@ type LogsCache struct {
 	// request in cache before writting to the long term storage
 	cacheOnWrite bool
 
-	// logStore hold the long term storage data related to raft logs
+	// logStore holds the long term storage data related to raft logs
 	logStore LogStore
 
 	// ttl is the maximum amount of time to keep the entry in cache.

@@ -8,11 +8,21 @@ import (
 
 // usersSet will add key/value to the users store.
 // An error will be returned if necessary
-func (m *memoryStore) usersSet(key, value []byte) error {
+func (m *memoryStore) usersSet(log *rafty.LogEntry, key, value []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.users[string(key)] = value
+	// delete existing key if exist
+	// That will allows us to cleanly perform snapshots
+	// when required by removed overriden keys and reduce
+	// disk space and amount of time to restore data
+	keyName := string(key)
+	if _, ok := m.users[keyName]; ok {
+		delete(m.logs, m.users[keyName].index)
+	}
+
+	m.logs[log.Index] = log
+	m.users[keyName] = data{index: log.Index, value: value}
 	return nil
 }
 
@@ -23,7 +33,7 @@ func (m *memoryStore) usersGet(key []byte) ([]byte, error) {
 	defer m.mu.RUnlock()
 
 	if val, ok := m.users[string(key)]; ok {
-		return val, nil
+		return val.value, nil
 	}
 	return nil, rafty.ErrKeyNotFound
 }
@@ -45,7 +55,11 @@ func (m *memoryStore) usersDelete(key []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.users, string(key))
+	data := string(key)
+	if _, ok := m.users[data]; ok {
+		delete(m.logs, m.users[data].index)
+		delete(m.kv, string(key))
+	}
 }
 
 // usersGetAll will fetch all users from the users store.
@@ -59,7 +73,7 @@ func (m *memoryStore) usersGetAll() (z []*User, err error) {
 	}
 
 	for k, v := range m.users {
-		z = append(z, &User{Firstname: k, Lastname: string(v)})
+		z = append(z, &User{Firstname: k, Lastname: string(v.value)})
 	}
 	return
 }
@@ -81,7 +95,7 @@ func (m *memoryStore) usersEncoded() (u []byte, err error) {
 		buffer := new(bytes.Buffer)
 		data := User{
 			Firstname: string(k),
-			Lastname:  string(v),
+			Lastname:  string(v.value),
 		}
 
 		if err := userEncodeCommand(userCommand{Kind: userCommandGetAll, Key: data.Firstname, Value: data.Lastname}, buffer); err != nil {

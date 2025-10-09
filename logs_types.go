@@ -25,12 +25,12 @@ const (
 	LogCommandReadLeader
 )
 
-// logs hold all requirements to manipulate logs
+// logs holds all requirements to manipulate logs
 type logs struct {
 	// rafty holds rafty config
 	rafty *Rafty
 
-	// log hold all logs entries
+	// log holds all logs entries
 	log []*raftypb.LogEntry
 }
 
@@ -77,7 +77,7 @@ type logOperationWipeResponse struct {
 	err error
 }
 
-// LogEntry is hold requirements that will be used
+// LogEntry is holds requirements that will be used
 // to store logs on disk
 type LogEntry struct {
 	FileFormat uint32
