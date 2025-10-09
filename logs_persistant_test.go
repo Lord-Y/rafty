@@ -216,6 +216,39 @@ func TestLogsPersistant(t *testing.T) {
 		assert.Nil(store.Close())
 	})
 
+	t.Run("new_bolt_storage_compact_logs", func(t *testing.T) {
+		boltOptions := BoltOptions{
+			DataDir: filepath.Join(os.TempDir(), "rafty_test", "bolt", "compact_logs"),
+			Options: bbolt.DefaultOptions,
+		}
+		defer func() {
+			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
+		}()
+
+		store, err := NewBoltStorage(boltOptions)
+		assert.Nil(err)
+		assert.Nil(store.Close())
+		assert.Error(store.CompactLogs(10))
+
+		var logs []*LogEntry
+		for index := range 50 {
+			logs = append(logs, &LogEntry{
+				Index: uint64(index),
+				Term:  1,
+			})
+		}
+
+		store, err = NewBoltStorage(boltOptions)
+		assert.Nil(err)
+		assert.Nil(store.StoreLogs(logs))
+		assert.Nil(store.CompactLogs(10))
+		_, err = store.GetLogByIndex(5)
+		assert.Error(err)
+		_, err = store.GetLogByIndex(10)
+		assert.Nil(err)
+		assert.Nil(store.Close())
+	})
+
 	t.Run("new_bolt_storage_metadata", func(t *testing.T) {
 		boltOptions := BoltOptions{
 			DataDir: filepath.Join(os.TempDir(), "rafty_test", "bolt", "metadata"),

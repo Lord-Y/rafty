@@ -212,6 +212,24 @@ func (b *BoltStore) DiscardLogs(minIndex, maxIndex uint64) error {
 	})
 }
 
+// CompactLogs permits to wipe all entries lower than the provided index
+func (b *BoltStore) CompactLogs(index uint64) error {
+	return b.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(bucketLogsName))
+		cursor := bucket.Cursor()
+
+		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+			if DecodeUint64ToBytes(k) >= index {
+				return nil
+			}
+			if err := bucket.Delete(k); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // GetMetadata will fetch rafty metadata from the k/v store
 func (b *BoltStore) GetMetadata() ([]byte, error) {
 	return b.getKV(bucketMetadataName, []byte("metadata"))

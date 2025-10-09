@@ -81,6 +81,9 @@ type LogStore interface {
 	// DiscardLogs permits to wipe entries with the provided range indexes
 	DiscardLogs(from, to uint64) error
 
+	// CompactLogs permits to wipe all entries lower than the provided index
+	CompactLogs(index uint64) error
+
 	// FistIndex will return the first index from the raft log
 	FirstIndex() (uint64, error)
 

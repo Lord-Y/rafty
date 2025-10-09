@@ -110,6 +110,30 @@ func TestLogInMemory(t *testing.T) {
 		assert.Nil(store.DiscardLogs(0, max-1))
 	})
 
+	t.Run("in_memory_compact_logs", func(t *testing.T) {
+		store := NewInMemoryStorage()
+		defer func() {
+			assert.Nil(store.Close())
+		}()
+
+		max := uint64(100)
+		index := max - 1
+		assert.Nil(store.CompactLogs(max))
+
+		var logs []*LogEntry
+		for index := range max {
+			logs = append(logs, &LogEntry{
+				Index: index,
+				Term:  1,
+			})
+		}
+
+		assert.Nil(store.StoreLogs(logs))
+		assert.Nil(store.CompactLogs(index))
+		_, err := store.GetLogByIndex(index)
+		assert.Nil(err)
+	})
+
 	t.Run("in_memory_first_index_last_index", func(t *testing.T) {
 		store := NewInMemoryStorage()
 		defer func() {
