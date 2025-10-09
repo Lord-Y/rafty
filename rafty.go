@@ -28,42 +28,38 @@ When a 3 nodes cluster start with 0 logs, all nodes will contact each other to k
 and if a node is part of the cluster, they will exchange theirs ids. Without getting all ids,
 no further steps will be done like election campaign.
 This also means that if nth nodes out of 3 is not up and running, no further process will be done.
-On the opposite side, if all 3 nodes were running and one of them shut down, when restarting, it will do
-business as usual it already has all ids.
+On the opposite side, if all 3 nodes were running and one of them shutted down, when restarting, it will do business as usual it already has all ids.
 
 ADDING A NODE
-Adding a new node is NOT exposed to devops for cluster management.
 If the 4th node contact the cluster, it will:
 - ask to all members who is the leader and will keep asking when not found by any actual members of the cluster
 - the contacted node will provide the leader informations AND will also tell it to ask for membership
   as the new node is NOT part of the cluster
-- contact the leader for membership
+- user land will perform an AddMember call to be part of the cluster
 - the leader will start replicate its logs in nth rounds with the informations provided when asked for membership
 - if the leader determined the the new node logs are up to date enough, a log entry config will be appended to
   the logs and replicated to followers. In this log entry config, the flag WaitToBePromoted will be set to true.
-	That means the current cluster WILL NEVER start election campaign with this node if the actual
+	That means the current cluster will never start election campaign with this node if the actual
 	leader crashes. If the actual leader crashes, the new node will restart the membership process from the beginning.
 	Once the leader knows that the new log entry config has been committed, it will ONLY THEN promote the node.
 	Of course if the node is TOO SLOW or something got wrong, it won't be promoted AND will restart membership process again.
 	To promote the new node, another log entry config will created BUT with WaitToBePromoted flag set to false and
-	sent for replication. The leader will also add the new node configuration into the replication process in order to received
-	append entries from the leader like any other followers.
-	Again if the leader crashes during the promotion process, no worries, the new node will restart membership process.
+	sent for replication. The leader will also add the new node configuration into the replication process in order to send
+	append entries like any other followers.
+	Again if the leader crashes during the promotion process, no worries, the new node will have to restart membership process.
 	A node with WaitToBePromoted set to true can be safely removed or force removed
 
 DEMOTING A NODE
-Demoting a node is exposed to devops for cluster management.
 Demoting a node MUST be used when a it needs to be stopped for maintenance for example.
-A log config entry will be created AND Decommissioning will be set to true.
-The cluster WILL NEVER start election campaign with this node if the actual leader crashes.
+A log config entry will be created AND Decommissioning flag will be set to true.
+The cluster will never start election campaign with this node.
 The leader will keep sending append entries to it but will not be counted into the quorum.
 The leader will check if the node can be demoted WITHOUT breaking the cluster. If it will, an error will be returned.
 A demoted node can be promoted back.
-A demoted node can be then removed from the cluster, see REMOVE section.
+A demoted node can be then safely removed from the cluster, see REMOVE section.
 Somehow if both WaitToBePromoted AND Decommissioning are set to true the leader WON'T send any append entries to it.
 
 PROMOTING A NODE
-Promoting a node is exposed to devops for cluster management.
 Promoting a node can be used to promote back a demoted node.
 It is also used when a new node is added into the cluster, see ADDING A NODE section
 Somehow if both WaitToBePromoted AND Decommissioning are set to true, promoting the node will
@@ -71,7 +67,6 @@ only will set Decommissioning to false.
 The node will then retry the membership process to be promoted by the leader
 
 REMOVE A NODE
-Removing a node is exposed to devops for cluster management.
 To remove a node it MUST first be demoted otherwise and error will be returned.
 If demoded, it will be removed from the replication process and a log entry config will be appended
 without this node and replicated to the cluster.
@@ -79,7 +74,6 @@ The devops can then safely destroy the node.
 A node with WaitToBePromoted set to true can be safely removed or force removed.
 
 FORCE REMOVE A NODE
-Force removing a node is exposed to devops for cluster management.
 This must be done with cautious because:
 - NO demoting node is involved
 - NO check is done
@@ -87,7 +81,6 @@ The leader symply remove it from the replication process and a log entry config 
 A node with WaitToBePromoted set to true can be safely removed or force removed.
 
 LEAVE ON TERMINATE A NODE
-Leave on terminate a node is NOT exposed to devops for cluster management.
 Before the node is going down and when LeaveOnTerminate flag is set, it will
 send a leaveOnTerminate command to tell the leader that it won't be part of the cluster
 anymore. This flag is usually used by read replicas.
