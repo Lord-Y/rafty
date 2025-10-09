@@ -14,9 +14,9 @@ type cacheItem struct {
 	data any
 }
 
-// LogCacheOptions hold all cache options that will be later
-// used by LogCache
-type LogCacheOptions struct {
+// LogsCacheOptions hold all cache options that will be later
+// used by LogsCache
+type LogsCacheOptions struct {
 	// LogStore hold the long term storage data related to raft logs
 	LogStore LogStore
 
@@ -29,8 +29,8 @@ type LogCacheOptions struct {
 	TTL time.Duration
 }
 
-// LogCache hold the requirements related to caching rafty data
-type LogCache struct {
+// LogsCache hold the requirements related to caching rafty data
+type LogsCache struct {
 	// mu hold locking mecanism
 	mu sync.RWMutex
 

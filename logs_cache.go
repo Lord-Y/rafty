@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// NewLogCache allow us to configure the cache with the provided store option
-func NewLogCache(options LogCacheOptions) *LogCache {
+// NewLogsCache allow us to configure the cache with the provided store option
+func NewLogsCache(options LogsCacheOptions) *LogsCache {
 	var ttl time.Duration
 	if options.TTL == 0 {
 		ttl = 30 * time.Second
@@ -16,7 +16,7 @@ func NewLogCache(options LogCacheOptions) *LogCache {
 		ttl = options.TTL
 	}
 
-	return &LogCache{
+	return &LogsCache{
 		logs:         make(map[string]*cacheItem),
 		cacheOnWrite: options.CacheOnWrite,
 		logStore:     options.LogStore,
@@ -25,7 +25,7 @@ func NewLogCache(options LogCacheOptions) *LogCache {
 }
 
 // Close will close the underlying long term store of the cache
-func (lc *LogCache) Close() error {
+func (lc *LogsCache) Close() error {
 	lc.logs = nil
 	return lc.logStore.Close()
 }
@@ -37,7 +37,7 @@ func (i *cacheItem) isExpired() bool {
 
 // StoreLogs stores multiple log entries in cache but also
 // in long term storage
-func (lc *LogCache) StoreLogs(logs []*LogEntry) error {
+func (lc *LogsCache) StoreLogs(logs []*LogEntry) error {
 	if lc.cacheOnWrite {
 		lc.mu.Lock()
 		for _, entry := range logs {
@@ -50,13 +50,13 @@ func (lc *LogCache) StoreLogs(logs []*LogEntry) error {
 }
 
 // StoreLogs stores multiple log entries
-func (lc *LogCache) StoreLog(log *LogEntry) error {
+func (lc *LogsCache) StoreLog(log *LogEntry) error {
 	return lc.StoreLogs([]*LogEntry{log})
 }
 
 // GetLogByIndex return data from cache when exist otherwise
 // data is fetch from long term storage
-func (lc *LogCache) GetLogByIndex(index uint64) (*LogEntry, error) {
+func (lc *LogsCache) GetLogByIndex(index uint64) (*LogEntry, error) {
 	key := fmt.Sprintf("%d", index)
 
 	lc.mu.RLock()
@@ -82,7 +82,7 @@ func (lc *LogCache) GetLogByIndex(index uint64) (*LogEntry, error) {
 
 // GetLogsByRange return data from cache when exist otherwise
 // data is fetch from long term storage
-func (lc *LogCache) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) (response GetLogsByRangeResponse) {
+func (lc *LogsCache) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) (response GetLogsByRangeResponse) {
 	key := fmt.Sprintf("%d%d%d", minIndex, maxIndex, maxAppendEntries)
 
 	lc.mu.RLock()
@@ -106,7 +106,7 @@ func (lc *LogCache) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) 
 
 // GetLastConfiguration return data from cache when exist otherwise
 // data is fetch from long term storage
-func (lc *LogCache) GetLastConfiguration() (*LogEntry, error) {
+func (lc *LogsCache) GetLastConfiguration() (*LogEntry, error) {
 	lc.mu.RLock()
 	key := "lastConfiguration"
 	if val, ok := lc.logs[key]; ok && !val.isExpired() {
@@ -130,7 +130,7 @@ func (lc *LogCache) GetLastConfiguration() (*LogEntry, error) {
 }
 
 // DiscardLogs remove key cache and from long term storage
-func (lc *LogCache) DiscardLogs(minIndex, maxIndex uint64) error {
+func (lc *LogsCache) DiscardLogs(minIndex, maxIndex uint64) error {
 	lc.mu.Lock()
 	for index := minIndex; index <= maxIndex; index++ {
 		delete(lc.logs, fmt.Sprintf("%d", index))
@@ -141,7 +141,7 @@ func (lc *LogCache) DiscardLogs(minIndex, maxIndex uint64) error {
 }
 
 // CompactLogs permits to wipe all entries lower than the provided index
-func (lc *LogCache) CompactLogs(index uint64) error {
+func (lc *LogsCache) CompactLogs(index uint64) error {
 	lc.mu.Lock()
 	keys := slices.Sorted(maps.Keys(lc.logs))
 	for key := range keys {
@@ -156,7 +156,7 @@ func (lc *LogCache) CompactLogs(index uint64) error {
 
 // FirstIndex return data from cache when exist otherwise
 // data is fetch from long term storage
-func (lc *LogCache) FirstIndex() (uint64, error) {
+func (lc *LogsCache) FirstIndex() (uint64, error) {
 	key := "rafty_cache_first_index"
 	lc.mu.RLock()
 	if val, ok := lc.logs[key]; ok && !val.isExpired() {
@@ -181,7 +181,7 @@ func (lc *LogCache) FirstIndex() (uint64, error) {
 
 // LastIndex return data from cache when exist otherwise
 // data is fetch from long term storage
-func (lc *LogCache) LastIndex() (uint64, error) {
+func (lc *LogsCache) LastIndex() (uint64, error) {
 	lc.mu.RLock()
 	key := "rafty_cache_last_index"
 	if val, ok := lc.logs[key]; ok && !val.isExpired() {
