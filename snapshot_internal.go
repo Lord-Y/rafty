@@ -80,6 +80,11 @@ func (r *Rafty) takeSnapshot() (string, error) {
 
 	r.lastIncludedIndex.Store(lastLogIndex)
 	r.lastIncludedTerm.Store(lastLogTerm)
+
+	if err := r.logStore.CompactLogs(lastLogIndex); err != nil {
+		return snapshot.Name(), err
+	}
+
 	r.Logger.Info().
 		Str("address", r.Address.String()).
 		Str("id", r.id).
