@@ -309,7 +309,7 @@ type Rafty struct {
 	// - bucketLogsName
 	// - bucketMetadataName
 	// - bucketKVName
-	// The same logic is applied for LogCache and LogInMemory.
+	// The same logic is applied for LogsCache and LogsInMemory.
 	// User land MUST NOT modified those logs.
 	// Users must use their own buckets with stateMachine when use ApplyCommand.
 	logStore LogStore
@@ -322,7 +322,7 @@ type Rafty struct {
 	// - bucketLogsName
 	// - bucketMetadataName
 	// - bucketKVName
-	// The same logic is applied for LogCache and LogInMemory.
+	// The same logic is applied for LogsCache and LogsInMemory.
 	// User land MUST NOT modified those entries.
 	// Users must use their own buckets with stateMachine when use ApplyCommand.
 	clusterStore ClusterStore

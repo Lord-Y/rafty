@@ -6,11 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLogInMemory(t *testing.T) {
+func TestLogsInMemory(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("in_memory_store_logs", func(t *testing.T) {
-		store := NewInMemoryStorage()
+		store := NewLogsInMemory()
 		defer func() {
 			assert.Nil(store.Close())
 		}()
@@ -28,7 +28,7 @@ func TestLogInMemory(t *testing.T) {
 	})
 
 	t.Run("in_memory_get_log_by_index", func(t *testing.T) {
-		store := NewInMemoryStorage()
+		store := NewLogsInMemory()
 		defer func() {
 			assert.Nil(store.Close())
 		}()
@@ -43,7 +43,7 @@ func TestLogInMemory(t *testing.T) {
 	})
 
 	t.Run("in_memory_get_logs_by_range", func(t *testing.T) {
-		store := NewInMemoryStorage()
+		store := NewLogsInMemory()
 		defer func() {
 			assert.Nil(store.Close())
 		}()
@@ -68,7 +68,7 @@ func TestLogInMemory(t *testing.T) {
 	})
 
 	t.Run("in_memory_get_last_configuration", func(t *testing.T) {
-		store := NewInMemoryStorage()
+		store := NewLogsInMemory()
 		defer func() {
 			assert.Nil(store.Close())
 		}()
@@ -90,7 +90,7 @@ func TestLogInMemory(t *testing.T) {
 	})
 
 	t.Run("in_memory_discard_logs", func(t *testing.T) {
-		store := NewInMemoryStorage()
+		store := NewLogsInMemory()
 		defer func() {
 			assert.Nil(store.Close())
 		}()
@@ -111,7 +111,7 @@ func TestLogInMemory(t *testing.T) {
 	})
 
 	t.Run("in_memory_compact_logs", func(t *testing.T) {
-		store := NewInMemoryStorage()
+		store := NewLogsInMemory()
 		defer func() {
 			assert.Nil(store.Close())
 		}()
@@ -135,7 +135,7 @@ func TestLogInMemory(t *testing.T) {
 	})
 
 	t.Run("in_memory_first_index_last_index", func(t *testing.T) {
-		store := NewInMemoryStorage()
+		store := NewLogsInMemory()
 		defer func() {
 			assert.Nil(store.Close())
 		}()
