@@ -554,6 +554,21 @@ func (r *Rafty) handleInstallSnapshotRequest(data RPCRequest) {
 			Msgf("Fail to apply config entry")
 	}
 
+	if err := r.logStore.CompactLogs(request.LastIncludedIndex); err != nil {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.CurrentTerm)).
+			Str("snapshotName", snapshot.Name()).
+			Str("leaderLastIncludedIndex", fmt.Sprintf("%d", request.LastIncludedIndex)).
+			Str("leaderLastIncludedTerm", fmt.Sprintf("%d", request.LastIncludedTerm)).
+			Msgf("Fail to compact logs")
+	}
+
 	r.Logger.Info().
 		Str("address", r.Address.String()).
 		Str("id", r.id).
