@@ -10,7 +10,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func TestLogCache(t *testing.T) {
+func TestLogsCache(t *testing.T) {
 	assert := assert.New(t)
 
 	t.Run("cache_store_logs", func(t *testing.T) {
@@ -25,12 +25,12 @@ func TestLogCache(t *testing.T) {
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
 
-		cacheOptions := LogCacheOptions{
+		cacheOptions := LogsCacheOptions{
 			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
-		cacheStore := NewLogCache(cacheOptions)
+		cacheStore := NewLogsCache(cacheOptions)
 		defer func() {
 			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 			assert.Nil(cacheStore.Close())
@@ -60,12 +60,12 @@ func TestLogCache(t *testing.T) {
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
 
-		cacheOptions := LogCacheOptions{
+		cacheOptions := LogsCacheOptions{
 			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
-		cacheStore := NewLogCache(cacheOptions)
+		cacheStore := NewLogsCache(cacheOptions)
 		defer func() {
 			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 			assert.Nil(cacheStore.Close())
@@ -107,12 +107,12 @@ func TestLogCache(t *testing.T) {
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
 
-		cacheOptions := LogCacheOptions{
+		cacheOptions := LogsCacheOptions{
 			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
-		cacheStore := NewLogCache(cacheOptions)
+		cacheStore := NewLogsCache(cacheOptions)
 		defer func() {
 			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 			assert.Nil(cacheStore.Close())
@@ -149,12 +149,12 @@ func TestLogCache(t *testing.T) {
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
 
-		cacheOptions := LogCacheOptions{
+		cacheOptions := LogsCacheOptions{
 			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
-		cacheStore := NewLogCache(cacheOptions)
+		cacheStore := NewLogsCache(cacheOptions)
 		defer func() {
 			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 			assert.Nil(cacheStore.Close())
@@ -193,11 +193,11 @@ func TestLogCache(t *testing.T) {
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
 
-		cacheOptions := LogCacheOptions{
+		cacheOptions := LogsCacheOptions{
 			LogStore:     store,
 			CacheOnWrite: true,
 		}
-		cacheStore := NewLogCache(cacheOptions)
+		cacheStore := NewLogsCache(cacheOptions)
 		defer func() {
 			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 			assert.Nil(cacheStore.Close())
@@ -218,11 +218,11 @@ func TestLogCache(t *testing.T) {
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
 
-		cacheOptions := LogCacheOptions{
+		cacheOptions := LogsCacheOptions{
 			LogStore:     store,
 			CacheOnWrite: true,
 		}
-		cacheStore := NewLogCache(cacheOptions)
+		cacheStore := NewLogsCache(cacheOptions)
 		defer func() {
 			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 			assert.Nil(cacheStore.Close())
@@ -258,12 +258,12 @@ func TestLogCache(t *testing.T) {
 		store, err := NewBoltStorage(boltOptions)
 		assert.Nil(err)
 
-		cacheOptions := LogCacheOptions{
+		cacheOptions := LogsCacheOptions{
 			LogStore:     store,
 			CacheOnWrite: true,
 			TTL:          2 * time.Second,
 		}
-		cacheStore := NewLogCache(cacheOptions)
+		cacheStore := NewLogsCache(cacheOptions)
 		defer func() {
 			assert.Nil(os.RemoveAll(getRootDir(boltOptions.DataDir)))
 			assert.Nil(cacheStore.Close())
