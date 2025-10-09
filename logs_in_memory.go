@@ -5,14 +5,14 @@ import (
 	"slices"
 )
 
-func NewInMemoryStorage() *LogInMemory {
-	return &LogInMemory{
+func NewLogsInMemory() *LogsInMemory {
+	return &LogsInMemory{
 		logs: make(map[uint64]*LogEntry),
 	}
 }
 
 // Close will close database
-func (in *LogInMemory) Close() error {
+func (in *LogsInMemory) Close() error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
@@ -22,7 +22,7 @@ func (in *LogInMemory) Close() error {
 }
 
 // StoreLogs stores multiple log entries
-func (in *LogInMemory) StoreLogs(logs []*LogEntry) error {
+func (in *LogsInMemory) StoreLogs(logs []*LogEntry) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
@@ -33,12 +33,12 @@ func (in *LogInMemory) StoreLogs(logs []*LogEntry) error {
 }
 
 // StoreLog stores a single log entry
-func (in *LogInMemory) StoreLog(log *LogEntry) error {
+func (in *LogsInMemory) StoreLog(log *LogEntry) error {
 	return in.StoreLogs([]*LogEntry{log})
 }
 
 // GetLogByIndex permits to retrieve log from specified index
-func (in *LogInMemory) GetLogByIndex(index uint64) (*LogEntry, error) {
+func (in *LogsInMemory) GetLogByIndex(index uint64) (*LogEntry, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
@@ -51,7 +51,7 @@ func (in *LogInMemory) GetLogByIndex(index uint64) (*LogEntry, error) {
 // GetLogsByRange will return a slice of logs
 // with peer lastLogIndex and leader lastLogIndex capped
 // by options.MaxAppendEntries
-func (in *LogInMemory) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) (response GetLogsByRangeResponse) {
+func (in *LogsInMemory) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint64) (response GetLogsByRangeResponse) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
@@ -73,7 +73,7 @@ func (in *LogInMemory) GetLogsByRange(minIndex, maxIndex, maxAppendEntries uint6
 
 // GetLastConfiguration returns the last configuration found
 // in logs
-func (in *LogInMemory) GetLastConfiguration() (*LogEntry, error) {
+func (in *LogsInMemory) GetLastConfiguration() (*LogEntry, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
@@ -88,7 +88,7 @@ func (in *LogInMemory) GetLastConfiguration() (*LogEntry, error) {
 }
 
 // DiscardLogs permits to wipe entries with the provided range indexes
-func (in *LogInMemory) DiscardLogs(minIndex, maxIndex uint64) error {
+func (in *LogsInMemory) DiscardLogs(minIndex, maxIndex uint64) error {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
@@ -103,7 +103,7 @@ func (in *LogInMemory) DiscardLogs(minIndex, maxIndex uint64) error {
 }
 
 // CompactLogs permits to wipe all entries lower than the provided index
-func (in *LogInMemory) CompactLogs(index uint64) error {
+func (in *LogsInMemory) CompactLogs(index uint64) error {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
@@ -117,7 +117,7 @@ func (in *LogInMemory) CompactLogs(index uint64) error {
 }
 
 // FirstIndex return fist index from in memory
-func (in *LogInMemory) FirstIndex() (uint64, error) {
+func (in *LogsInMemory) FirstIndex() (uint64, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
@@ -130,7 +130,7 @@ func (in *LogInMemory) FirstIndex() (uint64, error) {
 }
 
 // LastIndex return last index from in memory
-func (in *LogInMemory) LastIndex() (uint64, error) {
+func (in *LogsInMemory) LastIndex() (uint64, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 

@@ -4,8 +4,8 @@ import (
 	"sync"
 )
 
-// LogInMemory hold the requirements related to in memory rafty data
-type LogInMemory struct {
+// LogsInMemory hold the requirements related to in memory rafty data
+type LogsInMemory struct {
 	// mu hold locking mecanism
 	mu sync.RWMutex
 

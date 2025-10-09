@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// userLogInMemory hold the requirements related to user data
-type userLogInMemory struct {
+// userLogsInMemory hold the requirements related to user data
+type userLogsInMemory struct {
 	// mu hold locking mecanism
 	mu sync.RWMutex
 
@@ -34,7 +34,7 @@ type SnapshotState struct {
 	logStore LogStore
 
 	// userStore is only for user land management
-	userStore userLogInMemory
+	userStore userLogsInMemory
 
 	applyErrTest error
 	sleepErr     time.Duration
@@ -127,7 +127,7 @@ func DecodeCommand(data []byte) (Command, error) {
 func NewSnapshotState(logStore LogStore) *SnapshotState {
 	return &SnapshotState{
 		logStore: logStore,
-		userStore: userLogInMemory{
+		userStore: userLogsInMemory{
 			userStore: make(map[uint64]*LogEntry),
 			metadata:  make(map[string][]byte),
 			kv:        make(map[string][]byte),
@@ -241,7 +241,7 @@ func (s *SnapshotState) ApplyCommand(log *LogEntry) ([]byte, error) {
 
 // Set will add key/value to the k/v store.
 // An error will be returned if necessary
-func (in *userLogInMemory) Set(key, value []byte) error {
+func (in *userLogsInMemory) Set(key, value []byte) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
@@ -251,7 +251,7 @@ func (in *userLogInMemory) Set(key, value []byte) error {
 
 // Get will fetch provided key from the k/v store.
 // An error will be returned if the key is not found
-func (in *userLogInMemory) Get(key []byte) ([]byte, error) {
+func (in *userLogsInMemory) Get(key []byte) ([]byte, error) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
@@ -263,7 +263,7 @@ func (in *userLogInMemory) Get(key []byte) ([]byte, error) {
 
 // Set will add key/value to the k/v store.
 // An error will be returned if necessary
-func (in *userLogInMemory) SetUint64(key, value []byte) error {
+func (in *userLogsInMemory) SetUint64(key, value []byte) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 
@@ -273,7 +273,7 @@ func (in *userLogInMemory) SetUint64(key, value []byte) error {
 
 // Get will fetch provided key from the k/v store.
 // An error will be returned if the key is not found
-func (in *userLogInMemory) GetUint64(key []byte) uint64 {
+func (in *userLogsInMemory) GetUint64(key []byte) uint64 {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 
