@@ -604,7 +604,7 @@ func (r *leader) leasing() {
 		var newLease time.Duration
 		now := time.Now()
 		for _, follower := range r.followerReplication {
-			if follower != nil && !follower.replicationStopped.Load() && !follower.ReadReplica {
+			if follower != nil && !follower.replicationStopped.Load() && follower.IsVoter {
 				lastContact := follower.lastContactDate.Load()
 				if lastContact != nil {
 					since := now.Sub(lastContact.(time.Time))
@@ -652,7 +652,7 @@ func (r *leader) selectNodeForLeadershipTransfer() (p Peer, found bool) {
 	defer r.mu.Unlock()
 
 	for _, follower := range r.followerReplication {
-		if follower != nil && !follower.ReadReplica {
+		if follower != nil && follower.IsVoter {
 			r.rafty.Logger.Trace().
 				Str("address", r.rafty.Address.String()).
 				Str("id", r.rafty.id).

@@ -34,7 +34,7 @@ func (r *rpcManager) AskNodeID(ctx context.Context, in *raftypb.AskNodeIDRequest
 
 	return &raftypb.AskNodeIDResponse{
 		PeerId:           r.rafty.id,
-		ReadReplica:      r.rafty.options.ReadReplica,
+		IsVoter:          r.rafty.options.IsVoter,
 		LeaderId:         lid,
 		LeaderAddress:    lad,
 		AskForMembership: mustAskForMembership,

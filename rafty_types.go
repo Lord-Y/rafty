@@ -102,9 +102,9 @@ type Options struct {
 	// DataDir is the default data directory that will be used to store all data on the disk. It's required
 	DataDir string
 
-	// ReadReplica statuate if the current node is a read only node
-	// This kind of node won't participate into any election campaign
-	ReadReplica bool
+	// IsVoter statuates if this peer is a voting member node.
+	// When set to false, this node won't participate into any election campaign
+	IsVoter bool
 
 	// Peers holds the list of the peers
 	InitialPeers []InitialPeer
@@ -170,7 +170,7 @@ type Rafty struct {
 	Address net.TCPAddr
 
 	// State of the current raft server state
-	// Can only be Leader, Candidate, Follower, ReadReplica, Down
+	// Can only be Leader, Candidate, Follower, Down
 	State
 
 	// grpc listener

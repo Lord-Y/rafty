@@ -9,11 +9,11 @@ type metrics struct {
 	// id is the node ID used as a label for the metrics
 	id string
 
+	// isVoter indicate if the current node is a voter
+	isVoter string
+
 	// down is a gauge that indicates the current node state
 	down *prometheus.GaugeVec
-
-	// readReplica is a gauge that indicates the current node state
-	readReplica *prometheus.GaugeVec
 
 	// follower is a gauge that indicates the current node state
 	follower *prometheus.GaugeVec

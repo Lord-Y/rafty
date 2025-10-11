@@ -74,6 +74,7 @@ func makeRPCAskNodeIDRequest(data RPCAskNodeIDRequest) *raftypb.AskNodeIDRequest
 	return &raftypb.AskNodeIDRequest{
 		Id:      data.Id,
 		Address: data.Address,
+		IsVoter: data.IsVoter,
 	}
 }
 
@@ -88,7 +89,7 @@ func makeRPCAskNodeIDResponse(data *raftypb.AskNodeIDResponse) RPCAskNodeIDRespo
 		LeaderID:         data.LeaderId,
 		LeaderAddress:    data.LeaderAddress,
 		PeerID:           data.PeerId,
-		ReadReplica:      data.ReadReplica,
+		IsVoter:          data.IsVoter,
 		AskForMembership: data.AskForMembership,
 	}
 }
@@ -178,6 +179,7 @@ func (r *Rafty) sendAskNodeIDRequest() {
 		Request: RPCAskNodeIDRequest{
 			Id:      r.id,
 			Address: r.Address.String(),
+			IsVoter: r.options.IsVoter,
 		},
 		Timeout:      time.Second,
 		ResponseChan: r.rpcAskNodeIDChan,
@@ -185,8 +187,7 @@ func (r *Rafty) sendAskNodeIDRequest() {
 
 	for _, peer := range peers {
 		go func() {
-			client := r.connectionManager.getClient(peer.address.String())
-			if client != nil && r.getState() != Down {
+			if client := r.connectionManager.getClient(peer.address.String()); client != nil && r.getState() != Down {
 				r.sendRPC(request, client, peer)
 			}
 		}()
@@ -215,7 +216,7 @@ func (r *Rafty) askNodeIDResult(resp RPCResponse) {
 		return peer.address.String() == targetPeer.address.String() && peer.ID == ""
 	}); index != -1 {
 		r.configuration.ServerMembers[index].ID = response.PeerID
-		r.configuration.ServerMembers[index].ReadReplica = response.ReadReplica
+		r.configuration.ServerMembers[index].IsVoter = response.IsVoter
 	}
 	peers := r.configuration.ServerMembers
 	r.mu.Unlock()
@@ -237,7 +238,7 @@ func (r *Rafty) askNodeIDResult(resp RPCResponse) {
 		r.leaderLastContactDate.Store(time.Now())
 	}
 
-	if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !response.ReadReplica {
+	if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && response.IsVoter {
 		r.clusterSizeCounter.Add(1)
 	}
 }
@@ -263,8 +264,7 @@ func (r *Rafty) sendGetLeaderRequest() {
 
 	for _, peer := range peers {
 		go func() {
-			client := r.connectionManager.getClient(peer.address.String())
-			if client != nil && r.getState() != Down {
+			if client := r.connectionManager.getClient(peer.address.String()); client != nil && r.getState() != Down {
 				r.sendRPC(request, client, peer)
 			}
 		}()

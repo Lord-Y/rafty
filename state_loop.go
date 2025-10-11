@@ -40,52 +40,12 @@ func (r *Rafty) commonLoop() {
 func (r *Rafty) stateLoop() {
 	for r.getState() != Down {
 		switch r.getState() {
-		case ReadReplica:
-			r.runAsReadReplica()
 		case Follower:
 			r.runAsFollower()
 		case Candidate:
 			r.runAsCandidate()
 		case Leader:
 			r.runAsLeader()
-		}
-	}
-}
-
-// runAsReadReplica will run node as read replica
-func (r *Rafty) runAsReadReplica() {
-	r.wg.Add(1)
-	defer r.wg.Done()
-
-	state := readReplica{rafty: r}
-	defer state.release()
-	state.init()
-
-	for r.getState() == ReadReplica {
-		select {
-		// exiting for loop
-		case <-r.quitCtx.Done():
-			r.drainPreVoteRequests()
-			r.drainVoteRequests()
-			r.drainAppendEntriesRequests()
-			r.drainInstallSnapshotRequests()
-			return
-
-		// common state timer
-		case <-r.timer.C:
-			state.onTimeout()
-
-		// handle append entries from the leader
-		case data, ok := <-r.rpcAppendEntriesReplicationRequestChan:
-			if ok {
-				r.handleSendAppendEntriesRequest(data)
-			}
-
-		// handle install snapshot
-		case data, ok := <-r.rpcInstallSnapshotRequestChan:
-			if ok {
-				r.handleInstallSnapshotRequest(data)
-			}
 		}
 	}
 }

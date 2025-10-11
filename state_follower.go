@@ -57,7 +57,10 @@ func (r *follower) onTimeout() {
 			r.rafty.startElectionCampaign.Store(false)
 		}
 	}
-	r.rafty.switchState(Candidate, stepUp, true, r.rafty.currentTerm.Load())
+
+	if r.rafty.options.IsVoter {
+		r.rafty.switchState(Candidate, stepUp, true, r.rafty.currentTerm.Load())
+	}
 }
 
 // release permit to cancel or gracefully some actions

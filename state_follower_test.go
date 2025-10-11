@@ -30,7 +30,7 @@ func TestStateFollower(t *testing.T) {
 	})
 
 	t.Run("onTimeout_not_follower", func(t *testing.T) {
-		s.State = ReadReplica
+		s.State = Candidate
 		state.onTimeout()
 	})
 

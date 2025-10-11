@@ -55,12 +55,13 @@ type RPCResponse struct {
 // RPCAskNodeIDRequest holds the requirements to ask node id
 type RPCAskNodeIDRequest struct {
 	Id, Address string
+	IsVoter     bool
 }
 
 // RPCAskNodeIDResponse holds the response from RPCAskNodeIDRequest
 type RPCAskNodeIDResponse struct {
 	LeaderID, LeaderAddress, PeerID string
-	ReadReplica, AskForMembership   bool
+	IsVoter, AskForMembership       bool
 }
 
 // RPCGetLeaderRequest holds the requirements to get the leader
@@ -110,20 +111,4 @@ type RPCTimeoutNowRequest struct{}
 // RPCTimeoutNowResponse holds the response from RPCTimeoutNowRequest
 type RPCTimeoutNowResponse struct {
 	Success bool
-}
-
-// RPCMembershipChangeRequest holds the requirements to send membership requests
-type RPCMembershipChangeRequest struct {
-	Address, Id               string
-	ReadReplica               bool
-	Action                    uint32
-	LastLogIndex, LastLogTerm uint64
-}
-
-// RPCMembershipChangeResponse holds the response from RPCMembershipChangeRequest
-type RPCMembershipChangeResponse struct {
-	ActionPerformed, Response uint32
-	LeaderID, LeaderAddress   string
-	Peers                     []Peer
-	Success                   bool
 }

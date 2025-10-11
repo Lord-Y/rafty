@@ -172,71 +172,71 @@ func (r *Rafty) BootstrapCluster(timeout time.Duration) error {
 
 // AddMember is used by the current node to add the provided member the cluster.
 // An error will be returned if any
-func (r *Rafty) AddMember(timeout time.Duration, address, id string, readReplica bool) error {
+func (r *Rafty) AddMember(timeout time.Duration, address, id string, isVoter bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
 
-	return r.manageMembers(timeout, Add, address, id, readReplica)
+	return r.manageMembers(timeout, Add, address, id, isVoter)
 }
 
 // PromoteMember is used by the current node to promote the provided member the cluster.
 // An error will be returned if any
-func (r *Rafty) PromoteMember(timeout time.Duration, address, id string, readReplica bool) error {
+func (r *Rafty) PromoteMember(timeout time.Duration, address, id string, isVoter bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
 
-	return r.manageMembers(timeout, Promote, address, id, readReplica)
+	return r.manageMembers(timeout, Promote, address, id, isVoter)
 }
 
 // DemoteMember is used by the current node to demote the provided member the cluster.
 // An error will be returned if any
-func (r *Rafty) DemoteMember(timeout time.Duration, address, id string, readReplica bool) error {
+func (r *Rafty) DemoteMember(timeout time.Duration, address, id string, isVoter bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
 
-	return r.manageMembers(timeout, Demote, address, id, readReplica)
+	return r.manageMembers(timeout, Demote, address, id, isVoter)
 }
 
 // RemoveMember is used by the current node to remove the provided member the cluster.
 // An error will be returned if any
-func (r *Rafty) RemoveMember(timeout time.Duration, address, id string, readReplica bool) error {
+func (r *Rafty) RemoveMember(timeout time.Duration, address, id string, isVoter bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
 
-	return r.manageMembers(timeout, Remove, address, id, readReplica)
+	return r.manageMembers(timeout, Remove, address, id, isVoter)
 }
 
 // ForceRemoveMember is used by the current node to force remove the provided member the cluster.
 // An error will be returned if any
-func (r *Rafty) ForceRemoveMember(timeout time.Duration, address, id string, readReplica bool) error {
+func (r *Rafty) ForceRemoveMember(timeout time.Duration, address, id string, isVoter bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
 
-	return r.manageMembers(timeout, ForceRemove, address, id, readReplica)
+	return r.manageMembers(timeout, ForceRemove, address, id, isVoter)
 }
 
 // LeaveOnTerminateMember is used by the current node to remove itself from the cluster the cluster.
 // An error will be returned if any
-func (r *Rafty) LeaveOnTerminateMember(timeout time.Duration, address, id string, readReplica bool) error {
+func (r *Rafty) LeaveOnTerminateMember(timeout time.Duration, address, id string, isVoter bool) error {
 	if timeout == 0 {
 		timeout = time.Second
 	}
 
-	return r.manageMembers(timeout, LeaveOnTerminate, address, id, readReplica)
+	return r.manageMembers(timeout, LeaveOnTerminate, address, id, isVoter)
 }
 
 // manageMembers is a private func that handle all membership changes
-func (r *Rafty) manageMembers(timeout time.Duration, action MembershipChange, address, id string, readReplica bool) error {
+func (r *Rafty) manageMembers(timeout time.Duration, action MembershipChange, address, id string, isVoter bool) error {
 	member := Peer{
-		ID:          id,
-		Address:     address,
-		ReadReplica: readReplica,
-		address:     getNetAddress(address),
+		ID:      id,
+		Address: address,
+		IsVoter: isVoter,
+		address: getNetAddress(address),
 	}
 
 	if r.getState() == Leader {

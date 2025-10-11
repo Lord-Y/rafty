@@ -199,40 +199,37 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		Response: response,
 	}
 
-	if !r.options.ReadReplica {
-		if currentTerm > request.Term {
-			data.ResponseChan <- rpcResponse
+	if currentTerm > request.Term {
+		data.ResponseChan <- rpcResponse
 
-			r.Logger.Warn().Err(ErrTermTooOld).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderId).
-				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
-				Msgf("My term is higher than peer")
-			return
-		}
-
-		if r.candidateForLeadershipTransfer.Load() {
-			data.ResponseChan <- rpcResponse
-
-			r.Logger.Warn().Err(ErrLeadershipTransferInProgress).
-				Str("address", r.Address.String()).
-				Str("id", r.id).
-				Str("state", r.getState().String()).
-				Str("term", fmt.Sprintf("%d", currentTerm)).
-				Str("leaderAddress", request.LeaderAddress).
-				Str("leaderId", request.LeaderId).
-				Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
-				Msgf("Rejecting append entries because of leadership transfer")
-			return
-		}
-
-		r.switchState(Follower, stepDown, true, request.Term)
+		r.Logger.Warn().Err(ErrTermTooOld).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
+			Msgf("My term is higher than peer")
+		return
 	}
 
+	if r.candidateForLeadershipTransfer.Load() {
+		data.ResponseChan <- rpcResponse
+
+		r.Logger.Warn().Err(ErrLeadershipTransferInProgress).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("term", fmt.Sprintf("%d", currentTerm)).
+			Str("leaderAddress", request.LeaderAddress).
+			Str("leaderId", request.LeaderId).
+			Str("leaderTerm", fmt.Sprintf("%d", request.Term)).
+			Msgf("Rejecting append entries because of leadership transfer")
+		return
+	}
+
+	r.switchState(Follower, stepDown, true, request.Term)
 	r.currentTerm.Store(request.Term)
 	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
 		panic(err)
@@ -393,11 +390,6 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 	response.Term = request.Term
 	response.Success = true
 	data.ResponseChan <- rpcResponse
-
-	// this is only temporary as we added more debug logs
-	if !r.options.ReadReplica {
-		r.switchState(Follower, stepDown, false, request.Term)
-	}
 
 	if r.shutdownOnRemove.Load() {
 		go r.stop()
