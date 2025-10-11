@@ -168,7 +168,7 @@ func (r *Rafty) nextConfiguration(action MembershipChange, current []Peer, membe
 func (r *Rafty) verifyConfiguration(peers []Peer) bool {
 	var voters int
 	for _, node := range peers {
-		if !node.ReadReplica && !node.WaitToBePromoted && !node.Decommissioning {
+		if node.IsVoter && !node.WaitToBePromoted && !node.Decommissioning {
 			voters++
 		}
 	}

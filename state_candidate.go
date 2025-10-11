@@ -14,7 +14,7 @@ func (r *candidate) init() {
 		return
 	}
 	leader := r.rafty.getLeader()
-	if r.rafty.getState() == Candidate && (leader == (leaderMap{}) || r.rafty.candidateForLeadershipTransfer.Load()) {
+	if r.rafty.getState() == Candidate && r.rafty.options.IsVoter && (leader == (leaderMap{}) || r.rafty.candidateForLeadershipTransfer.Load()) {
 		r.quorum = r.rafty.quorum()
 		r.preVotes = 1 // vote for myself
 		r.votes = 1    // vote for myself
@@ -87,7 +87,7 @@ func (r *candidate) preVoteRequest() {
 
 	for _, peer := range peers {
 		go func() {
-			if client := r.rafty.connectionManager.getClient(peer.address.String()); client != nil && r.rafty.getState() == Candidate && !peer.ReadReplica && !peer.Decommissioning {
+			if client := r.rafty.connectionManager.getClient(peer.address.String()); client != nil && r.rafty.getState() == Candidate && peer.IsVoter && !peer.Decommissioning {
 				r.rafty.sendRPC(request, client, peer)
 			}
 		}()
@@ -180,7 +180,7 @@ func (r *candidate) startElection() {
 
 	for _, peer := range peers {
 		go func() {
-			if client := r.rafty.connectionManager.getClient(peer.address.String()); client != nil && r.rafty.getState() == Candidate && !peer.ReadReplica && !peer.Decommissioning {
+			if client := r.rafty.connectionManager.getClient(peer.address.String()); client != nil && r.rafty.getState() == Candidate && peer.IsVoter && !peer.Decommissioning {
 				r.rafty.sendRPC(request, client, peer)
 			}
 		}()

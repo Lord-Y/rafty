@@ -83,6 +83,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*rafty.Rafty, err error) {
 					MinimumClusterSize: minimumClusterSize,
 					SnapshotInterval:   time.Duration(*snapshotInterval) * time.Second,
 					MaxAppendEntries:   *maxAppendEntries,
+					IsVoter:            true,
 				}
 				storeOptions := rafty.BoltOptions{
 					DataDir: options.DataDir,

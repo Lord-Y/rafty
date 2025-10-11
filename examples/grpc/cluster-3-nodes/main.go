@@ -31,7 +31,7 @@ var submitCommands = flag.Bool("submit-commands", false, "if true submit command
 var maxCommands = flag.Uint("max-commands", 10, "Max command to submit")
 var maxAppendEntries = flag.Uint64("max-appendentries", 60, "Max append entries")
 var prevoteDisabled = flag.Bool("prevote-disabled", false, "if true pre vote will be disabled")
-var readReplica = flag.Bool("read-replica", false, "only when last node for membership")
+var nonVoter = flag.Bool("non-voter", false, "only when last node for membership")
 var shutdownOnRemove = flag.Bool("shutdown-on-remove", false, "only when last node for membership")
 var snapshotInterval = flag.Uint("snapshot-interval", 30, "Snapshot interval in seconds")
 
@@ -87,10 +87,11 @@ func main() {
 		PrevoteDisabled:  *prevoteDisabled,
 		SnapshotInterval: time.Duration(*snapshotInterval) * time.Second,
 		MaxAppendEntries: *maxAppendEntries,
+		IsVoter:          true,
 	}
 	if *nodeId == 3 {
-		if *readReplica {
-			options.ReadReplica = true
+		if *nonVoter {
+			options.IsVoter = false
 		}
 		if *shutdownOnRemove {
 			options.ShutdownOnRemove = true

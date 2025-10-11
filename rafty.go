@@ -228,7 +228,7 @@ func (r *Rafty) Start() error {
 		}
 	}
 
-	r.metrics = newMetrics(r.id, r.options.MetricsNamespacePrefix)
+	r.metrics = newMetrics(r.options.MetricsNamespacePrefix, r.id, r.options.IsVoter)
 	r.metrics.setNodeStateGauge(Down)
 
 	r.mu.Lock()
@@ -264,15 +264,12 @@ func (r *Rafty) Start() error {
 
 	r.isRunning.Store(true)
 	if r.getState() == Down {
-		if r.options.ReadReplica {
-			r.switchState(ReadReplica, stepUp, true, r.currentTerm.Load())
-		} else {
-			r.switchState(Follower, stepUp, true, r.currentTerm.Load())
-		}
+		r.switchState(Follower, stepUp, true, r.currentTerm.Load())
 		r.Logger.Info().
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
+			Str("isVoter", fmt.Sprintf("%t", r.options.IsVoter)).
 			Msgf("Node successfully started")
 	}
 
@@ -308,7 +305,7 @@ func (r *Rafty) Stop() {
 // stop permits to stop the gRPC server and Rafty with the provided configuration
 func (r *Rafty) stop() {
 	if r.options.LeaveOnTerminate && r.waitForLeader() {
-		_ = r.LeaveOnTerminateMember(5, r.Address.String(), r.id, r.options.ReadReplica)
+		_ = r.LeaveOnTerminateMember(5, r.Address.String(), r.id, r.options.IsVoter)
 	}
 	r.isRunning.Store(false)
 	r.stopCtx()
@@ -352,7 +349,7 @@ func (r *Rafty) checkNodeIDs() bool {
 	for _, peer := range peers {
 		if peer.ID != "" {
 			count--
-			if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && !peer.ReadReplica {
+			if r.clusterSizeCounter.Load()+1 < r.options.MinimumClusterSize && !r.minimumClusterSizeReach.Load() && peer.IsVoter {
 				r.clusterSizeCounter.Add(1)
 			}
 		}

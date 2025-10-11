@@ -423,14 +423,14 @@ func TestRafty_start3Nodes_TimeMultiplier(t *testing.T) {
 	cc.testClustering(t)
 }
 
-func TestRafty_start7NodesWithReadReplica(t *testing.T) {
+func TestRafty_start7NodesWithNonVoters(t *testing.T) {
 	cc := clusterConfig{
 		t:           t,
 		testName:    "7_nodes_with_read_only_nodes",
 		clusterSize: 7,
 		// runTestInParallel:         true,
 		portStartRange:            35000,
-		readReplicaCount:          2,
+		nonVoterCount:             2,
 		autoSetMinimumClusterSize: true,
 	}
 	cc.assert = assert.New(t)

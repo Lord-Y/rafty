@@ -12,9 +12,9 @@ type Peer struct {
 	// ID of the current peer
 	ID string `json:"id"`
 
-	// ReadReplica statuate if this peer is a read replica node
-	// This kind of node won't participate into any election campaign
-	ReadReplica bool `json:"readReplica"`
+	// IsVoter statuates if this peer is a voting member node.
+	// When set to false, this node won't participate into any election campaign
+	IsVoter bool `json:"isVoter"`
 
 	// address is the address of a peer node with explicit host and port
 	address net.TCPAddr

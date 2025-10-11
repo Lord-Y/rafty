@@ -47,6 +47,7 @@ func basicNodeSetup() *Rafty {
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := Options{
+		IsVoter:      true,
 		InitialPeers: initialPeers,
 		DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "basic_setup", id),
 	}
@@ -66,7 +67,9 @@ func basicNodeSetup() *Rafty {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s.metrics = newMetrics(id, s.options.MetricsNamespacePrefix)
+	s.configuration.ServerMembers[0].IsVoter = true
+	s.configuration.ServerMembers[1].IsVoter = true
+	s.metrics = newMetrics(options.MetricsNamespacePrefix, id, options.IsVoter)
 	s.metrics.setNodeStateGauge(Down)
 	return s
 }
@@ -86,7 +89,7 @@ type clusterConfig struct {
 	autoSetMinimumClusterSize bool
 	noNodeID                  bool
 	maxAppendEntries          uint64
-	readReplicaCount          uint64
+	nonVoterCount             uint64
 	prevoteDisabled           bool
 	isSingleServerCluster     bool
 	bootstrapCluster          bool
@@ -115,6 +118,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		id = id[len(id)-2:]
 		options := Options{
 			IsSingleServerCluster: true,
+			IsVoter:               true,
 			logSource:             cc.testName,
 			DataDir:               filepath.Join(os.TempDir(), "rafty_test", cc.testName, id),
 			ElectionTimeout:       cc.electionTimeout,
@@ -136,7 +140,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		return
 	}
 
-	readReplicaCount := 0
+	nonVoterCount := 0
 	for i := range cc.clusterSize {
 		var (
 			addr    net.TCPAddr
@@ -158,14 +162,15 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 		options.SnapshotThreshold = cc.snapshotThreshold
 		options.ElectionTimeout = cc.electionTimeout
 		options.HeartbeatTimeout = cc.heartbeatTimeout
+		options.IsVoter = true
 		if cc.autoSetMinimumClusterSize {
-			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.readReplicaCount
+			options.MinimumClusterSize = uint64(cc.clusterSize) - cc.nonVoterCount
 		}
 		options.MaxAppendEntries = cc.maxAppendEntries
 		options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, fmt.Sprintf("node%d", i))
-		if cc.readReplicaCount > 0 && int(cc.readReplicaCount) > readReplicaCount {
-			options.ReadReplica = true
-			readReplicaCount++
+		if cc.nonVoterCount > 0 && int(cc.nonVoterCount) > nonVoterCount {
+			options.IsVoter = false
+			nonVoterCount++
 		}
 		storeOptions := BoltOptions{
 			DataDir: options.DataDir,
@@ -214,7 +219,7 @@ func (cc *clusterConfig) makeCluster() (cluster []*Rafty) {
 	return
 }
 
-func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leaveOnTerminate bool) {
+func (cc *clusterConfig) makeAdditionalNode(isVoter, shutdownOnRemove, leaveOnTerminate bool) {
 	var defaultPort int
 	if len(cc.newNodes) == 0 {
 		defaultPort = cc.cluster[0].options.InitialPeers[cc.clusterSize-2].address.Port + 1
@@ -229,7 +234,7 @@ func (cc *clusterConfig) makeAdditionalNode(readReplica, shutdownOnRemove, leave
 	id := fmt.Sprintf("%d", addr.Port)
 	id = id[len(id)-2:]
 	options := cc.cluster[0].options
-	options.ReadReplica = readReplica
+	options.IsVoter = isVoter
 	options.ShutdownOnRemove = shutdownOnRemove
 	options.LeaveOnTerminate = leaveOnTerminate
 	options.DataDir = filepath.Join(os.TempDir(), "rafty_test", cc.testName, "node"+id)
@@ -269,11 +274,11 @@ func (cc *clusterConfig) startCluster(wg *sync.WaitGroup) {
 }
 
 func (cc *clusterConfig) startAdditionalNodes(wg *sync.WaitGroup) {
-	cc.makeAdditionalNode(false, true, false)
 	cc.makeAdditionalNode(true, true, false)
 	cc.makeAdditionalNode(false, true, false)
-	cc.makeAdditionalNode(false, false, false)
-	cc.makeAdditionalNode(true, false, true)
+	cc.makeAdditionalNode(true, true, false)
+	cc.makeAdditionalNode(true, false, false)
+	cc.makeAdditionalNode(false, false, true)
 	for i, node := range cc.newNodes {
 		cc.t.Run(fmt.Sprintf("cluster_%s_newnode_%d", cc.testName, i), func(t *testing.T) {
 			wg.Go(func() {
@@ -598,11 +603,9 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	dataDir := filepath.Dir(cc.cluster[0].options.DataDir)
 
 	var leader leaderMap
-	go func() {
-		if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
-			go cc.submitCommandOnAllNodes(&wg)
-		}
-	}()
+	if leader = cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
+		go cc.submitCommandOnAllNodes(&wg)
+	}
 	cc.startAdditionalNodes(&wg)
 
 	time.Sleep(5 * time.Second)
@@ -698,13 +701,13 @@ func (cc *clusterConfig) getMember(id string) (p Peer, index int, originalCluste
 	if index := slices.IndexFunc(cc.cluster, func(p *Rafty) bool {
 		return p.id == id
 	}); index != -1 {
-		return Peer{Address: cc.cluster[index].Address.String(), ID: id, ReadReplica: cc.cluster[index].options.ReadReplica}, index, true
+		return Peer{Address: cc.cluster[index].Address.String(), ID: id, IsVoter: cc.cluster[index].options.IsVoter}, index, true
 	}
 
 	if index := slices.IndexFunc(cc.newNodes, func(p *Rafty) bool {
 		return p.id == id
 	}); index != -1 {
-		return Peer{Address: cc.newNodes[index].Address.String(), ID: id, ReadReplica: cc.newNodes[index].options.ReadReplica}, index, false
+		return Peer{Address: cc.newNodes[index].Address.String(), ID: id, IsVoter: cc.newNodes[index].options.IsVoter}, index, false
 	}
 	return
 }
@@ -738,22 +741,21 @@ func (cc *clusterConfig) membershipAction(wg *sync.WaitGroup, leader bool, id st
 			var membershipResponse error
 			switch action {
 			case Add:
-				membershipResponse = node.AddMember(10*time.Second, member.Address, member.ID, member.ReadReplica)
+				membershipResponse = node.AddMember(10*time.Second, member.Address, member.ID, member.IsVoter)
 			case Promote:
-				membershipResponse = node.PromoteMember(10*time.Second, member.Address, member.ID, member.ReadReplica)
+				membershipResponse = node.PromoteMember(10*time.Second, member.Address, member.ID, member.IsVoter)
 			case Demote:
-				membershipResponse = node.DemoteMember(10*time.Second, member.Address, member.ID, member.ReadReplica)
+				membershipResponse = node.DemoteMember(10*time.Second, member.Address, member.ID, member.IsVoter)
 			case Remove:
-				membershipResponse = node.RemoveMember(10*time.Second, member.Address, member.ID, member.ReadReplica)
+				membershipResponse = node.RemoveMember(10*time.Second, member.Address, member.ID, member.IsVoter)
 			case ForceRemove:
-				membershipResponse = node.ForceRemoveMember(10*time.Second, member.Address, member.ID, member.ReadReplica)
+				membershipResponse = node.ForceRemoveMember(10*time.Second, member.Address, member.ID, member.IsVoter)
 			}
 
 			if membershipResponse != nil {
 				nerr := status.Convert(membershipResponse)
 				cc.t.Logf("Membership change request client error for %s leaderAddress %s retry %d error %s", id+"_"+action.String(), node.Address.String(), retry, nerr.Err())
 				if errors.Is(membershipResponse, ErrNotLeader) {
-					// noLeader = true
 					time.Sleep(time.Second)
 				} else {
 					if !slices.Contains([]error{ErrMembershipChangeNodeTooSlow, ErrMembershipChangeInProgress, ErrMembershipChangeNodeNotDemoted, ErrMembershipChangeNodeDemotionForbidden}, nerr.Err()) {
@@ -779,7 +781,7 @@ func (cc *clusterConfig) getRaftNode(leader bool) *Rafty {
 	}
 
 	if index := slices.IndexFunc(cc.newNodes, func(p *Rafty) bool {
-		return !p.options.ReadReplica && p.IsRunning()
+		return p.options.IsVoter && p.IsRunning()
 	}); index != -1 {
 		return cc.newNodes[index]
 	}

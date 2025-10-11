@@ -11,6 +11,7 @@ func (c *Cluster) newRafty() (*rafty.Rafty, error) {
 		Logger:             c.Logger,
 		DataDir:            c.dataDir,
 		MinimumClusterSize: 3,
+		IsVoter:            true,
 		InitialPeers:       c.buildPeers(),
 		SnapshotInterval:   30 * time.Second,
 	}

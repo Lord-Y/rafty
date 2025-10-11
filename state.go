@@ -9,8 +9,6 @@ func (s State) String() string {
 		return "candidate"
 	case Follower:
 		return "follower"
-	case ReadReplica:
-		return "readReplica"
 	}
 	return "down"
 }

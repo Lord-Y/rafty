@@ -83,6 +83,13 @@ func TestRpcs_askNodeIDResult(t *testing.T) {
 	})
 }
 
+func TestRpcs_makeRPCGetLeaderRequest_Nil(t *testing.T) {
+	assert := assert.New(t)
+
+	result := makeRPCGetLeaderResponse(nil, 0)
+	assert.Equal(RPCGetLeaderResponse{}, result)
+}
+
 func TestRpcs_getLeaderResult(t *testing.T) {
 	assert := assert.New(t)
 	s := basicNodeSetup()

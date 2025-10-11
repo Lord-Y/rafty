@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMembershipString(t *testing.T) {
+func TestMembership_string(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []MembershipChange{
@@ -47,7 +47,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		tests := []struct {
 			member              Peer
-			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
 			expError            error
@@ -55,15 +54,14 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:              Peer{ID: "newnode"},
+				member:              Peer{ID: "newnode", IsVoter: true},
 				expWaitToBePromoted: true,
 				expContained:        true,
 				expVerify:           true,
 			},
 			{
-				member:              Peer{ID: "newnode", ReadReplica: true},
+				member:              Peer{ID: "newnode"},
 				expWaitToBePromoted: true,
-				expReadReplica:      true,
 				expContained:        true,
 				expVerify:           true,
 			},
@@ -80,7 +78,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			assert.Equal(tc.expError, err)
 			assert.Equal(tc.expWaitToBePromoted, next[len(next)-1].WaitToBePromoted)
 			assert.Equal(tc.expDecommissioning, next[len(next)-1].Decommissioning)
-			assert.Equal(tc.expReadReplica, next[len(next)-1].ReadReplica)
 			assert.Equal(tc.expContained, isPartOfTheCluster(next, tc.member))
 			assert.Equal(tc.expVerify, s.verifyConfiguration(next))
 		}
@@ -98,7 +95,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		tests := []struct {
 			member              Peer
 			action              MembershipChange
-			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
 			expError            error
@@ -106,14 +102,14 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:              Peer{ID: "newnode"},
+				member:              Peer{ID: "newnode", IsVoter: true},
 				action:              Remove,
 				expWaitToBePromoted: false,
 				expContained:        false,
 				expVerify:           true,
 			},
 			{
-				member:              Peer{ID: "newnode", ReadReplica: true},
+				member:              Peer{ID: "newnode"},
 				action:              ForceRemove,
 				expWaitToBePromoted: false,
 				expContained:        false,
@@ -125,6 +121,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			peers, _ := s.getAllPeers()
 			tc.member.ID = fmt.Sprintf("%s_%d", tc.member.ID, i)
 			tc.member.Address = fmt.Sprintf("127.0.0.1:%d", 60000+i)
+			tc.member.address = getNetAddress(tc.member.Address)
 			next, err := s.nextConfiguration(Add, peers, tc.member)
 			if err == nil {
 				s.updateServerMembers(next)
@@ -134,11 +131,9 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			if err == nil {
 				s.updateServerMembers(next)
 			}
-
 			assert.Equal(tc.expError, err)
 			assert.Equal(tc.expWaitToBePromoted, next[len(next)-1].WaitToBePromoted)
 			assert.Equal(tc.expDecommissioning, next[len(next)-1].Decommissioning)
-			assert.Equal(tc.expReadReplica, next[len(next)-1].ReadReplica)
 			assert.Equal(tc.expContained, isPartOfTheCluster(next, tc.member))
 			assert.Equal(tc.expVerify, s.verifyConfiguration(next))
 		}
@@ -155,7 +150,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		tests := []struct {
 			member              Peer
-			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
 			expError            error
@@ -163,17 +157,16 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:              Peer{ID: "newnode"},
+				member:              Peer{ID: "newnode", IsVoter: true},
 				expWaitToBePromoted: false,
 				expDecommissioning:  false,
 				expContained:        true,
 				expVerify:           true,
 			},
 			{
-				member:              Peer{ID: "newnode", ReadReplica: true},
+				member:              Peer{ID: "newnode"},
 				expWaitToBePromoted: false,
 				expDecommissioning:  false,
-				expReadReplica:      true,
 				expContained:        true,
 				expVerify:           true,
 			},
@@ -183,6 +176,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			peers, _ := s.getAllPeers()
 			tc.member.ID = fmt.Sprintf("%s_%d", tc.member.ID, i)
 			tc.member.Address = fmt.Sprintf("127.0.0.1:%d", 60000+i)
+			tc.member.address = getNetAddress(tc.member.Address)
 			next, err := s.nextConfiguration(Add, peers, tc.member)
 			if err == nil {
 				s.updateServerMembers(next)
@@ -196,7 +190,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			assert.Equal(tc.expError, err)
 			assert.Equal(tc.expWaitToBePromoted, next[len(next)-1].WaitToBePromoted)
 			assert.Equal(tc.expDecommissioning, next[len(next)-1].Decommissioning)
-			assert.Equal(tc.expReadReplica, next[len(next)-1].ReadReplica)
 			assert.Equal(tc.expContained, isPartOfTheCluster(next, tc.member))
 			assert.Equal(tc.expVerify, s.verifyConfiguration(next))
 		}
@@ -213,7 +206,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		tests := []struct {
 			member              Peer
-			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
 			expError            error
@@ -221,17 +213,16 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:              Peer{ID: "newnode"},
+				member:              Peer{ID: "newnode", IsVoter: true},
 				expWaitToBePromoted: false,
 				expDecommissioning:  true,
 				expContained:        true,
 				expVerify:           true,
 			},
 			{
-				member:              Peer{ID: "newnode", ReadReplica: true},
+				member:              Peer{ID: "newnode"},
 				expWaitToBePromoted: false,
 				expDecommissioning:  true,
-				expReadReplica:      true,
 				expContained:        true,
 				expVerify:           true,
 			},
@@ -241,6 +232,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			peers, _ := s.getAllPeers()
 			tc.member.ID = fmt.Sprintf("%s_%d", tc.member.ID, i)
 			tc.member.Address = fmt.Sprintf("127.0.0.1:%d", 60000+i)
+			tc.member.address = getNetAddress(tc.member.Address)
 			next, err := s.nextConfiguration(Add, peers, tc.member)
 			if err == nil {
 				s.updateServerMembers(next)
@@ -259,7 +251,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			assert.Equal(tc.expError, err)
 			assert.Equal(tc.expWaitToBePromoted, next[len(next)-1].WaitToBePromoted)
 			assert.Equal(tc.expDecommissioning, next[len(next)-1].Decommissioning)
-			assert.Equal(tc.expReadReplica, next[len(next)-1].ReadReplica)
 			assert.Equal(tc.expContained, isPartOfTheCluster(next, tc.member))
 			assert.Equal(tc.expVerify, s.verifyConfiguration(next))
 		}
@@ -276,7 +267,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 
 		tests := []struct {
 			member              Peer
-			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
 			expError            error
@@ -284,11 +274,11 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:    Peer{ID: "newnode"},
+				member:    Peer{ID: "newnode", IsVoter: true},
 				expVerify: true,
 			},
 			{
-				member:    Peer{ID: "newnode", ReadReplica: true},
+				member:    Peer{ID: "newnode"},
 				expVerify: true,
 			},
 		}
@@ -297,6 +287,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			peers, _ := s.getAllPeers()
 			tc.member.ID = fmt.Sprintf("%s_%d", tc.member.ID, i)
 			tc.member.Address = fmt.Sprintf("127.0.0.1:%d", 60000+i)
+			tc.member.address = getNetAddress(tc.member.Address)
 
 			next, err := s.nextConfiguration(Add, peers, tc.member)
 			if err == nil {
@@ -321,7 +312,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			assert.Equal(tc.expError, err)
 			assert.Equal(tc.expWaitToBePromoted, next[len(next)-1].WaitToBePromoted)
 			assert.Equal(tc.expDecommissioning, next[len(next)-1].Decommissioning)
-			assert.Equal(tc.expReadReplica, next[len(next)-1].ReadReplica)
 			assert.Equal(tc.expContained, isPartOfTheCluster(next, tc.member))
 			assert.Equal(tc.expVerify, s.verifyConfiguration(next))
 		}
@@ -340,7 +330,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			action              MembershipChange
 			member              Peer
 			memberid            int
-			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
 			expError            error
@@ -370,7 +359,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 				assert.Equal(tc.expError, err)
 				assert.Equal(tc.expWaitToBePromoted, next[len(next)-1].WaitToBePromoted)
 				assert.Equal(tc.expDecommissioning, next[len(next)-1].Decommissioning)
-				assert.Equal(tc.expReadReplica, next[len(next)-1].ReadReplica)
 				assert.Equal(tc.expContained, isPartOfTheCluster(next, tc.member))
 				assert.Equal(tc.expVerify, s.verifyConfiguration(next))
 			}
@@ -389,7 +377,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		peers, _ := s.getAllPeers()
 		tests := []struct {
 			member              Peer
-			expReadReplica      bool
 			expWaitToBePromoted bool
 			expDecommissioning  bool
 			expError            error
@@ -397,11 +384,11 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			expVerify           bool
 		}{
 			{
-				member:    Peer{ID: "newnode"},
+				member:    Peer{ID: "newnode", IsVoter: true},
 				expVerify: true,
 			},
 			{
-				member:    Peer{ID: "newnode", ReadReplica: true},
+				member:    Peer{ID: "newnode"},
 				expVerify: true,
 			},
 		}
@@ -409,6 +396,7 @@ func TestMembership_nextConfiguration(t *testing.T) {
 		for i, tc := range tests {
 			tc.member.ID = fmt.Sprintf("%s_%d", tc.member.ID, i)
 			tc.member.Address = fmt.Sprintf("127.0.0.1:%d", 60000+i)
+			tc.member.address = getNetAddress(tc.member.Address)
 			next, err := s.nextConfiguration(Add, peers, tc.member)
 			if err == nil {
 				s.updateServerMembers(next)
@@ -427,7 +415,6 @@ func TestMembership_nextConfiguration(t *testing.T) {
 			assert.Equal(tc.expError, err)
 			assert.Equal(tc.expWaitToBePromoted, next[len(next)-1].WaitToBePromoted)
 			assert.Equal(tc.expDecommissioning, next[len(next)-1].Decommissioning)
-			assert.Equal(tc.expReadReplica, next[len(next)-1].ReadReplica)
 			assert.Equal(tc.expContained, isPartOfTheCluster(next, tc.member))
 			assert.Equal(tc.expVerify, s.verifyConfiguration(next))
 		}

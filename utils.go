@@ -83,6 +83,7 @@ func (r *Rafty) getAllPeers() (peers []Peer, total int) {
 		ID:               r.id,
 		Address:          r.Address.String(),
 		address:          getNetAddress(r.Address.String()),
+		IsVoter:          r.options.IsVoter,
 		WaitToBePromoted: r.waitToBePromoted.Load(),
 		Decommissioning:  r.decommissioning.Load(),
 	})
@@ -168,7 +169,6 @@ func (r *Rafty) switchState(newState State, upOrDown upOrDown, niceMessage bool,
 
 	if niceMessage {
 		switch newState {
-		case ReadReplica:
 		case Down:
 			r.Logger.Info().
 				Str("address", r.Address.String()).
@@ -224,7 +224,7 @@ func (r *Rafty) quorum() int {
 	defer r.murw.RUnlock()
 	voter := 0
 	for _, member := range r.configuration.ServerMembers {
-		if !member.ReadReplica && !member.WaitToBePromoted && !member.Decommissioning {
+		if member.IsVoter && !member.WaitToBePromoted && !member.Decommissioning {
 			voter++
 		}
 	}
@@ -291,8 +291,7 @@ func isPartOfTheCluster(list []Peer, member Peer) bool {
 func (r *Rafty) waitForLeader() bool {
 	peers, _ := r.getPeers()
 	for _, peer := range peers {
-		client := r.connectionManager.getClient(peer.address.String())
-		if client != nil {
+		if client := r.connectionManager.getClient(peer.address.String()); client != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
 			response, _ := client.GetLeader(ctx, &raftypb.GetLeaderRequest{PeerId: r.id, PeerAddress: r.Address.String()})

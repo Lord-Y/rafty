@@ -26,7 +26,7 @@ Here is a list of the supported features of `rafty`:
 - [x] Leader election
 - [x] Leader lease
 - [x] Leadership transfer
-- [] Logs
+- [x] Logs
   - [x] Log replication
   - [x] Submit write commands
   - [x] Submit read commands

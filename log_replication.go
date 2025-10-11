@@ -152,7 +152,7 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 			if r.matchIndex.Load() != response.LastLogIndex {
 				r.nextIndex.Store(response.LastLogIndex + 1)
 				r.matchIndex.Store(response.LastLogIndex)
-				if !r.ReadReplica {
+				if r.IsVoter {
 					select {
 					case <-r.rafty.quitCtx.Done():
 						return
@@ -285,7 +285,7 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		r.matchIndex.Store(response.LastLogIndex)
 		oldResponse.LastLogIndex = response.LastLogIndex
 		oldResponse.LastLogTerm = response.LastLogTerm
-		if !r.ReadReplica {
+		if r.IsVoter {
 			select {
 			case <-r.rafty.quitCtx.Done():
 				return
