@@ -20,8 +20,8 @@ func (r *Rafty) SubmitCommand(timeout time.Duration, logKind LogKind, command []
 	switch logKind {
 	case LogReplication:
 		return r.submitCommandWrite(timeout, command)
-	case LogCommandReadLeader:
-		return r.submitCommandReadLeader(timeout, command)
+	case LogCommandReadLeaderLease, LogCommandLinearizableRead:
+		return r.submitCommandReadLeader(timeout, logKind, command)
 	}
 	return nil, ErrLogCommandNotAllowed
 }
@@ -68,8 +68,9 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 		response, err := client.ForwardCommandToLeader(
 			ctx,
 			&raftypb.ForwardCommandToLeaderRequest{
-				LogType: uint32(LogReplication),
-				Command: command,
+				LogType:           uint32(LogReplication),
+				Command:           command,
+				MembershipTimeout: uint32(4 * timeout),
 			},
 		)
 		if err != nil {
@@ -88,9 +89,9 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 
 // submitCommandReadLeader is used to submit a command that will be read from the state machine on the leader.
 // This command will not be written to the log and replicated to the followers
-func (r *Rafty) submitCommandReadLeader(timeout time.Duration, command []byte) ([]byte, error) {
+func (r *Rafty) submitCommandReadLeader(timeout time.Duration, logKind LogKind, command []byte) ([]byte, error) {
 	if r.getState() == Leader {
-		return r.fsm.ApplyCommand(&LogEntry{LogType: uint32(LogCommandReadLeader), Command: command})
+		return r.fsm.ApplyCommand(&LogEntry{LogType: uint32(logKind), Command: command})
 	}
 
 	if !r.waitForLeader() {
@@ -104,8 +105,9 @@ func (r *Rafty) submitCommandReadLeader(timeout time.Duration, command []byte) (
 		response, err := client.ForwardCommandToLeader(
 			ctx,
 			&raftypb.ForwardCommandToLeaderRequest{
-				LogType: uint32(LogCommandReadLeader),
-				Command: command,
+				LogType:           uint32(logKind),
+				Command:           command,
+				MembershipTimeout: uint32(4 * timeout),
 			},
 		)
 		if err != nil {

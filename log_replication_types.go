@@ -30,10 +30,10 @@ type followerReplication struct {
 	rafty *Rafty
 
 	// newEntry is used by the leader to trigger log replication or hearbeat
-	newEntryChan chan bool
+	newEntryChan chan replicationData
 
-	// notifyLeader is used once nextIndex/matchIndex has updated
-	notifyLeader chan commitChanConfig
+	// notifyLeaderChan is used once nextIndex/matchIndex has updated
+	notifyLeaderChan chan commitChanConfig
 
 	// replicationStopped is used by the leader
 	// to stop ongoing append entries replication
@@ -100,4 +100,28 @@ type onAppendEntriesRequest struct {
 
 	// membershipChangeID is the id of the member to take action on
 	membershipChangeID string
+}
+
+// replicationData holds basic requirements
+// to replicate data
+type replicationData struct {
+	// uuid is used only for debugging.
+	// It helps to differenciate append entries requests
+	uuid string
+
+	// heartbeat is a boolean indicating to it's use to keep leadership
+	heartbeat bool
+
+	// newKey is a boolean indicating to it's use to keep leadership
+	newKey bool
+
+	// readIndex is used to indicate if we need to perform a linearizable
+	// read. It's a special heartbeat
+	readIndex bool
+
+	// commitIndex is only set when readIndex is true
+	commitIndex uint64
+
+	// term is only set when readIndex is true
+	term uint64
 }

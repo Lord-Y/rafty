@@ -662,7 +662,7 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		assert.Equal(ErrClusterNotBootstrapped, err)
 	})
 
-	t.Run("log_command_read_leader", func(t *testing.T) {
+	t.Run("log_command_read_leader_lease", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
@@ -677,13 +677,13 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
 		assert.Nil(EncodeCommand(command, buffer))
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes(), LogType: uint32(LogCommandReadLeader)}
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes(), LogType: uint32(LogCommandReadLeaderLease)}
 
 		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
 		assert.Nil(err)
 	})
 
-	t.Run("log_command_read_not_leader", func(t *testing.T) {
+	t.Run("log_command_read_not_leader_lease", func(t *testing.T) {
 		s := basicNodeSetup()
 		defer func() {
 			assert.Nil(s.logStore.Close())
@@ -697,10 +697,66 @@ func TestRaftypb_ForwardCommandToLeader(t *testing.T) {
 		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
 		buffer := new(bytes.Buffer)
 		assert.Nil(EncodeCommand(command, buffer))
-		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes(), LogType: uint32(LogCommandReadLeader)}
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes(), LogType: uint32(LogCommandReadLeaderLease)}
 
 		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
-		assert.Error(err)
+		assert.ErrorIs(err, ErrNotLeader)
+	})
+
+	t.Run("log_command_linearizable_not_leader", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.State = Follower
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(command, buffer))
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes(), LogType: uint32(LogCommandLinearizableRead)}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			data := <-s.rpcAppendEntriesRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.ForwardCommandToLeaderResponse{},
+			}
+		}()
+
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.ErrorIs(err, ErrNotLeader)
+	})
+
+	t.Run("log_command_linearizable_success", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.State = Leader
+		rpcm := rpcManager{rafty: s}
+
+		i := 0
+		command := Command{Kind: 99, Key: fmt.Sprintf("key%s%d", s.id, i), Value: fmt.Sprintf("value%d", i)}
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(command, buffer))
+		request := &raftypb.ForwardCommandToLeaderRequest{Command: buffer.Bytes(), LogType: uint32(LogCommandLinearizableRead)}
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			data := <-s.rpcAppendEntriesRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.ForwardCommandToLeaderResponse{},
+			}
+		}()
+
+		_, err := rpcm.ForwardCommandToLeader(context.Background(), request)
+		assert.Nil(err)
 	})
 
 	t.Run("log_configuration_not_leader", func(t *testing.T) {

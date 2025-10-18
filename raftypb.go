@@ -239,18 +239,40 @@ func (r *rpcManager) ForwardCommandToLeader(ctx context.Context, in *raftypb.For
 	var request RPCRequest
 	responseChan := make(chan RPCResponse, 1)
 	switch LogKind(in.LogType) {
-	case LogCommandReadLeader:
-		if r.rafty.IsLeader() {
-			response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: in.LogType, Command: in.Command})
+	case LogCommandReadLeaderLease:
+		if r.rafty.getState() != Leader {
 			return &raftypb.ForwardCommandToLeaderResponse{
 				LeaderId:      r.rafty.id,
 				LeaderAddress: r.rafty.Address.String(),
-				Data:          response,
-				Error:         fmt.Sprintf("%v", err),
-			}, err
+			}, ErrNotLeader
 		}
 
-		return &raftypb.ForwardCommandToLeaderResponse{}, ErrNotLeader
+		response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: in.LogType, Command: in.Command})
+		return &raftypb.ForwardCommandToLeaderResponse{
+			LeaderId:      r.rafty.id,
+			LeaderAddress: r.rafty.Address.String(),
+			Data:          response,
+			Error:         fmt.Sprintf("%v", err),
+		}, err
+
+	case LogCommandLinearizableRead:
+		timeout = 3 * time.Second
+		if r.rafty.getState() != Leader {
+			return &raftypb.ForwardCommandToLeaderResponse{
+				LeaderId:      r.rafty.id,
+				LeaderAddress: r.rafty.Address.String(),
+			}, ErrNotLeader
+		}
+
+		request = RPCRequest{
+			RPCType: ForwardCommandToLeader,
+			Request: replicateLogConfig{
+				logType:    LogCommandLinearizableRead,
+				command:    in.Command,
+				clientChan: responseChan,
+			},
+			ResponseChan: responseChan,
+		}
 
 	case LogConfiguration:
 		if r.rafty.getState() != Leader {
