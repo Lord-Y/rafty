@@ -52,9 +52,9 @@ func (r *followerReplication) startStopFollowerReplication() {
 		select {
 		case <-r.rafty.quitCtx.Done():
 			return
-		case heartbeat, ok := <-r.newEntryChan:
+		case data, ok := <-r.newEntryChan:
 			if ok {
-				r.appendEntries(heartbeat)
+				r.appendEntries(data)
 			}
 		//nolint staticcheck
 		default:
@@ -84,7 +84,7 @@ func (r *followerReplication) sendAppendEntries(client raftypb.RaftyClient, requ
 }
 
 // appendEntries send append entries to the current follower
-func (r *followerReplication) appendEntries(heartbeat bool) {
+func (r *followerReplication) appendEntries(data replicationData) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
@@ -92,7 +92,7 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 	var response GetLogsByRangeResponse
 	// This is done to prevent fetching log entries if the follower is already synced.
 	// That will reduce network traffic
-	if r.rafty.matchIndex.Load() == 0 || !heartbeat {
+	if r.rafty.matchIndex.Load() == 0 || data.newKey {
 		r.catchup.Store(true)
 		defer r.catchup.Store(false)
 		response = r.rafty.logStore.GetLogsByRange(previousLogIndex, r.nextIndex.Load(), r.rafty.options.MaxAppendEntries)
@@ -100,8 +100,8 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 
 	request := &onAppendEntriesRequest{
 		term:                       r.rafty.currentTerm.Load(),
-		heartbeat:                  heartbeat,
-		catchup:                    !heartbeat,
+		heartbeat:                  data.heartbeat,
+		catchup:                    !data.heartbeat,
 		prevLogIndex:               previousLogIndex,
 		prevLogTerm:                previousLogTerm,
 		commitIndex:                r.rafty.commitIndex.Load(),
@@ -109,6 +109,13 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 		totalLogs:                  response.Total,
 		rpcTimeout:                 r.rafty.randomRPCTimeout(true),
 		membershipChangeInProgress: &atomic.Bool{},
+	}
+
+	if data.readIndex {
+		request.commitIndex = data.commitIndex
+		request.term = data.term
+		request.heartbeat = true
+		request.catchup = false
 	}
 
 	if client := r.rafty.connectionManager.getClient(r.address.String()); client != nil && r.rafty.getState() == Leader {
@@ -128,18 +135,19 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 				Str("commitIndex", fmt.Sprintf("%d", request.commitIndex)).
 				Str("rpcTimeout", request.rpcTimeout.String()).
 				Str("failures", fmt.Sprintf("%d", r.failures.Load())).
+				Str("requestUUID", data.uuid).
 				Msgf("Fail to send append entries to peer")
 			return
 		}
 
 		r.failures.Store(0)
 		r.lastContactDate.Store(time.Now())
+		if !data.heartbeat {
+			r.catchup.Store(false)
+		}
 		// must be kept as sometimes it's really nil
 		if response == nil {
 			return
-		}
-		if !heartbeat {
-			r.catchup.Store(false)
 		}
 
 		switch {
@@ -152,15 +160,6 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 			if r.matchIndex.Load() != response.LastLogIndex {
 				r.nextIndex.Store(response.LastLogIndex + 1)
 				r.matchIndex.Store(response.LastLogIndex)
-				if r.IsVoter {
-					select {
-					case <-r.rafty.quitCtx.Done():
-						return
-					case <-time.After(100 * time.Millisecond):
-						return
-					case r.notifyLeader <- commitChanConfig{id: r.ID, matchIndex: response.LastLogIndex}:
-					}
-				}
 
 				r.rafty.Logger.Trace().
 					Str("address", r.rafty.Address.String()).
@@ -173,7 +172,22 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 					Str("peerId", r.ID).
 					Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
 					Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+					Str("requestUUID", data.uuid).
 					Msgf("Follower nextIndex / matchIndex has been updated")
+			}
+			if data.newKey || data.readIndex {
+				select {
+				case <-r.rafty.quitCtx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+					return
+				case r.notifyLeaderChan <- commitChanConfig{
+					id:         r.ID,
+					matchIndex: response.LastLogIndex,
+					readIndex:  data.readIndex,
+					uuid:       data.uuid,
+				}:
+				}
 			}
 
 		default:
@@ -196,6 +210,7 @@ func (r *followerReplication) appendEntries(heartbeat bool) {
 					Str("peerId", r.ID).
 					Str("peerNextIndex", fmt.Sprintf("%d", r.nextIndex.Load())).
 					Str("peerMatchIndex", fmt.Sprintf("%d", r.matchIndex.Load())).
+					Str("requestUUID", data.uuid).
 					Msgf("Failed to append entries because peer rejected it")
 			}
 		}
@@ -285,14 +300,12 @@ func (r *followerReplication) sendCatchupAppendEntries(client raftypb.RaftyClien
 		r.matchIndex.Store(response.LastLogIndex)
 		oldResponse.LastLogIndex = response.LastLogIndex
 		oldResponse.LastLogTerm = response.LastLogTerm
-		if r.IsVoter {
-			select {
-			case <-r.rafty.quitCtx.Done():
-				return
-			case <-time.After(100 * time.Millisecond):
-				return
-			case r.notifyLeader <- commitChanConfig{id: r.ID, matchIndex: response.LastLogIndex}:
-			}
+		select {
+		case <-r.rafty.quitCtx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+			return
+		case r.notifyLeaderChan <- commitChanConfig{id: r.ID, matchIndex: response.LastLogIndex}:
 		}
 
 		r.rafty.Logger.Trace().

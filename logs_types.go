@@ -21,8 +21,14 @@ const (
 	// on all nodes
 	LogReplication
 
-	// logCommanRead is a log type use by clients to fetch data from the leader
-	LogCommandReadLeader
+	// LogCommandReadLeaderLease is a log type use by clients to fetch data from the leader.
+	// This mode is susceptible to time drift or long GC pause.
+	// Use this method only if you don't mind to potentially have stale data
+	LogCommandReadLeaderLease
+
+	// LogCommandLinearizableRead is a command that guarantees read data validity.
+	// No stale read can happen in this mode.
+	LogCommandLinearizableRead
 )
 
 // logs holds all requirements to manipulate logs

@@ -428,10 +428,17 @@ func (cc *clusterConfig) submitCommandOnAllNodes(wg *sync.WaitGroup) {
 				if err := EncodeCommand(Command{Kind: CommandGet, Key: key}, bufferRead); err != nil {
 					node.Logger.Fatal().Err(err).Msgf("Fail to encode command %d", i)
 				}
-				if _, err := node.SubmitCommand(0, LogCommandReadLeader, bufferRead.Bytes()); err != nil {
+				if _, err := node.SubmitCommand(0, LogCommandReadLeaderLease, bufferRead.Bytes()); err != nil {
 					node.Logger.Error().Err(err).
 						Str("node", node.id).
-						Str("logType", LogCommandReadLeader.String()).
+						Str("logType", LogCommandReadLeaderLease.String()).
+						Msgf("Failed to submit commmand to node")
+					cc.assert.Error(err)
+				}
+				if _, err := node.SubmitCommand(5*time.Second, LogCommandLinearizableRead, bufferRead.Bytes()); err != nil {
+					node.Logger.Error().Err(err).
+						Str("node", node.id).
+						Str("logType", LogCommandLinearizableRead.String()).
 						Msgf("Failed to submit commmand to node")
 					cc.assert.Error(err)
 				}

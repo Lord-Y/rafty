@@ -77,7 +77,7 @@ func TestClient_submitCommand(t *testing.T) {
 		buffer := new(bytes.Buffer)
 		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
 
-		_, err := s.SubmitCommand(0, LogCommandReadLeader, buffer.Bytes())
+		_, err := s.SubmitCommand(0, LogCommandReadLeaderLease, buffer.Bytes())
 		assert.Error(err)
 	})
 
@@ -237,7 +237,7 @@ func TestClient_submitCommand(t *testing.T) {
 		buffer := new(bytes.Buffer)
 		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
 
-		_, err := s.submitCommandReadLeader(time.Second, buffer.Bytes())
+		_, err := s.submitCommandReadLeader(time.Second, LogCommandLinearizableRead, buffer.Bytes())
 		assert.ErrorIs(err, nil)
 	})
 
@@ -258,8 +258,28 @@ func TestClient_submitCommand(t *testing.T) {
 		buffer := new(bytes.Buffer)
 		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
 
-		_, err := s.submitCommandReadLeader(time.Second, buffer.Bytes())
+		_, err := s.submitCommandReadLeader(time.Second, LogCommandLinearizableRead, buffer.Bytes())
 		assert.ErrorIs(err, ErrNoLeader)
+	})
+
+	t.Run("write_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrTimeout)
 	})
 }
 
@@ -295,7 +315,7 @@ func TestClient_applyLogs(t *testing.T) {
 			entries: []*raftypb.LogEntry{
 				{
 					Index:   3,
-					LogType: uint32(LogCommandReadLeader),
+					LogType: uint32(LogCommandReadLeaderLease),
 				},
 			},
 		}

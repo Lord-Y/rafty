@@ -58,10 +58,14 @@ type leader struct {
 	// to indicate that their nextIndex/matchIndex has been updated
 	commitChan chan commitChanConfig
 
-	// commitIndexWatcher is the map built by replicateLogs
+	// commitIndexWatcher is the map built by replicateLog
 	// with the index of the that need to be replicated and
 	// its related informations
 	commitIndexWatcher map[uint64]*indexWatcher
+
+	// readIndexWatchers is the map built by replicateLog
+	// with the uuid of the that need for linearizable read calls
+	readIndexWatchers map[string]*readIndexWatcher
 }
 
 // replicateLogConfig is a struct holding all requirements
@@ -101,9 +105,8 @@ type replicateLogConfig struct {
 type indexWatcher struct {
 	// majority represent how many nodes the append entries request
 	// has been successful.
-	// It will then be used with totalMajority var to determine whether
+	// It will then be used with totalFollowers var to determine whether
 	// logs must be committed on disk.
-	// It only incremented by voters
 	majority atomic.Uint64
 
 	// quorum is the minimum number to be reached before commit logs
@@ -162,4 +165,52 @@ type commitChanConfig struct {
 
 	// matchIndex is the index of the highest log entry known to be replicated on server initialized to 0, increases monotically
 	matchIndex uint64
+
+	// readIndex is used to indicate if we need to perform a linearizable
+	// read. It's a special heartbeat
+	readIndex bool
+
+	// uuid helps to differenciate append entries requests
+	uuid string
+}
+
+// readIndexWatcher is a struct holding informations about
+// the read index we need to watch for
+type readIndexWatcher struct {
+	// readIndex is the commit index we perform hearbeat append entries with
+	// to verify that we are still the leader and synchronized with followers
+	readIndex uint64
+
+	// majority represent how many nodes the heartbeat append entries request
+	// has been successful.
+	// It will then be used with totalFollowers var to determine whether
+	// we can reply client with fsm response.
+	majority atomic.Uint64
+
+	// quorum is the minimum number to be reached replying to client
+	// to disk
+	quorum uint64
+
+	// quorumReached is only a helper to prevent
+	// answering the client multiple times
+	quorumReached atomic.Bool
+
+	// totalFollowers holds the total number of nodes for which the leader has sent
+	// the append entries request
+	totalFollowers uint64
+
+	// term is the term of the entry
+	term uint64
+
+	// uuid helps to differenciate append entries requests
+	uuid string
+
+	// logType represent the kind of the log
+	logType LogKind
+
+	// command is the data to be replicated if not nil
+	command []byte
+
+	// clientChan is used by client var
+	clientChan chan<- RPCResponse
 }

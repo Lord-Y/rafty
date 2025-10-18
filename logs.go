@@ -15,8 +15,10 @@ func (s LogKind) String() string {
 		return "logConfiguration"
 	case LogReplication:
 		return "logReplication"
-	case LogCommandReadLeader:
-		return "logCommandReadLeader"
+	case LogCommandReadLeaderLease:
+		return "logCommandReadLeaderLease"
+	case LogCommandLinearizableRead:
+		return "logCommandLinearizableRead"
 	}
 	return "logNoop"
 }

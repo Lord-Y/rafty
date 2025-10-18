@@ -20,6 +20,7 @@ func (r *leader) init() {
 	r.leaseTimer = time.NewTicker(r.leaseDuration * 3)
 	r.commitChan = make(chan commitChanConfig)
 	r.commitIndexWatcher = make(map[uint64]*indexWatcher)
+	r.readIndexWatchers = make(map[string]*readIndexWatcher)
 	go r.commitLoop()
 
 	if r.rafty.options.IsSingleServerCluster {
@@ -80,18 +81,15 @@ func (r *leader) setupFollowersReplicationStates() {
 
 	for _, follower := range followers {
 		followerRepl := &followerReplication{
-			Peer:         follower,
-			rafty:        r.rafty,
-			newEntryChan: make(chan bool),
-			notifyLeader: r.commitChan,
+			Peer:             follower,
+			rafty:            r.rafty,
+			newEntryChan:     make(chan replicationData),
+			notifyLeaderChan: r.commitChan,
 		}
 		r.addReplication(followerRepl, true)
 	}
 
-	r.replicateLog(replicateLogConfig{
-		logType: LogNoop,
-		command: nil,
-	})
+	r.replicateLog(replicateLogConfig{logType: LogNoop, command: nil})
 }
 
 // addReplication add a new follower replication with provided config.
@@ -112,6 +110,8 @@ func (r *leader) heartbeat() {
 	r.replicateLog(replicateLogConfig{heartbeat: true})
 }
 
+// isReplicableForHearbeat will check if node can perform heartbeat.
+// If it's catching up, sending heartbeat will only ad overhead to this node
 func (r *leader) isReplicableForHearbeat(follower *followerReplication) bool {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
@@ -157,10 +157,45 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
+	uuid := uuid.NewString()
 	if config.heartbeat {
+		replicationData := replicationData{uuid: uuid, heartbeat: true}
 		for _, follower := range r.followerReplication {
 			if r.isReplicableForHearbeat(follower) {
-				follower.newEntryChan <- true
+				follower.newEntryChan <- replicationData
+			}
+		}
+		return
+	}
+
+	if config.logType == LogCommandLinearizableRead {
+		commitIndex := r.rafty.commitIndex.Load()
+		readIndexWatcher := &readIndexWatcher{
+			totalFollowers: r.totalFollowers.Load(),
+			quorum:         uint64(r.rafty.quorum()),
+			readIndex:      commitIndex,
+			term:           r.rafty.currentTerm.Load(),
+			logType:        config.logType,
+			uuid:           uuid,
+			clientChan:     config.clientChan,
+			command:        config.command,
+		}
+
+		replicationData := replicationData{
+			uuid:        uuid,
+			readIndex:   true,
+			commitIndex: readIndexWatcher.readIndex,
+			term:        readIndexWatcher.term,
+		}
+
+		r.murw.Lock()
+		r.readIndexWatchers[uuid] = readIndexWatcher
+		r.murw.Unlock()
+
+		for _, follower := range r.followerReplication {
+			// as it's a read index, we don't use isReplicableForHearbeat
+			if r.isReplicable(follower) {
+				follower.newEntryChan <- replicationData
 			}
 		}
 		return
@@ -176,7 +211,7 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			quorum:         uint64(r.rafty.quorum()),
 			term:           entry.Term,
 			logType:        config.logType,
-			uuid:           uuid.NewString(),
+			uuid:           uuid,
 			logs:           logs,
 			source:         config.source,
 			client:         config.client,
@@ -199,9 +234,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 		r.commitIndexWatcher[entry.Index] = indexWatcher
 		r.murw.Unlock()
 
+		replicationData := replicationData{uuid: uuid, newKey: true}
 		for _, follower := range r.followerReplication {
 			if r.isReplicable(follower) {
-				follower.newEntryChan <- false
+				follower.newEntryChan <- replicationData
 			}
 		}
 		return
@@ -236,10 +272,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 	switch config.membershipChange.action {
 	case Add:
 		followerMember := &followerReplication{
-			Peer:         config.membershipChange.member,
-			rafty:        r.rafty,
-			newEntryChan: make(chan bool),
-			notifyLeader: r.commitChan,
+			Peer:             config.membershipChange.member,
+			rafty:            r.rafty,
+			newEntryChan:     make(chan replicationData),
+			notifyLeaderChan: r.commitChan,
 		}
 
 		var progress atomic.Bool
@@ -272,7 +308,7 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 				quorum:           uint64(r.rafty.quorum()),
 				term:             entry.Term,
 				logType:          config.logType,
-				uuid:             uuid.NewString(),
+				uuid:             uuid,
 				logs:             logs,
 				source:           config.source,
 				client:           config.client,
@@ -286,9 +322,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 				panic(err)
 			}
 
+			replicationData := replicationData{uuid: uuid, newKey: true}
 			for _, follower := range r.followerReplication {
 				if r.isReplicable(follower) {
-					follower.newEntryChan <- false
+					follower.newEntryChan <- replicationData
 				}
 			}
 		}
@@ -310,7 +347,7 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			quorum:           uint64(r.rafty.quorum()),
 			term:             entry.Term,
 			logType:          config.logType,
-			uuid:             uuid.NewString(),
+			uuid:             uuid,
 			logs:             logs,
 			source:           config.source,
 			client:           config.client,
@@ -324,9 +361,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			panic(err)
 		}
 
+		replicationData := replicationData{uuid: uuid, newKey: true}
 		for _, follower := range r.followerReplication {
 			if r.isReplicable(follower) {
-				follower.newEntryChan <- false
+				follower.newEntryChan <- replicationData
 			}
 		}
 
@@ -335,10 +373,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 
 	case Promote:
 		followerMember := &followerReplication{
-			Peer:         config.membershipChange.member,
-			rafty:        r.rafty,
-			newEntryChan: make(chan bool),
-			notifyLeader: r.commitChan,
+			Peer:             config.membershipChange.member,
+			rafty:            r.rafty,
+			newEntryChan:     make(chan replicationData),
+			notifyLeaderChan: r.commitChan,
 		}
 
 		encodedPeers, _ := r.rafty.validateSendMembershipChangeRequest(config.membershipChange.action, config.membershipChange.member)
@@ -352,7 +390,7 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			quorum:           uint64(r.rafty.quorum()),
 			term:             entry.Term,
 			logType:          config.logType,
-			uuid:             uuid.NewString(),
+			uuid:             uuid,
 			logs:             logs,
 			source:           config.source,
 			client:           config.client,
@@ -366,9 +404,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			panic(err)
 		}
 
+		replicationData := replicationData{uuid: uuid, newKey: true}
 		for _, follower := range r.followerReplication {
 			if r.isReplicable(follower) {
-				follower.newEntryChan <- false
+				follower.newEntryChan <- replicationData
 			}
 		}
 
@@ -409,7 +448,7 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			quorum:           uint64(r.rafty.quorum()),
 			term:             entry.Term,
 			logType:          config.logType,
-			uuid:             uuid.NewString(),
+			uuid:             uuid,
 			logs:             logs,
 			source:           config.source,
 			client:           config.client,
@@ -423,9 +462,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			panic(err)
 		}
 
+		replicationData := replicationData{uuid: uuid, newKey: true}
 		for _, follower := range r.followerReplication {
 			if r.isReplicable(follower) {
-				follower.newEntryChan <- false
+				follower.newEntryChan <- replicationData
 			}
 		}
 
@@ -463,7 +503,7 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			quorum:           uint64(r.rafty.quorum()),
 			term:             entry.Term,
 			logType:          config.logType,
-			uuid:             uuid.NewString(),
+			uuid:             uuid,
 			logs:             logs,
 			source:           config.source,
 			client:           config.client,
@@ -477,9 +517,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			panic(err)
 		}
 
+		replicationData := replicationData{uuid: uuid, newKey: true}
 		for _, follower := range r.followerReplication {
 			if r.isReplicable(follower) {
-				follower.newEntryChan <- false
+				follower.newEntryChan <- replicationData
 			}
 		}
 
@@ -495,6 +536,10 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 
 // commitLoop is in charge of advancing leader commitIndex
 // based on followers matchIndex.
+// It's also used for linearizable data aka readIndex
+// to reply to client when the response is successful.
+// If not, a timeout will automatically sent to the client
+// and it will retry if needed
 func (r *leader) commitLoop() {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
@@ -506,85 +551,125 @@ func (r *leader) commitLoop() {
 
 		case data, ok := <-r.commitChan:
 			if ok {
-				r.murw.Lock()
-				if watcher, ok := r.commitIndexWatcher[data.matchIndex]; ok {
-					r.commitIndexWatcher[data.matchIndex].majority.Add(1)
+				// keep data.readIndex and locking like so
+				// DO NOT DEFER the locking
+				if !data.readIndex {
+					r.murw.Lock()
+					if watcher, ok := r.commitIndexWatcher[data.matchIndex]; ok {
+						r.commitIndexWatcher[data.matchIndex].majority.Add(1)
 
-					if r.commitIndexWatcher[data.matchIndex].majority.Load()+1 >= watcher.quorum {
-						if !watcher.committed.Load() {
-							watcher.committed.Store(true)
-							// uptdate leader volatile state
-							r.rafty.nextIndex.Add(1)
-							r.rafty.matchIndex.Add(1)
-							r.rafty.commitIndex.Add(1)
+						if r.commitIndexWatcher[data.matchIndex].majority.Load()+1 >= watcher.quorum {
+							if !watcher.committed.Load() {
+								watcher.committed.Store(true)
+								// uptdate leader volatile state
+								r.rafty.nextIndex.Add(1)
+								r.rafty.matchIndex.Add(1)
+								r.rafty.commitIndex.Add(1)
 
-							if watcher.client {
-								response := RPCResponse{
-									Response: &raftypb.AppendEntryResponse{},
-								}
+								if watcher.client {
+									response := RPCResponse{
+										Response: &raftypb.AppendEntryResponse{},
+									}
 
-								if watcher.source == "forward" {
-									response = RPCResponse{
-										Response: &raftypb.ForwardCommandToLeaderResponse{
-											LeaderId:      r.rafty.id,
-											LeaderAddress: r.rafty.Address.String(),
-										},
+									if watcher.source == "forward" {
+										response = RPCResponse{
+											Response: &raftypb.ForwardCommandToLeaderResponse{
+												LeaderId:      r.rafty.id,
+												LeaderAddress: r.rafty.Address.String(),
+											},
+										}
+									}
+
+									select {
+									case <-time.After(100 * time.Millisecond):
+										return
+									case watcher.clientChan <- response:
 									}
 								}
 
-								select {
-								case <-time.After(100 * time.Millisecond):
-									return
-								case watcher.clientChan <- response:
+								if watcher.logType == LogReplication {
+									if _, err := r.rafty.applyLogs(applyLogs{makeProtobufLogEntries(watcher.logs)}); err != nil {
+										r.rafty.Logger.Error().Err(err).
+											Str("id", r.rafty.id).
+											Str("state", r.rafty.getState().String()).
+											Str("term", fmt.Sprintf("%d", watcher.term)).
+											Msgf("Fail to apply log entries to the fsm")
+									}
 								}
-							}
 
-							if watcher.logType == LogReplication {
-								if _, err := r.rafty.applyLogs(applyLogs{makeProtobufLogEntries(watcher.logs)}); err != nil {
-									r.rafty.Logger.Error().Err(err).
-										Str("id", r.rafty.id).
-										Str("state", r.rafty.getState().String()).
-										Str("term", fmt.Sprintf("%d", watcher.term)).
-										Msgf("Fail to apply log entries to the fsm")
-								}
-							}
+								r.rafty.Logger.Trace().
+									Str("address", r.rafty.Address.String()).
+									Str("id", r.rafty.id).
+									Str("state", r.rafty.getState().String()).
+									Str("term", fmt.Sprintf("%d", watcher.term)).
+									Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
+									Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
+									Str("commitIndex", fmt.Sprintf("%d", r.rafty.commitIndex.Load())).
+									Str("lastApplied", fmt.Sprintf("%d", r.rafty.lastApplied.Load())).
+									Str("requestUUID", watcher.uuid).
+									Msgf("Leader volatile state has been updated")
 
-							r.rafty.Logger.Trace().
-								Str("address", r.rafty.Address.String()).
-								Str("id", r.rafty.id).
-								Str("state", r.rafty.getState().String()).
-								Str("term", fmt.Sprintf("%d", watcher.term)).
-								Str("nextIndex", fmt.Sprintf("%d", r.rafty.nextIndex.Load())).
-								Str("matchIndex", fmt.Sprintf("%d", r.rafty.matchIndex.Load())).
-								Str("commitIndex", fmt.Sprintf("%d", r.rafty.commitIndex.Load())).
-								Str("lastApplied", fmt.Sprintf("%d", r.rafty.lastApplied.Load())).
-								Str("requestUUID", watcher.uuid).
-								Msgf("Leader volatile state has been updated")
+								if watcher.logType == LogConfiguration {
+									// if it's myself
+									if r.rafty.id == watcher.membershipChange.member.ID {
+										switch watcher.membershipChange.action {
+										case Remove, ForceRemove:
+											if r.rafty.options.ShutdownOnRemove {
+												go r.rafty.stop()
+												return
+											}
 
-							if watcher.logType == LogConfiguration {
-								// if it's myself
-								if r.rafty.id == watcher.membershipChange.member.ID {
-									switch watcher.membershipChange.action {
-									case Remove, ForceRemove:
-										if r.rafty.options.ShutdownOnRemove {
-											go r.rafty.stop()
+										case Demote:
+											r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
 											return
 										}
+									}
+								}
+							}
+						}
 
-									case Demote:
-										r.rafty.switchState(Follower, stepDown, true, r.rafty.currentTerm.Load())
-										return
+						if watcher.totalFollowers == watcher.majority.Load() {
+							delete(r.commitIndexWatcher, data.matchIndex)
+						}
+					}
+					r.murw.Unlock()
+				}
+
+				// keep data.readIndex and locking like so
+				// DO NOT DEFER the locking
+				if data.readIndex {
+					r.murw.Lock()
+					if readIndexWatcher, ok := r.readIndexWatchers[data.uuid]; ok {
+						r.readIndexWatchers[data.uuid].majority.Add(1)
+
+						if r.readIndexWatchers[data.uuid].majority.Load()+1 >= readIndexWatcher.quorum {
+							if !readIndexWatcher.quorumReached.Load() {
+								readIndexWatcher.quorumReached.Store(true)
+
+								for _, watcher := range r.readIndexWatchers {
+									if watcher.readIndex <= data.matchIndex {
+										delete(r.readIndexWatchers, watcher.uuid)
+										response, err := r.rafty.fsm.ApplyCommand(&LogEntry{LogType: uint32(watcher.logType), Command: watcher.command})
+
+										select {
+										case <-time.After(100 * time.Millisecond):
+											return
+										case watcher.clientChan <- RPCResponse{
+											Response: &raftypb.ForwardCommandToLeaderResponse{
+												LeaderId:      r.rafty.id,
+												LeaderAddress: r.rafty.Address.String(),
+												Data:          response,
+											},
+											Error: err,
+										}:
+										}
 									}
 								}
 							}
 						}
 					}
-
-					if watcher.totalFollowers == watcher.majority.Load() {
-						delete(r.commitIndexWatcher, data.matchIndex)
-					}
+					r.murw.Unlock()
 				}
-				r.murw.Unlock()
 			}
 		}
 	}
@@ -776,8 +861,5 @@ func (r *leader) setupSingleServerReplicationState() {
 	defer r.rafty.wg.Done()
 
 	r.totalFollowers.Store(1)
-	r.replicateLog(replicateLogConfig{
-		logType: LogNoop,
-		command: nil,
-	})
+	r.replicateLog(replicateLogConfig{logType: LogNoop, command: nil})
 }

@@ -59,7 +59,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan bool),
+			newEntryChan: make(chan replicationData),
 		}
 		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
 		s.wg.Wait()
@@ -107,7 +107,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan bool),
+			newEntryChan: make(chan replicationData),
 		}
 		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
 		s.wg.Wait()
@@ -160,7 +160,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan bool),
+			newEntryChan: make(chan replicationData),
 		}
 		followerRepl.sendCatchupAppendEntries(client, oldRequest, oldResponse)
 		s.wg.Wait()
@@ -207,10 +207,10 @@ func TestLogReplication_catchupNewMember(t *testing.T) {
 		}
 
 		follower := &followerReplication{
-			Peer:         member,
-			rafty:        s,
-			newEntryChan: make(chan bool),
-			notifyLeader: state.commitChan,
+			Peer:             member,
+			rafty:            s,
+			newEntryChan:     make(chan replicationData),
+			notifyLeaderChan: state.commitChan,
 		}
 
 		buildResponse := &raftypb.AppendEntryResponse{
@@ -249,7 +249,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan bool),
+			newEntryChan: make(chan replicationData),
 		}
 		followerRepl.sendSnapshotInProgress.Store(true)
 		followerRepl.sendInstallSnapshot(client)
@@ -280,7 +280,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan bool),
+			newEntryChan: make(chan replicationData),
 		}
 		followerRepl.sendInstallSnapshot(client)
 		s.wg.Wait()
@@ -316,7 +316,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan bool),
+			newEntryChan: make(chan replicationData),
 		}
 		followerRepl.sendInstallSnapshot(client)
 		s.wg.Wait()
@@ -354,7 +354,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan bool),
+			newEntryChan: make(chan replicationData),
 		}
 		followerRepl.sendInstallSnapshot(mockClient)
 		s.wg.Wait()
@@ -394,7 +394,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		followerRepl := &followerReplication{
 			Peer:         followers[id],
 			rafty:        s,
-			newEntryChan: make(chan bool),
+			newEntryChan: make(chan replicationData),
 		}
 		followerRepl.sendInstallSnapshot(mockClient)
 		s.wg.Wait()

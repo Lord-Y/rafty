@@ -27,13 +27,15 @@ func TestLogs(t *testing.T) {
 			LogNoop,
 			LogConfiguration,
 			LogReplication,
-			LogCommandReadLeader,
+			LogCommandReadLeaderLease,
+			LogCommandLinearizableRead,
 		}
 		results := []string{
 			"logNoop",
 			"logConfiguration",
 			"logReplication",
-			"logCommandReadLeader",
+			"logCommandReadLeaderLease",
+			"logCommandLinearizableRead",
 		}
 
 		for k, v := range tests {

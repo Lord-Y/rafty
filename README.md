@@ -30,6 +30,8 @@ Here is a list of the supported features of `rafty`:
   - [x] Log replication
   - [x] Submit write commands
   - [x] Submit read commands
+    - [x] Submit read commands linearizable
+    - [x] Submit read commands leader lease
   - [x] Forward read/write commands to leader
   - [x] Log compaction
 - [x] Log storage
