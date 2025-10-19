@@ -3,7 +3,6 @@ package cluster
 import (
 	"bytes"
 	"encoding/binary"
-	"hash/crc32"
 	"io"
 
 	"github.com/Lord-Y/rafty"
@@ -66,72 +65,26 @@ func userDecodeCommand(data []byte) (userCommand, error) {
 
 // userApplyCommand will apply fsm to the users store
 func (f *fsmState) userApplyCommand(log *rafty.LogEntry) ([]byte, error) {
-	decodedCmd, _ := userDecodeCommand(log.Command)
+	cmd, _ := userDecodeCommand(log.Command)
 
-	if rafty.LogKind(log.LogType) == rafty.LogCommandReadLeader {
-		if decodedCmd.Kind == userCommandGetAll {
-			return f.memoryStore.usersEncoded()
-		}
-		return f.memoryStore.usersGet([]byte(decodedCmd.Key))
+	if rafty.LogKind(log.LogType) == rafty.LogCommandReadLeaderLease || rafty.LogKind(log.LogType) == rafty.LogCommandLinearizableRead {
+		return f.memoryStore.usersEncoded(cmd)
 	}
 
-	switch decodedCmd.Kind {
+	switch cmd.Kind {
 	case userCommandSet:
-		return nil, f.memoryStore.usersSet(log, []byte(decodedCmd.Key), []byte(decodedCmd.Value))
+		return nil, f.memoryStore.usersSet(log, []byte(cmd.Key), []byte(cmd.Value))
 
 	case userCommandGet:
-		value, err := f.memoryStore.usersGet([]byte(decodedCmd.Key))
+		value, err := f.memoryStore.usersGet([]byte(cmd.Key))
 		if err != nil {
 			return nil, err
 		}
 		return value, nil
 
 	case userCommandDelete:
-		f.memoryStore.usersDelete([]byte(decodedCmd.Key))
+		f.memoryStore.usersDelete([]byte(cmd.Key))
 	}
 
 	return nil, nil
-}
-
-// unmarshalBinaryWithChecksumUserCommand permit to decode data in binary format
-// by validating its checksum before moving further
-func unmarshalBinaryWithChecksumUserCommand(data []byte) (userCommand, error) {
-	if len(data) < 4 {
-		return userCommand{}, rafty.ErrChecksumDataTooShort
-	}
-
-	body := data[:len(data)-4]
-	checksum := binary.LittleEndian.Uint32(data[len(data)-4:])
-
-	if crc32.ChecksumIEEE(body) != checksum {
-		return userCommand{}, rafty.ErrChecksumMistmatch
-	}
-
-	return userDecodeCommand(body)
-}
-
-// usersDecoded decodes binary data with checksum
-func usersDecoded(data []byte) ([]userCommand, error) {
-	var cmds []userCommand
-	buffer := bytes.NewBuffer(data)
-
-	for buffer.Len() > 0 {
-		var length uint32
-		if err := binary.Read(buffer, binary.LittleEndian, &length); err != nil {
-			return nil, err
-		}
-
-		// Read first 4 bytes to get entry size
-		record := make([]byte, length)
-		if _, err := io.ReadFull(buffer, record); err != nil {
-			return nil, err
-		}
-
-		cmd, err := unmarshalBinaryWithChecksumUserCommand(record)
-		if err != nil {
-			return nil, err
-		}
-		cmds = append(cmds, cmd)
-	}
-	return cmds, nil
 }

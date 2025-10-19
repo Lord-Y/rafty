@@ -94,6 +94,9 @@ i=1 && curl -XDELETE "127.0.0.1:15081/api/v1/kv/key$i"
 {"message":"OK"}
 ```
 
+With `GET` queries, you can use `?lease=true` for leader lease fetch base. This mode is succeptible to time drift, GC pause or network partition.
+That means you will potentially fetch stale data.
+
 ## Stop the cluster
 
 Just press ctrl+c.

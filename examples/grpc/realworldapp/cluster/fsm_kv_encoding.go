@@ -66,28 +66,25 @@ func kvDecodeCommand(data []byte) (kvCommand, error) {
 
 // kvApplyCommand will apply fsm to the k/v store
 func (f *fsmState) kvApplyCommand(log *rafty.LogEntry) ([]byte, error) {
-	decodedCmd, _ := kvDecodeCommand(log.Command)
+	cmd, _ := kvDecodeCommand(log.Command)
 
-	if rafty.LogKind(log.LogType) == rafty.LogCommandReadLeader {
-		if decodedCmd.Kind == kvCommandGetAll {
-			return f.memoryStore.usersEncoded()
-		}
-		return f.memoryStore.kvGet([]byte(decodedCmd.Key))
+	if rafty.LogKind(log.LogType) == rafty.LogCommandReadLeaderLease || rafty.LogKind(log.LogType) == rafty.LogCommandLinearizableRead {
+		return f.memoryStore.kvsEncoded(cmd)
 	}
 
-	switch decodedCmd.Kind {
+	switch cmd.Kind {
 	case kvCommandSet:
-		return nil, f.memoryStore.kvSet(log, []byte(decodedCmd.Key), []byte(decodedCmd.Value))
+		return nil, f.memoryStore.kvSet(log, []byte(cmd.Key), []byte(cmd.Value))
 
 	case kvCommandGet:
-		value, err := f.memoryStore.kvGet([]byte(decodedCmd.Key))
+		value, err := f.memoryStore.kvGet([]byte(cmd.Key))
 		if err != nil {
 			return nil, err
 		}
 		return value, nil
 
 	case kvCommandDelete:
-		f.memoryStore.kvDelete([]byte(decodedCmd.Key))
+		f.memoryStore.kvDelete([]byte(cmd.Key))
 	}
 
 	return nil, nil
