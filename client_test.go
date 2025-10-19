@@ -359,6 +359,26 @@ func TestClient_submitCommand(t *testing.T) {
 		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
 		assert.ErrorIs(err, ErrTimeout)
 	})
+
+	t.Run("write_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
+		assert.ErrorIs(err, ErrTimeout)
+	})
 }
 
 func TestClient_applyLogs(t *testing.T) {
