@@ -32,7 +32,6 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 		responseChan := make(chan RPCResponse, 1)
 		select {
 		case r.rpcAppendEntriesRequestChan <- RPCRequest{
-			RPCType: AppendEntriesRequest,
 			Request: replicateLogConfig{
 				logType:    LogReplication,
 				command:    command,
@@ -91,7 +90,34 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 // This command will not be written to the log and replicated to the followers
 func (r *Rafty) submitCommandReadLeader(timeout time.Duration, logKind LogKind, command []byte) ([]byte, error) {
 	if r.getState() == Leader {
-		return r.fsm.ApplyCommand(&LogEntry{LogType: uint32(logKind), Command: command})
+		if logKind == LogCommandReadLeaderLease {
+			return r.fsm.ApplyCommand(&LogEntry{LogType: uint32(logKind), Command: command})
+		}
+
+		responseChan := make(chan RPCResponse, 1)
+		select {
+		case r.rpcAppendEntriesRequestChan <- RPCRequest{
+			Request: replicateLogConfig{
+				logType:    LogCommandLinearizableRead,
+				command:    command,
+				clientChan: responseChan,
+			},
+			ResponseChan: responseChan,
+		}:
+		case <-time.After(timeout):
+			return nil, ErrTimeout
+		}
+
+		select {
+		case response := <-responseChan:
+			return nil, response.Error
+
+		case <-r.quitCtx.Done():
+			return nil, ErrShutdown
+
+		case <-time.After(timeout):
+			return nil, ErrTimeout
+		}
 	}
 
 	if !r.waitForLeader() {
