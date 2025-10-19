@@ -299,9 +299,6 @@ type Rafty struct {
 	// initialized to 0, increases monotically
 	matchIndex atomic.Uint64
 
-	// logs allows us to manipulate logs
-	logs logs
-
 	// logStore is long term storage backend only for raft logs.
 	// The same long term storage for clusterStore and logStore can be used
 	// BUT in different namespace or buckets to avoid collisions.
@@ -353,9 +350,6 @@ type Rafty struct {
 
 	// connectionManager holds connections for all members
 	connectionManager connectionManager
-
-	// storage holds requirements to store/restore logs and metadata
-	storage storage
 
 	// waitToBePromoted is an helper when set to true will prevent current
 	// node to start any election campaign
@@ -430,4 +424,37 @@ type Status struct {
 type applyLogs struct {
 	// entries are the logs to apply
 	entries []*raftypb.LogEntry
+}
+
+// metadata is a struct holding all requirements
+// to persist node metadata
+type metadata struct {
+	// Id of the current raft server
+	Id string `json:"id"`
+
+	// CurrentTerm is latest term seen during the voting campaign
+	CurrentTerm uint64 `json:"currentTerm"`
+
+	// VotedFor is the node the current node voted for during the election campaign
+	VotedFor string `json:"votedFor"`
+
+	// LastApplied is the index of the highest log entry applied to the current raft server
+	LastApplied uint64 `json:"lastApplied"`
+
+	// LastAppliedConfig is the index of the highest log entry configuration applied
+	// to the current raft server
+	LastAppliedConfigIndex uint64 `json:"lastAppliedConfigIndex"`
+
+	// LastAppliedConfigTerm is the term of the highest log entry configuration applied
+	// to the current raft server
+	LastAppliedConfigTerm uint64 `json:"lastAppliedConfigTerm"`
+
+	// Configuration holds server members
+	Configuration Configuration `json:"configuration"`
+
+	// LastIncludedIndex is the index included in the last snapshot
+	LastIncludedIndex uint64 `json:"lastIncludedIndex"`
+
+	// lastIncludedTerm is the term linked to LastSnapshotIndex
+	LastIncludedTerm uint64 `json:"lastIncludedTerm"`
 }

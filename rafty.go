@@ -173,18 +173,6 @@ func NewRafty(address net.TCPAddr, id string, options Options, logStore LogStore
 		leadershipTransferInProgress: &r.leadershipTransferInProgress,
 	}
 
-	metaFile, dataFile, err := r.newStorage()
-	if err != nil {
-		return nil, err
-	}
-	r.storage = storage{
-		metadata: metaFile,
-		data:     dataFile,
-	}
-	r.storage.metadata.rafty = r
-	r.storage.data.rafty = r
-
-	r.logs = r.newLogs()
 	if r.options.IsSingleServerCluster {
 		r.leadershipTransferDisabled.Store(true)
 	}

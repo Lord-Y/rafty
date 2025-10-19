@@ -516,3 +516,32 @@ func TestUtils_updateServerMembers(t *testing.T) {
 		assert.Equal(true, s.decommissioning.Load())
 	})
 }
+
+func TestUtils_createDirectoryIfNotExist(t *testing.T) {
+	assert := assert.New(t)
+	t.Run("error", func(t *testing.T) {
+		assert.Error(createDirectoryIfNotExist("", 0750))
+	})
+
+	t.Run("not_directory", func(t *testing.T) {
+		dataDir := filepath.Join(os.TempDir(), "rafty_test", "not_directory")
+		defer func() {
+			_ = os.RemoveAll(dataDir)
+		}()
+
+		_ = os.MkdirAll(dataDir, 0750)
+		tmpFile := filepath.Join(dataDir, "test")
+		_, err := os.Create(tmpFile)
+		assert.Nil(err)
+		assert.Error(createDirectoryIfNotExist(tmpFile, 0750))
+	})
+
+	t.Run("success", func(t *testing.T) {
+		dataDir := filepath.Join(os.TempDir(), "rafty_test", "success")
+		defer func() {
+			_ = os.RemoveAll(dataDir)
+		}()
+
+		assert.Nil(createDirectoryIfNotExist(dataDir, 0750))
+	})
+}
