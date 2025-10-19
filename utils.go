@@ -2,7 +2,10 @@ package rafty
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"net"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -332,4 +335,19 @@ func (r *Rafty) updateServerMembers(peers []Peer) {
 	for i := range r.configuration.ServerMembers {
 		r.configuration.ServerMembers[i].address = getNetAddress(r.configuration.ServerMembers[i].Address)
 	}
+}
+
+// createDirectoryIfNotExist permits to check if a directory exist
+// and create it if not. An error will be return if there is any
+func createDirectoryIfNotExist(d string, perm fs.FileMode) error {
+	if fileinfo, err := os.Stat(d); os.IsNotExist(err) {
+		if err := os.MkdirAll(d, perm); err != nil {
+			return err
+		}
+	} else {
+		if fileinfo == nil || !fileinfo.IsDir() {
+			return fmt.Errorf("%s is not a directory", d)
+		}
+	}
+	return nil
 }
