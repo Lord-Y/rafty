@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/Lord-Y/rafty"
@@ -33,24 +34,38 @@ func (cc *Cluster) createUser(c *gin.Context) {
 func (cc *Cluster) fetchUser(c *gin.Context) {
 	data := User{Firstname: c.Params.ByName("name")}
 
-	if cc.rafty.IsLeader() {
+	if cc.rafty.IsLeader() && c.Query("lease") == "true" {
 		result, err := cc.fsm.memoryStore.usersGet([]byte(data.Firstname))
 		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if result == nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": rafty.ErrKeyNotFound.Error()})
 			return
 		}
-		data.Lastname = string(result)
 
+		data.Lastname = string(result)
 		c.JSON(http.StatusOK, data)
 		return
 	}
 
 	result, err := cc.submitCommandUserRead(userCommandGet, &data)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if result == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": rafty.ErrKeyNotFound.Error()})
 		return
 	}
-	data.Lastname = string(result)
+
+	if err := json.Unmarshal(result, &data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, data)
 }
@@ -79,7 +94,7 @@ func (cc *Cluster) deleteUser(c *gin.Context) {
 func (cc *Cluster) fetchUsers(c *gin.Context) {
 	var data []*User
 
-	if cc.rafty.IsLeader() {
+	if cc.rafty.IsLeader() && c.Query("lease") == "true" {
 		result, err := cc.fsm.memoryStore.usersGetAll()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -96,26 +111,21 @@ func (cc *Cluster) fetchUsers(c *gin.Context) {
 		return
 	}
 
-	result, err := cc.submitCommandUserRead(userCommandGetAll, nil)
+	result, err := cc.submitCommandUserRead(userCommandGetAll, &User{})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	if result == nil {
 		data = []*User{}
-	} else {
-		cmds, err := usersDecoded(result)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
+		c.JSON(http.StatusOK, data)
+		return
+	}
 
-		for _, v := range cmds {
-			data = append(data, &User{
-				Firstname: v.Key,
-				Lastname:  v.Value,
-			})
-		}
+	if err := json.Unmarshal(result, &data); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
 	c.JSON(http.StatusOK, data)

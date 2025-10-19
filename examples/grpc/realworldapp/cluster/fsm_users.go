@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"bytes"
+	"encoding/json"
 
 	"github.com/Lord-Y/rafty"
 )
@@ -82,7 +82,7 @@ func (m *memoryStore) usersGetAll() (z []*User, err error) {
 // users will be binary encoded when command is forwarded
 // to the leader.
 // An error will be returned if the any
-func (m *memoryStore) usersEncoded() (u []byte, err error) {
+func (m *memoryStore) usersEncoded(cmd userCommand) (u []byte, err error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -90,21 +90,25 @@ func (m *memoryStore) usersEncoded() (u []byte, err error) {
 		return nil, nil
 	}
 
-	bufferChecksum := new(bytes.Buffer)
+	if cmd.Kind == userCommandGet {
+		value, err := m.usersGet([]byte(cmd.Key))
+		if err != nil {
+			return nil, err
+		}
+
+		return json.Marshal(User{
+			Firstname: cmd.Key,
+			Lastname:  string(value),
+		})
+	}
+
+	var users []User
 	for k, v := range m.users {
-		buffer := new(bytes.Buffer)
 		data := User{
 			Firstname: string(k),
 			Lastname:  string(v.value),
 		}
-
-		if err := userEncodeCommand(userCommand{Kind: userCommandGetAll, Key: data.Firstname, Value: data.Lastname}, buffer); err != nil {
-			return nil, err
-		}
-
-		if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
-			return nil, err
-		}
+		users = append(users, data)
 	}
-	return bufferChecksum.Bytes(), nil
+	return json.Marshal(users)
 }
