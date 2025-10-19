@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"bytes"
+	"encoding/json"
 
 	"github.com/Lord-Y/rafty"
 )
@@ -82,7 +82,7 @@ func (m *memoryStore) kvGetAll() (z []*KV, err error) {
 // kv will be binary encoded when command is forwarded
 // to the leader.
 // An error will be returned if the any
-func (m *memoryStore) kvsEncoded() (u []byte, err error) {
+func (m *memoryStore) kvsEncoded(cmd kvCommand) (u []byte, err error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -90,21 +90,25 @@ func (m *memoryStore) kvsEncoded() (u []byte, err error) {
 		return nil, nil
 	}
 
-	bufferChecksum := new(bytes.Buffer)
+	if cmd.Kind == kvCommandGet {
+		value, err := m.kvGet([]byte(cmd.Key))
+		if err != nil {
+			return nil, err
+		}
+
+		return json.Marshal(User{
+			Firstname: cmd.Key,
+			Lastname:  string(value),
+		})
+	}
+
+	var kvs []KV
 	for k, v := range m.kv {
-		buffer := new(bytes.Buffer)
 		data := KV{
 			Key:   string(k),
 			Value: string(v.value),
 		}
-
-		if err := kvEncodeCommand(kvCommand{Kind: kvCommandGetAll, Key: data.Key, Value: data.Value}, buffer); err != nil {
-			return nil, err
-		}
-
-		if err = rafty.MarshalBinaryWithChecksum(buffer, bufferChecksum); err != nil {
-			return nil, err
-		}
+		kvs = append(kvs, data)
 	}
-	return bufferChecksum.Bytes(), nil
+	return json.Marshal(kvs)
 }
