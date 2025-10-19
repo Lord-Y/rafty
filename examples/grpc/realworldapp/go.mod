@@ -1,6 +1,6 @@
 module realworldapp
 
-go 1.25.1
+go 1.25.3
 
 require (
 	github.com/Lord-Y/rafty v0.0.0-20250923135512-bb54b74243a2
