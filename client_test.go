@@ -61,7 +61,7 @@ func TestClient_submitCommand(t *testing.T) {
 		assert.ErrorIs(err, ErrNoLeader)
 	})
 
-	t.Run("read", func(t *testing.T) {
+	t.Run("read_leader_lease", func(t *testing.T) {
 		assert := assert.New(t)
 
 		s := basicNodeSetup()
@@ -79,6 +79,106 @@ func TestClient_submitCommand(t *testing.T) {
 
 		_, err := s.SubmitCommand(0, LogCommandReadLeaderLease, buffer.Bytes())
 		assert.Error(err)
+	})
+
+	t.Run("read_linearize_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.SubmitCommand(0, LogCommandLinearizableRead, buffer.Bytes())
+		assert.ErrorIs(err, ErrTimeout)
+	})
+
+	t.Run("read_linearize_response", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			data := <-s.rpcAppendEntriesRequestChan
+			data.ResponseChan <- RPCResponse{
+				Response: &raftypb.AppendEntryResponse{},
+			}
+		}()
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.SubmitCommand(0, LogCommandLinearizableRead, buffer.Bytes())
+		assert.Nil(err)
+	})
+
+	t.Run("read_linearize_error_shutdown", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+		s.quitCtx, s.stopCtx = context.WithCancel(context.Background())
+		s.stopCtx()
+
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			<-s.rpcAppendEntriesRequestChan
+		}()
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.SubmitCommand(0, LogCommandLinearizableRead, buffer.Bytes())
+		assert.ErrorIs(err, ErrShutdown)
+	})
+
+	t.Run("read_linearize_error_timeout", func(t *testing.T) {
+		assert := assert.New(t)
+
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.isRunning.Store(true)
+		s.isBootstrapped.Store(true)
+		s.State = Leader
+		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
+
+		go func() {
+			<-s.rpcAppendEntriesRequestChan
+			time.Sleep(2 * time.Second)
+		}()
+
+		buffer := new(bytes.Buffer)
+		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
+
+		_, err := s.SubmitCommand(0, LogCommandLinearizableRead, buffer.Bytes())
+		assert.ErrorIs(err, ErrTimeout)
 	})
 
 	t.Run("command_not_found", func(t *testing.T) {
@@ -217,28 +317,6 @@ func TestClient_submitCommand(t *testing.T) {
 
 		_, err := s.submitCommandWrite(time.Second, buffer.Bytes())
 		assert.Error(err)
-	})
-
-	t.Run("read_leader_error_nil", func(t *testing.T) {
-		assert := assert.New(t)
-
-		s := basicNodeSetup()
-		defer func() {
-			assert.Nil(s.logStore.Close())
-			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
-		}()
-		fsm := NewSnapshotState(s.logStore)
-		s.fsm = fsm
-		s.isRunning.Store(true)
-		s.isBootstrapped.Store(true)
-		s.State = Leader
-		s.setLeader(leaderMap{address: s.Address.String(), id: s.id})
-
-		buffer := new(bytes.Buffer)
-		assert.Nil(EncodeCommand(Command{Kind: CommandSet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
-
-		_, err := s.submitCommandReadLeader(time.Second, LogCommandLinearizableRead, buffer.Bytes())
-		assert.ErrorIs(err, nil)
 	})
 
 	t.Run("read_no_leader_error", func(t *testing.T) {
