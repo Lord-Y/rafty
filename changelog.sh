@@ -35,7 +35,6 @@ MD_HEADER_TARGET_NAME="changelog/.header/v${NEW_TAG}_header.md"
 MD_BODY_NAME="changelog/.header/v${NEW_TAG}_body.md"
 MD_NAME="changelog/v${NEW_TAG}.md"
 TODAY_DATE=$(date +%Y-%m-%d)
-#MAIN_OUTPUT=""
 
 #
 # Regex to match the commit message. Creates capture groups for git

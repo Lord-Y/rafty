@@ -1,0 +1,68 @@
+name: Unit testing
+
+name: Create Release
+
+on:
+  push:
+    tags:
+    - /^v\d+\.\d+\.\d+-(.*)$/
+    - /^v\d+\.\d+\.\d+$/
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go:
+        - '1.25.3'
+    env:
+      GOLANGCI_LINT_VERSION: 2.5.0
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Go environment
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+
+    - name: Install golangci-lint
+      run: wget -O /tmp/golangci-lint.deb https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.deb ; sudo dpkg -i /tmp/golangci-lint.deb
+
+    - name: Run golangci-lint
+      run: golangci-lint run
+
+    - name: Check logger setup
+      run: |
+        output_logger=/tmp/find_logger
+        find . \
+          -path ./logger -prune -o \
+          -path ./examples -prune -o \
+          -path ./.tmp -prune -o \
+          -type f -name "*.go" -exec grep -r "slog\." {} \; > ${output_logger}
+
+        if [[ $(wc -l ${output_logger} | awk '{print $1}') -gt 0 ]]
+        then
+          cat ${output_logger}
+          echo -en "\n\nYou are using the wrong logger, please use the builtin logger"
+          exit 1
+        fi
+
+    - name: Run unit testing
+      run: |
+        GITHUB_REPO=$(head -1 go.mod | sed 's#module ##g')
+        go test -v -race -coverprofile=coverage.out -covermode=atomic -timeout 1h $(go list ./... | grep -vE "${GITHUB_REPO}/examples|${GITHUB_REPO}/raftypb")
+
+    - name: Print coverage status
+      run: |
+        go tool cover -func=coverage.out
+
+    - name: Publish release
+      run: |
+        go install github.com/github-release/github-release@latest
+        PRE_RELEASE_RE="^v[0-9]+\.[0-9]+\.[0-9]+-(.*)$"
+        if [[ "${GITHUB_REF_NAME}" =~ ${PRE_RELEASE_RE} ]]
+        then
+          github-release release --pre-release --tag "${GITHUB_REF_NAME}" --description "$(cat changelog/${GITHUB_REF_NAME}.md)"
+        else
+          github-release release --tag "${GITHUB_REF_NAME}" --description "$(cat changelog/${GITHUB_REF_NAME}.md)"
+        fi
