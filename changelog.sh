@@ -94,7 +94,7 @@ if [[ "${PREVIOUS_TAG}" == "init" ]]
 then
    parse_git_log ""
 else
-  parse_git_log ${PREVIOUS_TAG}..
+  parse_git_log "v${PREVIOUS_TAG}.."
 fi
 
 manage_header
