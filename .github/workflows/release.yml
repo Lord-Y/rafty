@@ -18,10 +18,10 @@ jobs:
     env:
       GOLANGCI_LINT_VERSION: 2.5.0
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v5
 
     - name: Set up Go environment
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go }}
 
@@ -56,13 +56,38 @@ jobs:
       run: |
         go tool cover -func=coverage.out
 
-    - name: Publish release
+    - name: Install github-release
       run: |
         go install github.com/github-release/github-release@latest
+        git checkout .
+
+    - name: Publish release
+      env:
+        RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      run: |
         PRE_RELEASE_RE="^v[0-9]+\.[0-9]+\.[0-9]+-(.*)$"
+        # GITHUB_REPOSITORY_NAME will get the last part from Lord-Y/rafty
+        GITHUB_REPOSITORY_NAME=${GITHUB_REPOSITORY##*/}
+
         if [[ "${GITHUB_REF_NAME}" =~ ${PRE_RELEASE_RE} ]]
         then
-          github-release release --pre-release --tag "${GITHUB_REF_NAME}" --description "$(cat changelog/${GITHUB_REF_NAME}.md)"
+          # MD_RELEASE_FILE will remove suffix like -rc1
+          MD_RELEASE_FILE="${GITHUB_REF_NAME%-*}"
+          github-release release \
+          --pre-release \
+          --security-token "${RELEASE_TOKEN}" \
+          --tag "${GITHUB_REF_NAME}" \
+          --user "${GITHUB_REPOSITORY_OWNER}" \
+          --repo "${GITHUB_REPOSITORY_NAME}" \
+          --target "${GITHUB_SHA}" \
+          --description "$(cat changelog/${MD_RELEASE_FILE}.md)"
         else
-          github-release release --tag "${GITHUB_REF_NAME}" --description "$(cat changelog/${GITHUB_REF_NAME}.md)"
+          github-release release \
+          --security-token "${RELEASE_TOKEN}" \
+          --tag "${GITHUB_REF_NAME}" \
+          --user "${GITHUB_REPOSITORY_OWNER}" \
+          --repo "${GITHUB_REPOSITORY_NAME}" \
+          --target "${GITHUB_SHA}" \
+          --description "$(cat changelog/${GITHUB_REF_NAME}.md)"
         fi
+
