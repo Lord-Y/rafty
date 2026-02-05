@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// sendRPC is use to send rpc request
+// sendRPC is used to send rpc requests
 func (r *Rafty) sendRPC(request RPCRequest, client raftypb.RaftyClient, peer Peer) {
 	options := []grpc.CallOption{}
 
