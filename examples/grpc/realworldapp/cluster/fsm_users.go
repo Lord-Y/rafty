@@ -7,7 +7,7 @@ import (
 )
 
 // usersSet will add key/value to the users store.
-// An error will be returned if necessary
+// An error will be returned if any
 func (m *memoryStore) usersSet(log *rafty.LogEntry, key, value []byte) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -58,7 +58,7 @@ func (m *memoryStore) usersDelete(key []byte) {
 	data := string(key)
 	if _, ok := m.users[data]; ok {
 		delete(m.logs, m.users[data].index)
-		delete(m.kv, string(key))
+		delete(m.users, string(key))
 	}
 }
 
