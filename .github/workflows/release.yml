@@ -14,16 +14,16 @@ jobs:
     strategy:
       matrix:
         go:
-        - '1.25.3'
+        - '1.25.6'
     env:
-      GOLANGCI_LINT_VERSION: 2.5.0
+      GOLANGCI_LINT_VERSION: 2.8.0 # https://github.com/golangci/golangci-lint/releases
     steps:
-    - uses: actions/checkout@v5
+      - uses: actions/checkout@v6 # https://github.com/actions/checkout/releases
 
-    - name: Set up Go environment
-      uses: actions/setup-go@v6
-      with:
-        go-version: ${{ matrix.go }}
+      - name: Set up Go environment
+        uses: actions/setup-go@v6 # https://github.com/actions/setup-go/releases
+        with:
+          go-version: ${{ matrix.go }}
 
     - name: Install golangci-lint
       run: wget -O /tmp/golangci-lint.deb https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.deb ; sudo dpkg -i /tmp/golangci-lint.deb

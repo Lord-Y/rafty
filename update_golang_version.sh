@@ -27,10 +27,10 @@ OS=$(uname -s | tr -s "A-Z" "a-z")
 if [[ "${OS}" == "darwin" ]]
 then
   find . -type f -name go.mod -exec sed -i '' "s#^go ${OLD_VERSION}#go ${NEW_VERSION}#g" {} \;
-  sed -i '' "s#${OLD_VERSION}#${NEW_VERSION}#g" .github/workflows/ci.yml
+  sed -i '' "s#${OLD_VERSION}#${NEW_VERSION}#g" .github/workflows/*.yml
 else
   find . -type f -name go.mod -exec sed -i "s#^go ${OLD_VERSION}#go ${NEW_VERSION}#g" {} \;
-  sed -i "s#${OLD_VERSION}#${NEW_VERSION}#g" .github/workflows/ci.yml
+  sed -i "s#${OLD_VERSION}#${NEW_VERSION}#g" .github/workflows/*.yml
 fi
 
 go mod tidy
