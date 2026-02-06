@@ -118,15 +118,18 @@ func TestClient_submitCommand(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 			data := <-s.rpcAppendEntriesRequestChan
 			data.ResponseChan <- RPCResponse{
-				Response: &raftypb.AppendEntryResponse{},
+				Response: &raftypb.ForwardCommandToLeaderResponse{
+					Data: []byte("ok"),
+				},
 			}
 		}()
 
 		buffer := new(bytes.Buffer)
 		assert.Nil(EncodeCommand(Command{Kind: CommandGet, Key: fmt.Sprintf("key%s", s.id)}, buffer))
 
-		_, err := s.SubmitCommand(0, LogCommandLinearizableRead, buffer.Bytes())
+		result, err := s.SubmitCommand(0, LogCommandLinearizableRead, buffer.Bytes())
 		assert.Nil(err)
+		assert.Equal([]byte("ok"), result)
 	})
 
 	t.Run("read_linearize_error_shutdown", func(t *testing.T) {

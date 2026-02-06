@@ -47,10 +47,8 @@ func (r *Rafty) submitCommandWrite(timeout time.Duration, command []byte) ([]byt
 		select {
 		case response := <-responseChan:
 			return nil, response.Error
-
 		case <-r.quitCtx.Done():
 			return nil, ErrShutdown
-
 		case <-time.After(timeout):
 			return nil, ErrTimeout
 		}
@@ -110,6 +108,9 @@ func (r *Rafty) submitCommandReadLeader(timeout time.Duration, logKind LogKind, 
 
 		select {
 		case response := <-responseChan:
+			if result, ok := response.Response.(*raftypb.ForwardCommandToLeaderResponse); ok {
+				return result.Data, response.Error
+			}
 			return nil, response.Error
 
 		case <-r.quitCtx.Done():
