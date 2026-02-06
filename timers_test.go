@@ -59,3 +59,17 @@ func TestTimers_randomTimeout(t *testing.T) {
 	x := time.Hour
 	assert.Greater(randomTimeout(x), x)
 }
+
+func TestTimers_randIntn(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+	}()
+	assert.Equal(0, s.randIntn(0))
+	assert.Equal(0, s.randIntn(-1))
+	assert.GreaterOrEqual(s.randIntn(10), 0)
+	assert.Less(s.randIntn(10), 10)
+}

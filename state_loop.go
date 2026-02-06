@@ -227,6 +227,8 @@ func (r *Rafty) runAsLeader() {
 func (r *Rafty) snapshotLoop() {
 	r.wg.Add(1)
 	defer r.wg.Done()
+	timer := time.NewTimer(randomTimeout(r.options.SnapshotInterval))
+	defer timer.Stop()
 
 	for {
 		select {
@@ -234,7 +236,7 @@ func (r *Rafty) snapshotLoop() {
 		case <-r.quitCtx.Done():
 			return
 
-		case <-time.After(randomTimeout(r.options.SnapshotInterval)):
+		case <-timer.C:
 			snapshotName, err := r.takeSnapshot()
 			if err != nil {
 				if errors.Is(err, ErrNoSnapshotToTake) {
@@ -252,16 +254,17 @@ func (r *Rafty) snapshotLoop() {
 						Msgf("Fail to take snapshot")
 				}
 			}
+			timer.Reset(randomTimeout(r.options.SnapshotInterval))
 		}
 	}
 }
 
 // release will stop everything necessary to shut down the node
 func (r *Rafty) release() {
-	r.mu.Lock()
+	r.timerMu.Lock()
 	if r.timer != nil {
 		r.timer.Stop()
 	}
-	r.mu.Unlock()
+	r.timerMu.Unlock()
 	r.connectionManager.disconnectAllPeers()
 }

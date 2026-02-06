@@ -1,23 +1,23 @@
 # rafty
 
-`Rafty` is yet another golang library that manage to replicate log state machine.
+`Rafty` is a Golang library that replicates a log-backed state machine.
 Details about `Raft protocol` can be found [here](https://raft.github.io/raft.pdf)
 
-Reading this documentation is recommanded before going any further.
+Reading this documentation is recommended before going any further.
 
-Check out these websites will also be useful:
+These resources are also useful:
 - https://raft.github.io/
 - https://thesecretlivesofdata.com/raft/ 
 
 ## Why another library?
 
-There are many libraries out there implementing the `search of an understandable consensus algorithm`.
+There are many libraries out there implementing `In Search of an Understandable Consensus Algorithm`.
 Unfortunately, I mostly found them difficult to understand as there is not so much clear documentation about how to use them.
 As examples, we have production ready repositories like:
 - https://github.com/hashicorp/raft
 - https://github.com/etcd-io/raft
 
-So let's try to redo the wheel with more explanations.
+So let's rebuild the wheel with clearer explanations.
 
 ## Supported features
 
@@ -55,7 +55,12 @@ Here is a list of the supported features of `rafty`:
 
 ## Real world app
 
-See [real world app](https://github.com/Lord-Y/rafty/tree/main/examples/grpc/realworldapp) as implentation example.
+See [real world app](https://github.com/Lord-Y/rafty/tree/main/examples/grpc/realworldapp) as an implementation example.
+
+## Lifecycle
+
+- `Start()` starts the node and blocks until process shutdown signals (`SIGTERM`/`os.Interrupt`) are received.
+- `Serve(ctx)` starts the node and blocks until `ctx` is canceled. Use this when your application owns signal handling.
 
 ## References
 

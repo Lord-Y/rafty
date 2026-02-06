@@ -88,7 +88,17 @@ func (r *followerReplication) appendEntries(data replicationData) {
 	r.rafty.wg.Add(1)
 	defer r.rafty.wg.Done()
 
-	previousLogIndex, previousLogTerm := r.rafty.getPreviousLogIndexAndTerm()
+	previousLogIndex, previousLogTerm, err := r.rafty.getPreviousLogIndexAndTermWithError()
+	if err != nil {
+		r.rafty.Logger.Error().Err(err).
+			Str("address", r.rafty.Address.String()).
+			Str("id", r.rafty.id).
+			Str("state", r.rafty.getState().String()).
+			Str("peerAddress", r.address.String()).
+			Str("peerId", r.ID).
+			Msgf("Failed to fetch previous log metadata")
+		return
+	}
 	var response GetLogsByRangeResponse
 	// This is done to prevent fetching log entries if the follower is already synced.
 	// That will reduce network traffic
