@@ -470,11 +470,11 @@ func TestRafty_start5Nodes_normal(t *testing.T) {
 		testName:                  "5_nodes_normal",
 		clusterSize:               5,
 		delayLastNode:             true,
-		delayLastNodeTimeDuration: 30 * time.Second,
+		delayLastNodeTimeDuration: 5 * time.Second,
 		autoSetMinimumClusterSize: true,
 		portStartRange:            32000,
 		// runTestInParallel:         true,
-		snapshotInterval:  15 * time.Second,
+		snapshotInterval:  5 * time.Second,
 		snapshotThreshold: 2,
 	}
 	cc.assert = assert.New(t)
@@ -538,7 +538,7 @@ func TestRafty_start1Nodes_down_minimumSize(t *testing.T) {
 	dataDir1 := filepath.Dir(node1.options.DataDir)
 	dataDir2 := filepath.Dir(node2.options.DataDir)
 
-	time.AfterFunc(20*time.Second, func() {
+	time.AfterFunc(8*time.Second, func() {
 		node1.Stop()
 		node2.Stop()
 	})
@@ -623,7 +623,7 @@ func TestRafty_start3Nodes_snapshot(t *testing.T) {
 		// runTestInParallel: true,
 		portStartRange:    42000,
 		bootstrapCluster:  true,
-		snapshotInterval:  30 * time.Second,
+		snapshotInterval:  5 * time.Second,
 		snapshotThreshold: 2,
 	}
 	cc.assert = assert.New(t)

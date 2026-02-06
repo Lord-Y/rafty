@@ -507,9 +507,9 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	}
 	now := time.Now()
 	timeout := time.After(getUnitTestingTimeout())
-	timeoutRestart := time.After(30 * time.Second)
-	timeoutGetLeader := time.After(40 * time.Second)
-	sleep := 50 * time.Second
+	timeoutRestart := time.After(8 * time.Second)
+	timeoutGetLeader := time.After(12 * time.Second)
+	sleep := 8 * time.Second
 	doneTest := make(chan bool)
 
 	t.Setenv("RAFTY_LOG_LEVEL", "trace")
@@ -517,7 +517,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 	cc.startCluster(&wg)
 	dataDir := filepath.Dir(cc.cluster[0].options.DataDir)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 	// provoke errors on purpuse on non bootstrapped cluster
 	cc.submitCommandOnAllNodes(&wg)
 	if cc.bootstrapCluster {
@@ -545,7 +545,7 @@ func (cc *clusterConfig) testClustering(t *testing.T) {
 				}
 				nodeId++
 			}
-			time.Sleep(2 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 		}
 
 		if leader := cc.waitForLeader(&wg, 2*time.Second, 5); leader != (leaderMap{}) {
@@ -615,35 +615,35 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 	}
 	cc.startAdditionalNodes(&wg)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 	cc.membershipAction(&wg, true, "54", Add, false)
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	cc.membershipAction(&wg, true, "55", Add, false)
-	time.Sleep(2 * time.Second)
+	time.Sleep(750 * time.Millisecond)
 
 	cc.membershipAction(&wg, false, "56", Add, false)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(750 * time.Millisecond)
 	cc.membershipAction(&wg, false, "57", Add, false)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(750 * time.Millisecond)
 	cc.membershipAction(&wg, true, "58", Add, false)
 
-	time.Sleep(5 * time.Second)
-	cc.stopAdditionalNode(&wg, "58")
 	time.Sleep(2 * time.Second)
+	cc.stopAdditionalNode(&wg, "58")
+	time.Sleep(750 * time.Millisecond)
 
 	cc.membershipAction(&wg, false, "54", Demote, false)
-	time.Sleep(5 * time.Second)
-	cc.membershipAction(&wg, true, "55", Demote, false)
 	time.Sleep(2 * time.Second)
+	cc.membershipAction(&wg, true, "55", Demote, false)
+	time.Sleep(750 * time.Millisecond)
 
 	cc.membershipAction(&wg, true, "54", Promote, false)
-	time.Sleep(2 * time.Second)
+	time.Sleep(750 * time.Millisecond)
 
 	cc.membershipAction(&wg, true, "54", Remove, false)
-	time.Sleep(2 * time.Second)
+	time.Sleep(750 * time.Millisecond)
 
 	cc.membershipAction(&wg, true, "55", ForceRemove, true)
 
@@ -651,28 +651,28 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 		cc.membershipAction(&wg, true, leader.id, ForceRemove, true)
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(750 * time.Millisecond)
 	if leader = cc.waitForLeader(&wg, 5*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, true, leader.id, Demote, false)
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(750 * time.Millisecond)
 	if leader = cc.waitForLeader(&wg, 5*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, true, "56", Demote, false)
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(750 * time.Millisecond)
 	cc.membershipAction(&wg, true, "56", Remove, false)
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	cc.membershipAction(&wg, true, "57", Demote, false)
-	time.Sleep(5 * time.Second)
-
-	cc.membershipAction(&wg, true, "57", Remove, false)
 	time.Sleep(2 * time.Second)
 
+	cc.membershipAction(&wg, true, "57", Remove, false)
+	time.Sleep(750 * time.Millisecond)
+
 	cc.membershipAction(&wg, true, "53", Demote, false)
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	cc.membershipAction(&wg, true, "53", Remove, false)
 
@@ -680,7 +680,7 @@ func (cc *clusterConfig) testClusteringMembership(t *testing.T) {
 		cc.membershipAction(&wg, true, leader.id, Demote, false)
 	}
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 	if leader = cc.waitForLeader(&wg, 5*time.Second, 5); leader != (leaderMap{}) {
 		cc.membershipAction(&wg, true, leader.id, Demote, false)
 	}
