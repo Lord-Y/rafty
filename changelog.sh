@@ -68,7 +68,7 @@ manage_header(){
     if [[ "${OS}" == "darwin" ]]
     then
       sed -i '' "s#NEW_TAG#${NEW_TAG}#g" "${MD_HEADER_TARGET_NAME}"
-      sed -i '' "s#YYY-MM-DD#${TODAY_DATE}#g" "${MD_HEADER_TARGET_NAME}"
+      sed -i '' "s#YYYY-MM-DD#${TODAY_DATE}#g" "${MD_HEADER_TARGET_NAME}"
     else
       sed -i "s#NEW_TAG#${NEW_TAG}#g" "${MD_HEADER_TARGET_NAME}"
       sed -i "s#YYYY-MM-DD#${TODAY_DATE}#g" "${MD_HEADER_TARGET_NAME}"
