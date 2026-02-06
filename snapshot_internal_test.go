@@ -33,7 +33,7 @@ func TestSnapshot_internal(t *testing.T) {
 		for index := range 100 {
 			entry := makeNewLogEntry(1, LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		assert.Nil(s.logStore.Close())
@@ -52,7 +52,7 @@ func TestSnapshot_internal(t *testing.T) {
 		for index := range 100 {
 			entry := makeNewLogEntry(1, LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 
@@ -71,7 +71,7 @@ func TestSnapshot_internal(t *testing.T) {
 		for index := range 100 {
 			entry := makeNewLogEntry(1, LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 
@@ -84,7 +84,7 @@ func TestSnapshot_internal(t *testing.T) {
 
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogConfiguration, encodedPeers)
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 
 		snaphoName, err := s.takeSnapshot()
@@ -116,7 +116,7 @@ func TestSnapshot_internal(t *testing.T) {
 		for index := range 100 {
 			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 

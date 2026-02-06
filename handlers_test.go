@@ -295,7 +295,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 
 		responseChan := make(chan RPCResponse, 1)
 		request := RPCRequest{
@@ -340,7 +340,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 
 		entry := makeNewLogEntry(1, LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 
 		responseChan := make(chan RPCResponse, 1)
 		request := RPCRequest{
@@ -389,7 +389,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		entry1 := makeNewLogEntry(1, LogReplication, []byte("a=b"))
 		entry2 := makeNewLogEntry(2, LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry1, entry2}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		assert.Nil(s.logStore.Close())
 
 		responseChan := make(chan RPCResponse, 1)
@@ -437,7 +437,7 @@ func TestHandleSendVoteRequest(t *testing.T) {
 		entry2 := makeNewLogEntry(2, LogReplication, []byte("a=b"))
 		entry3 := makeNewLogEntry(3, LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry1, entry2, entry3}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 
 		responseChan := make(chan RPCResponse, 1)
 		request := RPCRequest{
@@ -809,7 +809,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		idx := fmt.Sprintf("%d", id)
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 
 		s.setLeader(leaderMap{
@@ -855,7 +855,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		idx := fmt.Sprintf("%d", id)
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
@@ -907,7 +907,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		entry1 := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		entry2 := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry1, entry2}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
 		responseChan := make(chan RPCResponse, 1)
@@ -957,7 +957,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		entry1 := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		entry2 := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry1, entry2}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 
 		responseChan := make(chan RPCResponse, 1)
@@ -1014,7 +1014,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		entry2 := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		entry3 := makeNewLogEntry(2, LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry1, entry2, entry3}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 		peers, _ := s.getPeers()
 		peers = append(peers, Peer{Address: "127.0.0.1:60000", ID: "xyz"})
@@ -1095,7 +1095,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		entry2 := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		entry3 := makeNewLogEntry(2, LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry1, entry2, entry3}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 		peers, _ := s.getPeers()
 		peers = append(peers, Peer{Address: "127.0.0.1:60000", ID: "xyz"})
@@ -1176,7 +1176,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		entry2 := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		entry3 := makeNewLogEntry(2, LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry1, entry2, entry3}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		s.timer = time.NewTicker(s.heartbeatTimeout())
 		responseChan := make(chan RPCResponse, 1)
 		leaderCommitIndex := uint64(4)
@@ -1248,7 +1248,7 @@ func TestHandleSendAppendEntriesRequest(t *testing.T) {
 		idx := fmt.Sprintf("%d", id)
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		s.setLeader(leaderMap{
 			address: s.configuration.ServerMembers[id].address.String(),
 			id:      s.configuration.ServerMembers[id].ID,
@@ -1326,7 +1326,7 @@ func TestHandleInstallSnapshotRequest(t *testing.T) {
 		for index := range max {
 			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 		}
 		_, err := s.takeSnapshot()
 		assert.Nil(err)

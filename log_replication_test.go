@@ -30,7 +30,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		s.currentTerm.Store(1)
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		entries := makeProtobufLogEntry(entry)
 
@@ -78,7 +78,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		s.currentTerm.Store(1)
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		entries := makeProtobufLogEntry(entry)
 
@@ -130,7 +130,7 @@ func TestLogReplication_SendCatchupAppendEntries(t *testing.T) {
 		for index := range max {
 			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 			entries = append(entries, makeProtobufLogEntry(entry)...)
 		}
@@ -193,7 +193,7 @@ func TestLogReplication_catchupNewMember(t *testing.T) {
 		encodedPeers := EncodePeers(nextConfig)
 
 		entry := makeNewLogEntry(currentTerm, LogConfiguration, encodedPeers)
-		s.storeLogs([]*LogEntry{entry})
+		assert.Nil(s.storeLogs([]*LogEntry{entry}))
 		previousLogIndex, previousTerm := s.getPreviousLogIndexAndTerm()
 
 		request := &onAppendEntriesRequest{
@@ -240,7 +240,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s.currentTerm.Store(1)
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 
 		id := 0
@@ -271,7 +271,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		s.currentTerm.Store(1)
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 
 		id := 0
@@ -304,7 +304,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		for index := range max {
 			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		_, err := s.takeSnapshot()
@@ -340,7 +340,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		for index := range max {
 			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		_, err := s.takeSnapshot()
@@ -380,7 +380,7 @@ func TestLogReplication_sendInstallSnapshot(t *testing.T) {
 		for index := range max {
 			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 		_, err := s.takeSnapshot()
