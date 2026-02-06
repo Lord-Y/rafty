@@ -298,7 +298,7 @@ func (r *Rafty) start() {
 	go r.commonLoop()
 	if !r.checkNodeIDs() {
 		r.sendAskNodeIDRequest()
-		r.startClusterWithMinimumSize()
+		go r.startClusterWithMinimumSize()
 	}
 
 	go r.snapshotLoop()

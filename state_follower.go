@@ -23,6 +23,12 @@ func (r *follower) onTimeout() {
 		return
 	}
 
+	if !r.rafty.minimumClusterSizeReach.Load() {
+		r.rafty.sendAskNodeIDRequest()
+		r.rafty.resetMainTimer(r.rafty.electionTimeout())
+		return
+	}
+
 	if r.rafty.askForMembership.Load() {
 		return
 	}
