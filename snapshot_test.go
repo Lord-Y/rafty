@@ -421,7 +421,7 @@ func TestSSnapshot(t *testing.T) {
 		for index := range max {
 			entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte(fmt.Sprintf("%s=%d", fake.WordsN(5), index)))
 			logs := []*LogEntry{entry}
-			s.storeLogs(logs)
+			assert.Nil(s.storeLogs(logs))
 			assert.Nil(s.applyConfigEntry(makeProtobufLogEntry(entry)[0]))
 		}
 
