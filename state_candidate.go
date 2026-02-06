@@ -83,7 +83,7 @@ func (r *candidate) preVoteRequest() {
 		ResponseChan: r.responsePreVoteChan,
 	}
 
-	r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
+	r.rafty.resetMainTimer(r.rafty.randomElectionTimeout())
 
 	for _, peer := range peers {
 		go func() {
@@ -120,8 +120,8 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 	if response.CurrentTerm > response.RequesterTerm {
 		r.rafty.currentTerm.Store(response.CurrentTerm)
 		r.rafty.switchState(Follower, stepDown, true, response.CurrentTerm)
-		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-			panic(err)
+		if err := r.rafty.persistMetadata("candidate observed higher pre-vote term"); err != nil {
+			return
 		}
 		return
 	}
@@ -148,8 +148,8 @@ func (r *candidate) handlePreVoteResponse(resp RPCResponse) {
 // to other nodes in order to elect a leader
 func (r *candidate) startElection() {
 	currentTerm := r.rafty.currentTerm.Add(1)
-	if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-		panic(err)
+	if err := r.rafty.persistMetadata("candidate started election"); err != nil {
+		return
 	}
 
 	lastLogIndex := r.rafty.lastLogIndex.Load()
@@ -176,7 +176,7 @@ func (r *candidate) startElection() {
 		ResponseChan: r.responseVoteChan,
 	}
 
-	r.rafty.timer.Reset(r.rafty.randomElectionTimeout())
+	r.rafty.resetMainTimer(r.rafty.randomElectionTimeout())
 
 	for _, peer := range peers {
 		go func() {
@@ -224,8 +224,8 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 
 		r.rafty.currentTerm.Store(response.CurrentTerm)
 		r.rafty.switchState(Follower, stepDown, true, response.CurrentTerm)
-		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-			panic(err)
+		if err := r.rafty.persistMetadata("candidate observed higher vote term"); err != nil {
+			return
 		}
 		return
 	}
@@ -252,8 +252,8 @@ func (r *candidate) handleVoteResponse(resp RPCResponse) {
 func (r *candidate) isSingleServerCluster() {
 	currentTerm := r.rafty.currentTerm.Add(1)
 	r.rafty.switchState(Candidate, stepUp, true, currentTerm)
-	if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-		panic(err)
+	if err := r.rafty.persistMetadata("single-node election term increment"); err != nil {
+		return
 	}
 	r.rafty.switchState(Leader, stepUp, true, currentTerm)
 }

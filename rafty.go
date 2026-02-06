@@ -3,7 +3,9 @@ package rafty
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -176,8 +178,9 @@ func NewRafty(address net.TCPAddr, id string, options Options, logStore LogStore
 	if r.options.IsSingleServerCluster {
 		r.leadershipTransferDisabled.Store(true)
 	}
+	r.rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 	r.timer = time.NewTicker(r.randomElectionTimeout())
-	r.quitCtx, r.stopCtx = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	r.quitCtx, r.stopCtx = context.WithCancel(context.Background())
 
 	r.logStore = logStore
 	r.clusterStore = clusterStore
@@ -206,15 +209,35 @@ func NewRafty(address net.TCPAddr, id string, options Options, logStore LogStore
 
 // Start permits to start the node with the provided configuration
 func (r *Rafty) Start() error {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	return r.Serve(ctx)
+}
+
+// Serve starts the node and blocks until the provided context is canceled.
+func (r *Rafty) Serve(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	var err error
 
 	if r.id == "" {
 		r.id = uuid.NewString()
 		r.connectionManager.id = r.id
-		if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
+		if err := r.persistMetadata("initialize node metadata"); err != nil {
 			return fmt.Errorf("fail to persist metadata %w", err)
 		}
 	}
+
+	r.quitCtx, r.stopCtx = context.WithCancel(context.Background())
+	go func() {
+		select {
+		case <-ctx.Done():
+			r.Stop()
+		case <-r.quitCtx.Done():
+		}
+	}()
 
 	r.metrics = newMetrics(r.options.MetricsNamespacePrefix, r.id, r.options.IsVoter)
 	r.metrics.setNodeStateGauge(Down)
@@ -247,8 +270,9 @@ func (r *Rafty) Start() error {
 	select {
 	case err := <-errChan:
 		return fmt.Errorf("fail to start gRPC server %w", err)
-	default:
+	case <-time.After(100 * time.Millisecond):
 	}
+	go r.watchServeErrors(errChan)
 
 	r.isRunning.Store(true)
 	if r.getState() == Down {
@@ -257,13 +281,12 @@ func (r *Rafty) Start() error {
 			Str("address", r.Address.String()).
 			Str("id", r.id).
 			Str("state", r.getState().String()).
-			Str("isVoter", fmt.Sprintf("%t", r.options.IsVoter)).
+			Bool("isVoter", r.options.IsVoter).
 			Msgf("Node successfully started")
 	}
 
 	go r.start()
 	<-r.quitCtx.Done()
-	r.Stop()
 	return nil
 }
 
@@ -296,7 +319,9 @@ func (r *Rafty) stop() {
 		_ = r.LeaveOnTerminateMember(5, r.Address.String(), r.id, r.options.IsVoter)
 	}
 	r.isRunning.Store(false)
-	r.stopCtx()
+	if r.stopCtx != nil {
+		r.stopCtx()
+	}
 	// this is just a safe guard when invoking Stop function directly
 	r.switchState(Down, stepDown, true, r.currentTerm.Load())
 	r.release()
@@ -324,6 +349,21 @@ func (r *Rafty) stop() {
 		Str("id", r.id).
 		Str("state", r.getState().String()).
 		Msgf("Node successfully stopped with term %d", r.currentTerm.Load())
+}
+
+// watchServeErrors handles asynchronous gRPC server failures.
+// It ignores expected shutdown errors and stops the node on unexpected ones.
+func (r *Rafty) watchServeErrors(errChan <-chan error) {
+	err, ok := <-errChan
+	if !ok || err == nil || errors.Is(err, grpc.ErrServerStopped) {
+		return
+	}
+	r.Logger.Error().Err(err).
+		Str("address", r.Address.String()).
+		Str("id", r.id).
+		Str("state", r.getState().String()).
+		Msgf("gRPC server stopped unexpectedly")
+	r.Stop()
 }
 
 // checkNodeIDs check if we gather all node ids.
@@ -453,10 +493,33 @@ func (r *Rafty) restore(result []byte) error {
 	return nil
 }
 
+// persistMetadata stores raft metadata and emits a contextual error log on failure.
+func (r *Rafty) persistMetadata(action string) error {
+	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Str("action", action).
+			Msgf("Failed to persist metadata")
+		return err
+	}
+	return nil
+}
+
+// resetMainTimer serializes access to the shared main ticker reset.
+func (r *Rafty) resetMainTimer(timeout time.Duration) {
+	r.timerMu.Lock()
+	defer r.timerMu.Unlock()
+	if r.timer != nil {
+		r.timer.Reset(timeout)
+	}
+}
+
 // storeLogs will store logs to the long term storage.
 // If we cannot store them, the current node will step down
 // as follower
-func (r *Rafty) storeLogs(entries []*LogEntry) {
+func (r *Rafty) storeLogs(entries []*LogEntry) error {
 	currentTerm := r.currentTerm.Load()
 	lastLogIndex := r.lastLogIndex.Load()
 
@@ -468,28 +531,37 @@ func (r *Rafty) storeLogs(entries []*LogEntry) {
 
 	if err := r.logStore.StoreLogs(entries); err != nil {
 		r.switchState(Follower, stepDown, true, currentTerm)
+		return err
 	}
 
 	r.lastLogIndex.Store(lastLogIndex)
 	r.lastLogTerm.Store(currentTerm)
+	return nil
 }
 
 // getPreviousLogIndexAndTerm will return the previous index and term
 // of last committed log
 func (r *Rafty) getPreviousLogIndexAndTerm() (uint64, uint64) {
+	index, term, _ := r.getPreviousLogIndexAndTermWithError()
+	return index, term
+}
+
+// getPreviousLogIndexAndTermWithError returns the previous index and term
+// and surfaces storage errors.
+func (r *Rafty) getPreviousLogIndexAndTermWithError() (uint64, uint64, error) {
 	if r.lastLogIndex.Load() == 0 {
-		return 0, 0
+		return 0, 0, nil
 	}
 
 	// if equal to last snapshot
 	if r.nextIndex.Load()-1 == r.lastIncludedIndex.Load() {
-		return r.lastIncludedIndex.Load(), r.lastIncludedTerm.Load()
+		return r.lastIncludedIndex.Load(), r.lastIncludedTerm.Load(), nil
 	}
 
 	result, err := r.logStore.GetLogByIndex(r.lastLogIndex.Load())
 	if err != nil {
-		return 0, 0
+		return 0, 0, err
 	}
 
-	return result.Index, result.Term
+	return result.Index, result.Term, nil
 }

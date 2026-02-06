@@ -37,7 +37,7 @@ func (r *leader) init() {
 	// heartBeatTimeout is divided by 2 for the leader
 	// otherwise it will step down quickly as new election campaign
 	// will be started by followers
-	r.rafty.timer.Reset(r.rafty.heartbeatTimeout() / 2)
+	r.rafty.resetMainTimer(r.rafty.heartbeatTimeout() / 2)
 }
 
 // onTimeout permit to reset election timer
@@ -204,7 +204,26 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 	if config.logType == LogReplication || config.logType == LogNoop {
 		entry := makeNewLogEntry(r.rafty.currentTerm.Load(), config.logType, config.command)
 		logs := []*LogEntry{entry}
-		r.rafty.storeLogs(logs)
+		if err := r.rafty.storeLogs(logs); err != nil {
+			if config.client {
+				response := RPCResponse{
+					Response: &raftypb.AppendEntryResponse{},
+					Error:    err,
+				}
+				if config.source == "forward" {
+					response = RPCResponse{
+						Response: &raftypb.ForwardCommandToLeaderResponse{},
+						Error:    err,
+					}
+				}
+				select {
+				case <-r.rafty.quitCtx.Done():
+				case <-time.After(100 * time.Millisecond):
+				case config.clientChan <- response:
+				}
+			}
+			return
+		}
 
 		indexWatcher := &indexWatcher{
 			totalFollowers: r.totalFollowers.Load(),
@@ -300,7 +319,9 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			encodedPeers, _ := r.rafty.validateSendMembershipChangeRequest(config.membershipChange.action, config.membershipChange.member)
 			entry := makeNewLogEntry(r.rafty.currentTerm.Load(), config.logType, encodedPeers)
 			logs := []*LogEntry{entry}
-			r.rafty.storeLogs(logs)
+			if err := r.rafty.storeLogs(logs); err != nil {
+				return
+			}
 
 			r.murw.Lock()
 			r.commitIndexWatcher[entry.Index] = &indexWatcher{
@@ -318,8 +339,8 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 			r.murw.Unlock()
 
 			_ = r.rafty.applyConfigEntry(makeProtobufLogEntry(entry)[0])
-			if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-				panic(err)
+			if err := r.rafty.persistMetadata("leader add member config staged"); err != nil {
+				return
 			}
 
 			replicationData := replicationData{uuid: uuid, newKey: true}
@@ -338,7 +359,9 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 		encodedPeers, _ := r.rafty.validateSendMembershipChangeRequest(Promote, config.membershipChange.member)
 		entry := makeNewLogEntry(r.rafty.currentTerm.Load(), config.logType, encodedPeers)
 		logs := []*LogEntry{entry}
-		r.rafty.storeLogs(logs)
+		if err := r.rafty.storeLogs(logs); err != nil {
+			return
+		}
 
 		config.membershipChange.action = Promote
 		r.murw.Lock()
@@ -357,8 +380,8 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 		r.murw.Unlock()
 
 		_ = r.rafty.applyConfigEntry(makeProtobufLogEntry(entry)[0])
-		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-			panic(err)
+		if err := r.rafty.persistMetadata("leader auto-promote member config staged"); err != nil {
+			return
 		}
 
 		replicationData := replicationData{uuid: uuid, newKey: true}
@@ -382,7 +405,9 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 		encodedPeers, _ := r.rafty.validateSendMembershipChangeRequest(config.membershipChange.action, config.membershipChange.member)
 		entry := makeNewLogEntry(r.rafty.currentTerm.Load(), config.logType, encodedPeers)
 		logs := []*LogEntry{entry}
-		r.rafty.storeLogs(logs)
+		if err := r.rafty.storeLogs(logs); err != nil {
+			return
+		}
 
 		r.murw.Lock()
 		r.commitIndexWatcher[entry.Index] = &indexWatcher{
@@ -400,8 +425,8 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 		r.murw.Unlock()
 
 		_ = r.rafty.applyConfigEntry(makeProtobufLogEntry(entry)[0])
-		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-			panic(err)
+		if err := r.rafty.persistMetadata("leader promote member config staged"); err != nil {
+			return
 		}
 
 		replicationData := replicationData{uuid: uuid, newKey: true}
@@ -440,7 +465,9 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 
 		entry := makeNewLogEntry(r.rafty.currentTerm.Load(), config.logType, encodedPeers)
 		logs := []*LogEntry{entry}
-		r.rafty.storeLogs(logs)
+		if err := r.rafty.storeLogs(logs); err != nil {
+			return
+		}
 
 		r.murw.Lock()
 		r.commitIndexWatcher[entry.Index] = &indexWatcher{
@@ -458,8 +485,8 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 		r.murw.Unlock()
 
 		_ = r.rafty.applyConfigEntry(makeProtobufLogEntry(entry)[0])
-		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-			panic(err)
+		if err := r.rafty.persistMetadata("leader demote member config staged"); err != nil {
+			return
 		}
 
 		replicationData := replicationData{uuid: uuid, newKey: true}
@@ -495,7 +522,9 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 
 		entry := makeNewLogEntry(r.rafty.currentTerm.Load(), config.logType, encodedPeers)
 		logs := []*LogEntry{entry}
-		r.rafty.storeLogs(logs)
+		if err := r.rafty.storeLogs(logs); err != nil {
+			return
+		}
 
 		r.murw.Lock()
 		r.commitIndexWatcher[entry.Index] = &indexWatcher{
@@ -513,8 +542,8 @@ func (r *leader) replicateLog(config replicateLogConfig) {
 		r.murw.Unlock()
 
 		_ = r.rafty.applyConfigEntry(makeProtobufLogEntry(entry)[0])
-		if err := r.rafty.clusterStore.StoreMetadata(r.rafty.buildMetadata()); err != nil {
-			panic(err)
+		if err := r.rafty.persistMetadata("leader remove member config staged"); err != nil {
+			return
 		}
 
 		replicationData := replicationData{uuid: uuid, newKey: true}

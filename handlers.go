@@ -61,8 +61,8 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 		response.Granted = true
 		data.ResponseChan <- rpcResponse
 		r.switchState(Follower, stepDown, true, request.CurrentTerm)
-		if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-			panic(err)
+		if err := r.persistMetadata("grant vote to higher term candidate"); err != nil {
+			return
 		}
 
 		r.Logger.Trace().
@@ -123,8 +123,8 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 			response.CurrentTerm = request.CurrentTerm
 			response.Granted = true
 			r.switchState(Follower, stepDown, false, request.CurrentTerm)
-			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-				panic(err)
+			if err := r.persistMetadata("grant vote after log comparison"); err != nil {
+				return
 			}
 			data.ResponseChan <- rpcResponse
 
@@ -159,8 +159,8 @@ func (r *Rafty) handleSendVoteRequest(data RPCRequest) {
 
 	r.setVotedFor(request.CandidateId, request.CurrentTerm)
 	r.switchState(Follower, stepDown, false, request.CurrentTerm)
-	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-		panic(err)
+	if err := r.persistMetadata("grant vote"); err != nil {
+		return
 	}
 
 	response.CurrentTerm = request.CurrentTerm
@@ -231,8 +231,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 
 	r.switchState(Follower, stepDown, true, request.Term)
 	r.currentTerm.Store(request.Term)
-	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-		panic(err)
+	if err := r.persistMetadata("append entries term update"); err != nil {
+		return
 	}
 
 	r.setLeader(leaderMap{
@@ -240,9 +240,18 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 		address: request.LeaderAddress,
 	})
 	r.leaderLastContactDate.Store(time.Now())
-	r.timer.Reset(r.heartbeatTimeout())
+	r.resetMainTimer(r.heartbeatTimeout())
 
-	previousLogIndex, previousLogTerm := r.getPreviousLogIndexAndTerm()
+	previousLogIndex, previousLogTerm, err := r.getPreviousLogIndexAndTermWithError()
+	if err != nil {
+		data.ResponseChan <- rpcResponse
+		r.Logger.Error().Err(err).
+			Str("address", r.Address.String()).
+			Str("id", r.id).
+			Str("state", r.getState().String()).
+			Msgf("Failed to fetch previous log metadata")
+		return
+	}
 	if (request.PrevLogIndex != previousLogIndex || request.PrevLogTerm != previousLogTerm) && !request.Catchup {
 		response.LogNotFound = true
 		response.LastLogIndex = lastLogIndex
@@ -321,7 +330,12 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 
 		if lenEntries := len(newEntries); lenEntries > 0 {
 			if err := r.logStore.StoreLogs(makeLogEntries(newEntries)); err != nil {
-				panic(err)
+				r.Logger.Error().Err(err).
+					Str("address", r.Address.String()).
+					Str("id", r.id).
+					Str("state", r.getState().String()).
+					Msgf("Failed to persist appended entries")
+				return
 			}
 
 			lastLogIndex = newEntries[lenEntries-1].Index
@@ -341,8 +355,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 						Msgf("Fail to apply config entry")
 				}
 			}
-			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-				panic(err)
+			if err := r.persistMetadata("apply appended config entries"); err != nil {
+				return
 			}
 
 			if _, err := r.applyLogs(applyLogs{entries: newEntries}); err != nil {
@@ -361,8 +375,8 @@ func (r *Rafty) handleSendAppendEntriesRequest(data RPCRequest) {
 				r.commitIndex.Store(min(request.LeaderCommitIndex, lastLogIndex))
 			}
 
-			if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-				panic(err)
+			if err := r.persistMetadata("advance follower commit index"); err != nil {
+				return
 			}
 
 			r.Logger.Debug().

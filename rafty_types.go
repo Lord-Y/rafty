@@ -2,6 +2,7 @@ package rafty
 
 import (
 	"context"
+	"math/rand"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -183,6 +184,13 @@ type Rafty struct {
 	// It will be used to detect if a Follower
 	// need to step up as a Candidate to then becoming a Leader
 	timer *time.Ticker
+	// timerMu serializes timer reset/stop operations.
+	timerMu sync.Mutex
+
+	// rand is used for randomized timings.
+	rand *rand.Rand
+	// randMu serializes access to rand.
+	randMu sync.Mutex
 
 	// rpcPreVoteRequestChan will be used to handle rpc call
 	rpcPreVoteRequestChan chan RPCRequest

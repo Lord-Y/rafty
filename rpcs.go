@@ -342,11 +342,17 @@ func (r *Rafty) bootstrapCluster(data RPCRequest) {
 	encodedPeers := EncodePeers(peers)
 	entry := makeNewLogEntry(r.currentTerm.Load(), LogConfiguration, encodedPeers)
 	logs := []*LogEntry{entry}
-	r.storeLogs(logs)
+	if err := r.storeLogs(logs); err != nil {
+		rpcResponse.Error = err
+		rpcResponse.Response = response
+		return
+	}
 
 	_ = r.applyConfigEntry(makeProtobufLogEntry(entry)[0])
-	if err := r.clusterStore.StoreMetadata(r.buildMetadata()); err != nil {
-		panic(err)
+	if err := r.persistMetadata("bootstrap cluster"); err != nil {
+		rpcResponse.Error = err
+		rpcResponse.Response = response
+		return
 	}
 
 	response.Success = true
@@ -357,7 +363,7 @@ func (r *Rafty) bootstrapCluster(data RPCRequest) {
 	r.commitIndex.Add(1)
 	r.isBootstrapped.Store(true)
 	r.switchState(Leader, stepUp, true, r.currentTerm.Load())
-	r.timer.Reset(r.randomElectionTimeout())
+	r.resetMainTimer(r.randomElectionTimeout())
 	r.Logger.Info().
 		Str("address", r.Address.String()).
 		Str("id", r.id).

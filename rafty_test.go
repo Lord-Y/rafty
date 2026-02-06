@@ -1,6 +1,7 @@
 package rafty
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -299,7 +300,7 @@ func TestRafty_storeLogs(t *testing.T) {
 	assert.Nil(s.logStore.Close())
 	entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 	logs := []*LogEntry{entry}
-	s.storeLogs(logs)
+	assert.Error(s.storeLogs(logs))
 	assert.Equal(s.State, Follower)
 }
 
@@ -359,13 +360,97 @@ func TestRafty_getPreviousLogIndexAndTerm(t *testing.T) {
 		s.currentTerm.Store(1)
 		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
 		logs := []*LogEntry{entry}
-		s.storeLogs(logs)
+		assert.Nil(s.storeLogs(logs))
 		s.nextIndex.Store(2)
 
 		index, term := s.getPreviousLogIndexAndTerm()
 		assert.Equal(s.lastLogIndex.Load(), index)
 		assert.Equal(s.currentTerm.Load(), term)
 	})
+}
+
+func TestRafty_getPreviousLogIndexAndTermWithError(t *testing.T) {
+	assert := assert.New(t)
+
+	t.Run("error_is_returned", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.nextIndex.Store(2)
+		s.lastLogIndex.Store(50)
+		s.lastLogTerm.Store(1)
+
+		index, term, err := s.getPreviousLogIndexAndTermWithError()
+		assert.Equal(uint64(0), index)
+		assert.Equal(uint64(0), term)
+		assert.Error(err)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		s := basicNodeSetup()
+		defer func() {
+			assert.Nil(s.logStore.Close())
+			assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+		}()
+		s.currentTerm.Store(1)
+		entry := makeNewLogEntry(s.currentTerm.Load(), LogReplication, []byte("a=b"))
+		logs := []*LogEntry{entry}
+		assert.Nil(s.storeLogs(logs))
+		s.nextIndex.Store(2)
+
+		index, term, err := s.getPreviousLogIndexAndTermWithError()
+		assert.Nil(err)
+		assert.Equal(s.lastLogIndex.Load(), index)
+		assert.Equal(s.currentTerm.Load(), term)
+	})
+}
+
+func TestRafty_serve_withContextCancel(t *testing.T) {
+	assert := assert.New(t)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("skipping serve test: cannot allocate local listener: %v", err)
+	}
+	addr := listener.Addr().(*net.TCPAddr)
+	assert.Nil(listener.Close())
+
+	options := Options{
+		IsVoter:      true,
+		InitialPeers: []InitialPeer{{Address: "127.0.0.2:50052"}, {Address: "127.0.0.3:50053"}},
+		DataDir:      filepath.Join(os.TempDir(), "rafty_test", fake.CharactersN(20), "serve_cancel"),
+	}
+	options.MetricsNamespacePrefix = fmt.Sprintf("serve_%d_%s", addr.Port, fake.CharactersN(20))
+	storeOptions := BoltOptions{
+		DataDir: options.DataDir,
+		Options: bolt.DefaultOptions,
+	}
+	store, err := NewBoltStorage(storeOptions)
+	assert.Nil(err)
+	fsm := NewSnapshotState(store)
+	s, err := NewRafty(*addr, fmt.Sprintf("%d", addr.Port), options, store, store, fsm, nil)
+	assert.Nil(err)
+	defer func() {
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- s.Serve(ctx)
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-errChan:
+		assert.Nil(err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Serve did not return after context cancel")
+	}
 }
 
 func TestRafty_start3Nodes_normal(t *testing.T) {

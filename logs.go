@@ -98,7 +98,7 @@ func (r *Rafty) applyConfigEntry(entry *raftypb.LogEntry) error {
 			r.lastAppliedConfigTerm.Store(entry.Term)
 			if r.options.BootstrapCluster && !r.isBootstrapped.Load() {
 				r.isBootstrapped.Store(true)
-				r.timer.Reset(r.randomElectionTimeout())
+				r.resetMainTimer(r.randomElectionTimeout())
 			}
 		}
 		return nil

@@ -28,7 +28,7 @@ func (r *follower) onTimeout() {
 	}
 
 	if r.rafty.options.BootstrapCluster && !r.rafty.isBootstrapped.Load() {
-		r.rafty.timer.Reset(30 * time.Second)
+		r.rafty.resetMainTimer(30 * time.Second)
 		r.rafty.Logger.Warn().
 			Str("address", r.rafty.Address.String()).
 			Str("id", r.rafty.id).
