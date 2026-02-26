@@ -363,7 +363,7 @@ func (r *Rafty) IsLeader() bool {
 	return r.getState() == Leader
 }
 
-// IsLeader return true if the current node is the leader
+// Leader return true if the current node is the leader
 func (r *Rafty) Leader() (bool, string, string) {
 	leader := r.getLeader()
 	var lid, lad string
@@ -375,6 +375,14 @@ func (r *Rafty) Leader() (bool, string, string) {
 		lid, lad = leader.id, leader.address
 		return lid != "" && lad != "", lad, lid
 	}
+}
+
+// FetchLeader asks all nodes who is the leader
+// and then return the answer.
+func (r *Rafty) FetchLeader() (bool, string, string) {
+	r.sendGetLeaderRequest()
+	time.Sleep(2 * time.Second)
+	return r.Leader()
 }
 
 // IsRunning return a boolean if the node is running
