@@ -1183,6 +1183,10 @@ func TestClient_FetchLeader(t *testing.T) {
 	s.fillIDs()
 	s.State = Follower
 	s.isRunning.Store(true)
+	go func() {
+		<-s.rpcClientGetLeaderChan
+		time.Sleep(5 * time.Second)
+	}()
 	found, _, _ := s.FetchLeader()
 	assert.Equal(found, false)
 }
