@@ -1172,6 +1172,21 @@ func TestClient_Leader(t *testing.T) {
 	assert.Equal(found, false)
 }
 
+func TestClient_FetchLeader(t *testing.T) {
+	assert := assert.New(t)
+
+	s := basicNodeSetup()
+	defer func() {
+		assert.Nil(s.logStore.Close())
+		assert.Nil(os.RemoveAll(getRootDir(s.options.DataDir)))
+	}()
+	s.fillIDs()
+	s.State = Follower
+	s.isRunning.Store(true)
+	found, _, _ := s.FetchLeader()
+	assert.Equal(found, false)
+}
+
 func TestClient_isRunning(t *testing.T) {
 	assert := assert.New(t)
 
