@@ -34,3 +34,8 @@ else
 fi
 
 go mod tidy
+for i in $(find examples -type f -name go.mod)
+do
+  cd $(dirname $i)
+  go mod tidy
+done
